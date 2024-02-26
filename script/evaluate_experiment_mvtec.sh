@@ -7,7 +7,7 @@ layer_name='layer_3'
 sub_folder="up_16_32_64"
 file_name="test_2"
 
-dataset_dir="../../../MyData/anomaly_detection/${bench_mark}/${obj_name}"
+dataset_dir="../../../MyData/anomaly_detection/${bench_mark}"
 base_dir="../../result/${bench_mark}/${obj_name}/${layer_name}/${sub_folder}/${file_name}/reconstruction"
 
 output_dir="metrics"
