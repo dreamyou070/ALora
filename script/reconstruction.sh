@@ -2,11 +2,11 @@
 
 port_number=50002
 bench_mark="MVTec"
-obj_name='transistor'
-caption='transistor'
+obj_name='screw'
+caption='screw'
 layer_name='layer_3'
 sub_folder="up_16_32_64"
-file_name="rotating_2"
+file_name="test_2"
 
 position_embedding_layer="down_blocks_0_attentions_0_transformer_blocks_0_attn1"
 
