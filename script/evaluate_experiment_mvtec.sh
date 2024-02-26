@@ -1,11 +1,11 @@
 #! /bin/bash
 
 bench_mark="MVTec"
-obj_name='transistor'
-caption='transistor'
+obj_name='pill'
+caption='pill'
 layer_name='layer_3'
 sub_folder="up_16_32_64"
-file_name="rotating_2"
+file_name="test_1"
 
 dataset_dir="../../../MyData/anomaly_detection/${bench_mark}"
 base_dir="../../result/${bench_mark}/${obj_name}/${layer_name}/${sub_folder}/${file_name}/reconstruction"
