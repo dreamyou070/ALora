@@ -1,12 +1,12 @@
 # !/bin/bash
 
-port_number=51212
-obj_name='screw'
-caption='screw'
+port_number=53113
+obj_name='transistor'
+caption='transistor'
 bench_mark="MVTec"
 layer_name='layer_3'
 sub_folder="up_16_32_64"
-file_name="test_2"
+file_name="rotating_2"
 
 position_embedding_layer="down_blocks_0_attentions_0_transformer_blocks_0_attn1"
 
