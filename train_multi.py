@@ -366,10 +366,8 @@ if __name__ == "__main__":
     parser.add_argument("--use_noise_scheduler", action='store_true')
     parser.add_argument('--min_timestep', type=int, default=0)
     parser.add_argument('--max_timestep', type=int, default=500)
-
     parser.add_argument("--save_model_as", type=str, default="safetensors",
-                        choices=[None, "ckpt", "pt", "safetensors"],
-                        help="format to save the model (default is .safetensors)", )
+               choices=[None, "ckpt", "pt", "safetensors"], help="format to save the model (default is .safetensors)",)
     parser.add_argument("--start_epoch", type=int, default=0)
     parser.add_argument("--max_train_epochs", type=int, default=None, )
     parser.add_argument("--gradient_checkpointing", action="store_true", help="enable gradient checkpointing")
