@@ -110,6 +110,41 @@ def main(args):
                 encoder_hidden_states = text_encoder(batch["input_ids"].to(device))["last_hidden_state"]
             object_position_vector = batch['object_mask'].squeeze().flatten()
             # --------------------------------------------------------------------------------------------------------- #
+            if args.do_nomal_sample:
+                with torch.no_grad():
+                    latents = vae.encode(batch["image"].to(dtype=weight_dtype)).latent_dist.sample() * args.vae_scale_factor
+                anomal_position_vector = torch.zeros_like(object_position_vector)
+                model_kwargs = {}
+                with torch.set_grad_enabled(True):
+                    noise_pred = unet(latents,
+                                      0,
+                                      encoder_hidden_states,
+                                      trg_layer_list=args.trg_layer_list,
+                                      noise_type=position_embedder,
+                                      **model_kwargs).sample
+                query_dict, attn_dict = controller.query_dict, controller.step_store
+                controller.reset()
+                for trg_layer in args.trg_layer_list:
+                    normal_activator.resize_query_features(query_dict[trg_layer][0].squeeze(0))
+                    normal_activator.resize_attn_scores(attn_dict[trg_layer][0])
+                c_query = normal_activator.generate_conjugated()
+                if args.mahalanobis_only_object:
+                    normal_activator.collect_queries(c_query,
+                                                     normal_position=object_normal_position_vector,
+                                                     anomal_position=anomal_position_vector,
+                                                     do_collect_normal=True)
+                else:
+                    normal_activator.collect_queries(c_query,
+                                                     normal_position=(1 - anomal_position_vector),
+                                                     anomal_position=anomal_position_vector,
+                                                     do_collect_normal=True)
+                c_attn_score = normal_activator.generate_conjugated_attn_score()
+                normal_activator.collect_attention_scores(c_attn_score, anomal_position_vector)
+                normal_activator.collect_anomal_map_loss(c_attn_score, anomal_position_vector)
+                if args.test_noise_predicting_task_loss:
+                    normal_activator.collect_noise_prediction_loss(noise_pred, noise, anomal_position_vector)
+
+            # --------------------------------------------------------------------------------------------------------- #
             if args.do_anomal_sample:
                 with torch.no_grad():
                     latents = vae.encode(

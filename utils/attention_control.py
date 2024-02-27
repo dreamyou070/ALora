@@ -52,12 +52,7 @@ def register_attention_control(unet: nn.Module,controller: AttentionStore):
     def ca_forward(self, layer_name):
         def forward(hidden_states, context=None, trg_layer_list=None, noise_type=None):
 
-            """
-            use_self_embedding = False
-            if len(trg_layer_list) == 2 :
-                use_self_embedding = True
-                trg_layer_list, self_embedding = trg_layer_list[0], trg_layer_list[1]
-            """
+            print("layer_name", layer_name)
 
             is_cross_attention = False
             if context is not None:
