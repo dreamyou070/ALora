@@ -2,8 +2,8 @@
 
 port_number=50002
 bench_mark="MVTec"
-obj_name='screw'
-caption='screw'
+obj_name='transistor'
+caption='transistor'
 layer_name='layer_3'
 sub_folder="up_16_32_64"
 file_name="test_global"
