@@ -10,12 +10,18 @@ from data.prepare_dataset import call_dataset
 from attention_store.normal_activator import passing_normalize_argument
 from data.mvtec import passing_mvtec_argument
 
-
 def torch_to_pil(torch_img):
     # torch_img = [3, H, W], from -1 to 1
     np_img = np.array(((torch_img + 1) / 2) * 255).astype(np.uint8).transpose(1, 2, 0)
     pil = Image.fromarray(np_img)
     return pil
+
+def make_mask_pil(torch_tensor):
+    mask_np = np.array(torch_tensor)
+    mask_np = np.where(mask_np > 0.5, 255, 0).astype(np.uint8)
+    mask_pil = Image.fromarray(mask_np)
+    return mask_pil
+
 def main(args):
 
     print(f'\n step 1. setting')
@@ -41,20 +47,21 @@ def main(args):
         # [1] org img
         img_pil = torch_to_pil(sample['image'].squeeze(0))
         img_pil.save(os.path.join(saving_base_dir, f'org_img_{i}.png'))
-        object_mask_pil = torch_to_pil(sample['object_mask'].squeeze(0))
+
+        object_mask_pil = make_mask_pil(sample['object_mask'].squeeze(0))
         object_mask_pil.save(os.path.join(saving_base_dir, f'org_mask_{i}.png'))
 
         # [2] anomal img
         anomal_img_pil = torch_to_pil(sample['anomal_image'].squeeze(0))
         anomal_img_pil.save(os.path.join(saving_base_dir, f'anomal_img_{i}.png'))
-        anomal_mask_pil = torch_to_pil(sample['anomal_mask'].squeeze(0))
-        anomal_mask_pil.save(os.path.join(saving_base_dir, f'anomal_mask_{i}.png'))
+        #anomal_mask_pil = torch_to_pil(sample['anomal_mask'].squeeze(0))
+        #anomal_mask_pil.save(os.path.join(saving_base_dir, f'anomal_mask_{i}.png'))
 
         # [3] bg anomal img
         bg_anomal_img_pil = torch_to_pil(sample['bg_anomal_image'].squeeze(0))
         bg_anomal_img_pil.save(os.path.join(saving_base_dir, f'bg_anomal_img_{i}.png'))
-        bg_anomal_mask_pil = torch_to_pil(sample['bg_anomal_mask'].squeeze(0))
-        bg_anomal_mask_pil.save(os.path.join(saving_base_dir, f'bg_anomal_mask_{i}.png'))
+        #bg_anomal_mask_pil = torch_to_pil(sample['bg_anomal_mask'].squeeze(0))
+        #bg_anomal_mask_pil.save(os.path.join(saving_base_dir, f'bg_anomal_mask_{i}.png'))
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
