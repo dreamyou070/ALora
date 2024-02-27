@@ -44,12 +44,6 @@ def call_model_package(args, weight_dtype, accelerator):
         print(f'Position Embedding Loading Weights from {position_embedder_path}')
     position_embedder.to(weight_dtype)
 
-    # [4] text time embedding
-    text_time_embedding = None
-    if args.use_text_time_embedding:
-        text_time_embedding = TimestepEmbedding(320, 768)
-        text_time_embedding.to(weight_dtype)
 
-
-    return text_encoder, vae, unet, network, position_embedder, text_time_embedding
+    return text_encoder, vae, unet, network, position_embedder
 
