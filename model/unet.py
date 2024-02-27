@@ -871,8 +871,10 @@ class CrossAttnDownBlock2D(nn.Module):
                                                                   hidden_states,
                                                                   encoder_hidden_states)[0]
             else:
-                hidden_states = resnet(hidden_states,
-                                       temb)
+                print(f'before resnet, hiden_states : {hidden_states.shape}')
+                hidden_states = resnet(hidden_states, temb) # batch, 4, 512,512
+                print(f'after resnet block, hiden_states : {hidden_states.shape}')
+
                 hidden_states = attn(hidden_states,
                                      encoder_hidden_states=encoder_hidden_states,
                                      trg_layer_list=trg_layer_list,
@@ -1424,14 +1426,14 @@ class UNet2DConditionModel(nn.Module):
         t_emb = t_emb.to(dtype=self.dtype)
         emb = self.time_embedding(t_emb)                              # [Batch, Dim=1280]
 
+
+        # ------------------------------------------------------------------------------------------
         # [2] noisy latent conv_in
         sample = self.conv_in(sample)     # 1, 320, 64, 64
 
-        # ------------------------------------------------------------------------------------------ #
-        if 'text_time_embedding' in model_kwargs.keys():
-            text_time_embedding = model_kwargs ['text_time_embedding']
-            text_emb = text_time_embedding(t_emb)
-            encoder_hidden_states = encoder_hidden_states + text_emb
+        # global_query = torch.randn(1,320, 4)
+
+
         # [3] down
         down_block_res_samples = (sample,)
         for i, downsample_block in enumerate(self.down_blocks) :
