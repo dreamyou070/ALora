@@ -29,6 +29,7 @@ accelerate launch --config_file ../../../gpu_config/gpu_0_1_2_3_4_5_config \
  --back_max_beta_scale 0.9 \
  --back_trg_beta 0 \
  --do_rot_augment \
+ --anomal_p 0.02 \
  --do_anomal_sample --do_background_masked_sample --do_object_detection \
  --position_embedding_layer 'down_blocks_0_attentions_0_transformer_blocks_0_attn1' --d_dim 320 --latent_res 64 \
  --do_attn_loss --do_map_loss \
