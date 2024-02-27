@@ -110,7 +110,7 @@ def main(args):
                 encoder_hidden_states = text_encoder(batch["input_ids"].to(device))["last_hidden_state"]
             object_position_vector = batch['object_mask'].squeeze().flatten()
             # --------------------------------------------------------------------------------------------------------- #
-            if args.do_nomal_sample:
+            if args.do_normal_sample:
                 with torch.no_grad():
                     latents = vae.encode(batch["image"].to(dtype=weight_dtype)).latent_dist.sample() * args.vae_scale_factor
                 anomal_position_vector = torch.zeros_like(object_position_vector)
