@@ -1,7 +1,6 @@
 import os
 from model.tokenizer import load_tokenizer
 from data.mvtec import MVTecDRAEMTrainDataset
-from data.mvtec_cropping import MVTecDRAEMTrainDataset_Cropping
 import torch
 
 
