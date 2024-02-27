@@ -234,7 +234,7 @@ class NormalActivator(nn.Module):
         context_score = context_score.view(head, res, res).unsqueeze(0)  # 1, head, res, rs
         resized_context_score = torch.nn.functional.interpolate(input=context_score,
                                                                 size=(64, 64),
-                                                                mode='bilinear').unsqueeze()  # head, 64, 64
+                                                                mode='bilinear').squeeze()  # 1, head, 64, 64, 1
         self.resized_self_attn_scores.append(resized_context_score)
 
     def generate_conjugated(self,):
@@ -272,3 +272,4 @@ class NormalActivator(nn.Module):
         self.queries = []
         self.resized_attn_scores = []
         self.noise_prediction_loss = []
+        self.resized_self_attn_scores = []
