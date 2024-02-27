@@ -170,6 +170,7 @@ class MVTecDRAEMTrainDataset(Dataset):
                       min_perlin_scale, max_perlin_scale,
                       min_beta_scale, max_beta_scale,
                       object_position, trg_beta):
+        print("augment_image function")
 
         # [2] perlin noise
         while True :
