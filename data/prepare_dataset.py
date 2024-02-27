@@ -1,12 +1,11 @@
 import os
-from model.tokenizer import load_tokenizer
 from data.mvtec import MVTecDRAEMTrainDataset
 import torch
 
 
 def call_dataset(args) :
 
-    tokenizer = load_tokenizer(args)
+
 
     # [1] set root data
     if args.do_object_detection :
@@ -14,6 +13,12 @@ def call_dataset(args) :
     else:
         root_dir = os.path.join(args.data_path, f'{args.obj_name}/train')
     data_class = MVTecDRAEMTrainDataset
+
+    tokenizer = None
+    if not args.on_desktop :
+        from model.tokenizer import load_tokenizer
+        tokenizer = load_tokenizer(args)
+
     dataset = data_class(root_dir=root_dir,
                          anomaly_source_path=args.anomal_source_path,
                          resize_shape=[512, 512],

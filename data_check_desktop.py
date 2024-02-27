@@ -1,9 +1,8 @@
-import argparse, math, random, json
+import argparse, random, json
 from accelerate.utils import set_seed
 import os
-from model.unet import unet_passing_argument
-from utils import get_epoch_ckpt_name, save_model, prepare_dtype, arg_as_list
-from utils.attention_control import passing_argument, register_attention_control
+from utils import arg_as_list
+from utils.attention_control import passing_argument
 import numpy as np
 from PIL import Image
 from data.prepare_dataset import call_dataset
@@ -54,13 +53,13 @@ def main(args):
         # [2] anomal img
         anomal_img_pil = torch_to_pil(sample['anomal_image'].squeeze(0))
         anomal_img_pil.save(os.path.join(saving_base_dir, f'anomal_img_{i}.png'))
-        anomal_mask_pil = torch_to_pil(sample['anomal_mask'].squeeze())
+        anomal_mask_pil = make_mask_pil(sample['anomal_mask'].squeeze())
         anomal_mask_pil.save(os.path.join(saving_base_dir, f'anomal_mask_{i}.png'))
 
         # [3] bg anomal img
         bg_anomal_img_pil = torch_to_pil(sample['bg_anomal_image'].squeeze(0))
         bg_anomal_img_pil.save(os.path.join(saving_base_dir, f'bg_anomal_img_{i}.png'))
-        bg_anomal_mask_pil = torch_to_pil(sample['bg_anomal_mask'].squeeze())
+        bg_anomal_mask_pil = make_mask_pil(sample['bg_anomal_mask'].squeeze())
         bg_anomal_mask_pil.save(os.path.join(saving_base_dir, f'bg_anomal_mask_{i}.png'))
 
 if __name__ == "__main__":
@@ -181,9 +180,9 @@ if __name__ == "__main__":
     parser.add_argument("--do_rot_augment", action='store_true')
     parser.add_argument("--anomal_trg_beta", type=float)
     parser.add_argument("--back_trg_beta", type=float)
+    parser.add_argument("--on_desktop", action='store_true')
     # -----------------------------------------------------------------------------------------------------------------
     args = parser.parse_args()
-    unet_passing_argument(args)
     passing_argument(args)
     passing_normalize_argument(args)
     passing_mvtec_argument(args)
