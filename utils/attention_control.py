@@ -52,8 +52,6 @@ def register_attention_control(unet: nn.Module,controller: AttentionStore):
     def ca_forward(self, layer_name):
         def forward(hidden_states, context=None, trg_layer_list=None, noise_type=None):
 
-            print("layer_name", layer_name)
-
             is_cross_attention = False
             if context is not None:
                 is_cross_attention = True
@@ -132,3 +130,39 @@ def register_attention_control(unet: nn.Module,controller: AttentionStore):
         elif "mid" in net[0]:
             cross_att_count += register_recr(net[1], 0, net[0])
     controller.num_att_layers = cross_att_count
+
+# layer_name mid_block_attentions_0_transformer_blocks_0_attn2
+# layer_name down_blocks_1_attentions_0_transformer_blocks_0_attn2
+# layer_name down_blocks_2_attentions_1_transformer_blocks_0_attn1
+# layer_name down_blocks_2_attentions_1_transformer_blocks_0_attn2
+# layer_name down_blocks_2_attentions_1_transformer_blocks_0_attn1
+# layer_name down_blocks_0_attentions_0_transformer_blocks_0_attn1
+# layer_name down_blocks_1_attentions_1_transformer_blocks_0_attn1
+# layer_name down_blocks_1_attentions_1_transformer_blocks_0_attn1
+# layer_name down_blocks_2_attentions_1_transformer_blocks_0_attn2
+# layer_name down_blocks_0_attentions_0_transformer_blocks_0_attn2
+# layer_name down_blocks_1_attentions_1_transformer_blocks_0_attn2
+# layer_name down_blocks_1_attentions_1_transformer_blocks_0_attn2
+# layer_name up_blocks_1_attentions_0_transformer_blocks_0_attn1
+# layer_name mid_block_attentions_0_transformer_blocks_0_attn1
+# layer_name down_blocks_0_attentions_1_transformer_blocks_0_attn1
+# layer_name down_blocks_2_attentions_0_transformer_blocks_0_attn1
+# layer_name up_blocks_1_attentions_0_transformer_blocks_0_attn2
+# layer_name mid_block_attentions_0_transformer_blocks_0_attn2
+# layer_name down_blocks_2_attentions_0_transformer_blocks_0_attn1
+# layer_name down_blocks_0_attentions_1_transformer_blocks_0_attn2
+# layer_name mid_block_attentions_0_transformer_blocks_0_attn1
+# layer_name down_blocks_2_attentions_0_transformer_blocks_0_attn2
+# layer_name down_blocks_2_attentions_0_transformer_blocks_0_attn2
+# layer_name mid_block_attentions_0_transformer_blocks_0_attn2
+# layer_name up_blocks_1_attentions_1_transformer_blocks_0_attn1
+# layer_name down_blocks_2_attentions_1_transformer_blocks_0_attn1
+# layer_name up_blocks_1_attentions_1_transformer_blocks_0_attn2
+# layer_name down_blocks_1_attentions_0_transformer_blocks_0_attn1
+# layer_name down_blocks_2_attentions_1_transformer_blocks_0_attn1
+# layer_name down_blocks_2_attentions_1_transformer_blocks_0_attn2
+# layer_name down_blocks_1_attentions_0_transformer_blocks_0_attn2
+# layer_name down_blocks_2_attentions_1_transformer_blocks_0_attn2
+# layer_name up_blocks_1_attentions_2_transformer_blocks_0_attn1
+# layer_name up_blocks_1_attentions_0_transformer_blocks_0_attn1
+# layer_name up_blocks_1_attentions_2_transformer_blocks_0_attn2
