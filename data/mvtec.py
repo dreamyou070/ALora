@@ -174,6 +174,7 @@ class MVTecDRAEMTrainDataset(Dataset):
 
         # [2] perlin noise
         while True :
+
             while True :
                 # [1] size of noise :big perlin scale means smaller noise
                 perlin_scalex = 2 ** (torch.randint(min_perlin_scale, max_perlin_scale, (1,)).numpy()[0])
@@ -210,7 +211,6 @@ class MVTecDRAEMTrainDataset(Dataset):
             anomal_mask_torch = torch.where((torch.tensor(np.array(binary_2d_pil)) / 255) > 0.5, 1, 0)
             if anomal_mask_torch.sum() > 0:
                 break
-
         return anomal_img, anomal_mask_torch
 
     def load_image(self, image_path, trg_h, trg_w, type='RGB'):
