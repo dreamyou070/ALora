@@ -44,6 +44,10 @@ def call_model_package(args, weight_dtype, accelerator):
         print(f'Position Embedding Loading Weights from {position_embedder_path}')
     position_embedder.to(weight_dtype)
 
+    self_embeddings = None
+    if args.use_self_embedding :
+        from model.self_embedding import SelfEmbedding
+        self_embeddings = SelfEmbedding()
 
-    return text_encoder, vae, unet, network, position_embedder
+    return text_encoder, vae, unet, network, position_embedder, self_embeddings
 

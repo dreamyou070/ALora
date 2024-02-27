@@ -54,13 +54,13 @@ def main(args):
         # [2] anomal img
         anomal_img_pil = torch_to_pil(sample['anomal_image'].squeeze(0))
         anomal_img_pil.save(os.path.join(saving_base_dir, f'anomal_img_{i}.png'))
-        anomal_mask_pil = torch_to_pil(sample['anomal_mask'].squeeze())
+        anomal_mask_pil = make_mask_pil(sample['anomal_mask'].squeeze())
         anomal_mask_pil.save(os.path.join(saving_base_dir, f'anomal_mask_{i}.png'))
 
         # [3] bg anomal img
         bg_anomal_img_pil = torch_to_pil(sample['bg_anomal_image'].squeeze(0))
         bg_anomal_img_pil.save(os.path.join(saving_base_dir, f'bg_anomal_img_{i}.png'))
-        bg_anomal_mask_pil = torch_to_pil(sample['bg_anomal_mask'].squeeze())
+        bg_anomal_mask_pil = make_mask_pil(sample['bg_anomal_mask'].squeeze())
         bg_anomal_mask_pil.save(os.path.join(saving_base_dir, f'bg_anomal_mask_{i}.png'))
 
 if __name__ == "__main__":

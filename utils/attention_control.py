@@ -45,10 +45,17 @@ def passing_argument(args):
     argument = args
 
 
+
+
 def register_attention_control(unet: nn.Module,controller: AttentionStore):
 
     def ca_forward(self, layer_name):
         def forward(hidden_states, context=None, trg_layer_list=None, noise_type=None):
+
+            use_self_embedding = False
+            if len(trg_layer_list) == 2 :
+                use_self_embedding = True
+                trg_layer_list, self_embedding = trg_layer_list[0], trg_layer_list[1]
 
             is_cross_attention = False
             if context is not None:
@@ -62,6 +69,10 @@ def register_attention_control(unet: nn.Module,controller: AttentionStore):
             if trg_layer_list is not None and layer_name in trg_layer_list :
                 controller.save_query(query, layer_name) # query = batch, seq_len, dim
             context = context if context is not None else hidden_states
+
+            if not is_cross_attention and use_self_embedding :
+                context = use_self_embedding(layer_name, context)
+
             key = self.to_k(context)
             value = self.to_v(context)
             query = self.reshape_heads_to_batch_dim(query)
