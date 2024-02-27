@@ -108,7 +108,6 @@ def main(args):
 
             with torch.set_grad_enabled(True):
                 encoder_hidden_states = text_encoder(batch["input_ids"].to(device))["last_hidden_state"]
-            object_position_vector = batch['object_mask'].squeeze().flatten()
             # --------------------------------------------------------------------------------------------------------- #
             if args.do_anomal_sample:
                 with torch.no_grad():

@@ -248,7 +248,6 @@ class MVTecDRAEMTrainDataset(Dataset):
         anomal_img = img
         anomal_mask_torch = object_mask
         anomal_name = 'none'
-        print(f'len of anomaly source : {len(self.anomaly_source_paths)}')
         if len(self.anomaly_source_paths) > 0:
             anomal_src_idx = idx % len(self.anomaly_source_paths)
             anomal_dir = self.anomaly_source_paths[anomal_src_idx]

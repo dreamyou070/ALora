@@ -152,8 +152,7 @@ def main(args):
             # --------------------------------------------------------------------------------------------------------- #
             if args.do_background_masked_sample:
                 with torch.no_grad():
-                    latents = vae.encode(
-                        batch["bg_anomal_image"].to(dtype=weight_dtype)).latent_dist.sample() * args.vae_scale_factor
+                    latents = vae.encode(batch["bg_anomal_image"].to(dtype=weight_dtype)).latent_dist.sample() * args.vae_scale_factor
                 anomal_position_vector = batch["bg_anomal_mask"].squeeze().flatten()
                 object_normal_position_vector = torch.where(
                     (object_position_vector == 1) & (anomal_position_vector == 0), 1, 0)
