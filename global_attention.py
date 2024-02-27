@@ -38,9 +38,9 @@ def main(args):
     os.makedirs(saving_base_dir, exist_ok=True)
 
     print(f'\n step 2. ViT Model')
-    vit_pretrained_dir = f'/home/dreamyou070/pretrained_model/vit-base-patch16-224-in21k/models--google--vit-base-patch16-224-in21k' \
+    vit_pretrained_dir = f'../../pretrained_model/vit-base-patch16-224-in21k/models--google--vit-base-patch16-224-in21k' \
                          f'b4569560a39a0f1af58e3ddaf17facf20ab919b0'
-    image_processor = AutoImageProcessor.from_pretrained(vit_pretrained_dir)
+    image_processor = AutoImageProcessor.from_pretrained(os.path.join(vit_pretrained_dir,r'preprocessor_config.json'))
     vit_model = ViTModel.from_pretrained(vit_pretrained_dir)
     vit_model.eval()
 
