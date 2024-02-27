@@ -32,6 +32,7 @@ class NormalActivator(nn.Module):
         self.queries = []
         self.resized_attn_scores = []
         self.noise_prediction_loss = []
+        self.resized_self_attn_scores = []
 
     def collect_queries(self, origin_query, normal_position, anomal_position, do_collect_normal):
 
@@ -219,6 +220,23 @@ class NormalActivator(nn.Module):
         resized_attn_score = resized_attn_map.permute(0, 2, 3, 1).contiguous().view(head_num, -1, sen_len)  # 8, 64*64, sen_len
         self.resized_attn_scores.append(resized_attn_score) # len = 3
 
+    def resize_self_attn_scores(self, self_attn_scores):
+        averizer = torch.nn.AvgPool2d(kernel_size=3, stride=1, padding=1)
+        head, pixel_num, pixe_num = self_attn_scores.shape
+        res = int(pixel_num ** 0.5)
+        context_score = torch.zeros(head, pixel_num)
+        for pixel_idx in range(pixel_num):
+            pixelwise_attnmap = self_attn_scores[:, :, pixel_idx].reshape(-1, res, res)  # head, 4,4
+            pixelwise_attnmap = averizer(pixelwise_attnmap.unsqueeze(1)).squeeze(1)  # head, 4,4
+            pixelwise_attnmap = pixelwise_attnmap.view(-1, res * res)  # head, 16
+            score = pixelwise_attnmap[:, pixel_idx]
+            context_score[:, pixel_idx] = score
+        context_score = context_score.view(head, res, res).unsqueeze(0)  # 1, head, res, rs
+        resized_context_score = torch.nn.functional.interpolate(input=context_score,
+                                                                size=(64, 64),
+                                                                mode='bilinear').unsqueeze()  # head, 64, 64
+        self.resized_self_attn_scores.append(resized_context_score)
+
     def generate_conjugated(self,):
         concat_query = torch.cat(self.resized_queries, dim=-1).squeeze()     # 4096, 1960 ***
         self.resized_queries = []
@@ -228,6 +246,13 @@ class NormalActivator(nn.Module):
         concat_attn_score = torch.cat(self.resized_attn_scores, dim=0)     # 8, 4096, sen_len ***
         self.resized_attn_scores = []
         return concat_attn_score[:,:,:2]
+
+    def generate_conjugated_self_attn_score(self,):
+        import einops
+        concat_self_attn_score = torch.cat(self.resized_self_attn_scores, dim=0)     # head*num, 64, 64
+        concat_self_attn_score = einops.rearrange(concat_self_attn_score, 'h p c -> h (p c)')  # head*num, 64*64
+        self.resized_self_attn_scores = []
+        return concat_self_attn_score
 
     def reset(self) -> None:
 

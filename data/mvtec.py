@@ -117,7 +117,8 @@ class MVTecDRAEMTrainDataset(Dataset):
             self.rot_augmenters = [iaa.Affine(rotate=(0, 0)),
                                    iaa.Affine(rotate=(180, 180)),
                                    iaa.Affine(rotate=(90, 90)),
-                                   iaa.Affine(rotate=(270, 270))]
+                                   iaa.Affine(rotate=(270, 270)),
+                                   iaa.flip.Fliplr(p=1),]
         else :
             self.rot_augmenters = [iaa.Affine(rotate=(0, 0))]
         num_repeat = len(self.rot_augmenters) # 4

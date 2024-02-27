@@ -95,7 +95,10 @@ def register_attention_control(unet: nn.Module,controller: AttentionStore):
                     trg_map = attention_probs
                     controller.store(trg_map, layer_name)
                 else :
-                    trg_map = attention_probs[:, :, :2]
+                    if is_cross_attention :
+                        trg_map = attention_probs[:, :, :2]
+                    else :
+                        trg_map = attention_probs # head, pixel_num, pixel_num
                     controller.store(trg_map, layer_name)
 
             return hidden_states
