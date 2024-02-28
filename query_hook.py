@@ -3,6 +3,7 @@ from tqdm import tqdm
 from accelerate.utils import set_seed
 import torch
 import os
+from model.query_transformer import QueryTransformer
 from attention_store import AttentionStore
 from attention_store.normal_activator import NormalActivator
 from model.diffusion_model import transform_models_if_DDP
@@ -44,12 +45,24 @@ def main(args):
     print(f'\n step 4. model ')
     weight_dtype, save_dtype = prepare_dtype(args)
     text_encoder, vae, unet, network, position_embedder = call_model_package(args, weight_dtype, accelerator, True)
+    query_transformer = QueryTransformer(in_channels = [1280, 1280, 640, 320],
+                                         hidden_dim=768,
+                                         num_queries=[8 * 8, 64 * 64],
+                                         nheads=8,
+                                         num_layers=9,
+                                         feedforward_dim=2048,
+                                         mask_dim=256,
+                                         pre_norm=False,
+                                         num_feature_levels=4,
+                                         enforce_input_project=False,
+                                         with_fea2d_pos=False)
 
     print(f'\n step 5. optimizer')
     args.max_train_steps = len(train_dataloader) * args.max_train_epochs
     trainable_params = network.prepare_optimizer_params(args.text_encoder_lr,
                                                         args.unet_lr, args.learning_rate)
     trainable_params.append({"params": position_embedder.parameters(), "lr": args.learning_rate})
+    trainable_params.append({"params": query_transformer.parameters(), "lr": args.learning_rate})
     optimizer_name, optimizer_args, optimizer = get_optimizer(args, trainable_params)
 
     print(f'\n step 6. lr')
@@ -126,6 +139,12 @@ def main(args):
         elif "mid" in net[0]:
             cross_att_count += register_recr(net[1], 0, net[0])
 
+    def right_rotate(test_list, n):
+        new_list = [None for _ in range(len(test_list))]  # [None, None, None, None, None]
+        for i in range(len(test_list)):
+            new_list[i] = test_list[i - n]
+        return new_list
+
     for epoch in range(args.start_epoch, args.max_train_epochs):
 
         epoch_loss_total = 0
@@ -143,17 +162,21 @@ def main(args):
             with torch.no_grad():
                 latents = vae.encode(batch["image"].to(dtype=weight_dtype)).latent_dist.sample() * args.vae_scale_factor
             anomal_position_vector = torch.zeros_like(object_position_vector)
-
-
             with torch.set_grad_enabled(True):
                 unet(latents, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list,noise_type=position_embedder,)
             # check hooked hidden states
-            hidden_states = []
+            query_list = []
             for i, block in enumerate(feature_blocks) :
                 out_feat = block.activations
+                b, pix_num, dim = out_feat.shape
+                res = int(pix_num ** 0.5)
+                out_feat = out_feat.permute(0,2,1).view(b,dim,res,res)
                 print(f'out feat : {out_feat.shape}')
-                hidden_states.append(out_feat)
+                query_list.append(out_feat)
                 block.activations = None
+            query_list = right_rotate(query_list,1)
+            out = query_transformer(query_list)
+            qlobal_query, local_query = out[:, :64, :], out[:, 64:, :]
 
 
 
