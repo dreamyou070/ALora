@@ -109,7 +109,7 @@ def main(args):
         if net_.__class__.__name__ == 'CrossAttention':
             if layer_name in trg_layer_list :
                 net_.register_forward_hook(save_out_hook)
-                feature_blocks.append(net)
+                feature_blocks.append(net_)
         elif hasattr(net_, 'children'):
             for name__, net__ in net_.named_children():
                 full_name = f'{layer_name}_{name__}'
