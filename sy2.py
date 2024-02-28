@@ -1,19 +1,12 @@
 import torch
 from torch import nn
+from transformers import BertConfig, ViTConfig, VisionEncoderDecoderConfig, VisionEncoderDecoderModel
 
+config_encoder = ViTConfig()
+config_decoder = BertConfig()
 
-
-def resize_query_features(query):
-    pix_num, dim = query.shape
-    res = int(pix_num ** 0.5)
-    query_map = query.view(res, res, dim).permute(2, 0, 1).contiguous().unsqueeze(0)  # 1, channel, res, res
-
-    resized_query_map = nn.functional.interpolate(query_map, size=(64, 64), mode='bilinear')  # 1, channel, 64,  64
-    print(f'resized_query_map : {resized_query_map.shape}')
-    resized_query = resized_query_map.permute(0, 2, 3, 1).contiguous().squeeze()  # 64, 64, channel
-    resized_query = resized_query.view(64*64, dim)
-    return resized_query
-
-query = torch.randn(64, 1280)
-a = resize_query_features(query)
-print(query)
+config = VisionEncoderDecoderConfig.from_encoder_decoder_configs(config_encoder, config_decoder)
+model = VisionEncoderDecoderModel(config=config)
+model = VisionEncoderDecoderModel.from_encoder_decoder_pretrained("microsoft/swin-base-patch4-window7-224-in22k",
+                                                                  "google-bert/bert-base-uncased")
+model.save_pretrained("/home/dreamyou070/pretrained_model/vit-bert")
