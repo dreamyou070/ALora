@@ -150,10 +150,10 @@ def main(args):
             # check hooked hidden states
             hidden_states = []
             for i, block in enumerate(feature_blocks) :
-                out_feat = block.output_hidden_state
+                out_feat = block.activations
                 print(f'out feat : {out_feat.shape}')
                 hidden_states.append(out_feat)
-                block.output_hidden_state = None
+                block.activations = None
 
 
 
