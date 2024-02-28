@@ -308,11 +308,7 @@ class QueryTransformer(nn.Module):
                 pi = None
             # [2.1] input projectiong
             # xi = i th query
-            t = x[i]
-            print(f't = {t.shape}')
             xi = self.input_proj[i](x[i]) if self.input_proj is not None else x[i]
-
-            #
             xi = xi.flatten(2) #+ self.level_embed.weight[i][None, :, None]
             xi = xi.transpose(1, 2) # 1,1,768
             fea2d.append(xi)
@@ -340,11 +336,11 @@ class QueryTransformer(nn.Module):
             # [2.2] self attention and FF with both global and local queries
             qout = self.transformer_selfatt_layers[i](qkv = torch.cat([gquery, lquery], dim=1),
                                                       qk_pos = torch.cat([gquery_pos, lquery_pos], dim=1),)
+            print(f'before feed forward, qout : {qout.shape}')
             qout = self.transformer_feedforward_layers[i](qout)
+            print(f'after feed forward, qout : {qout.shape}')
             # [2.3] original shape
             gquery = qout[:, :num_gq]
             lquery = qout[:, num_gq:]
-
-        output = torch.cat([gquery, lquery], dim=1)
-
-        return output
+        #output = torch.cat([gquery, lquery], dim=1)
+        return gquery, lquery

@@ -74,8 +74,8 @@ def main(args):
     normal_activator = NormalActivator(loss_focal, loss_l2, args.use_focal_loss)
 
     print(f'\n step 8. model to device')
-    unet, text_encoder, network, optimizer, train_dataloader, lr_scheduler, position_embedder = accelerator.prepare(
-        unet, text_encoder, network, optimizer, train_dataloader, lr_scheduler, position_embedder,)
+    unet, text_encoder, network, optimizer, train_dataloader, lr_scheduler, position_embedder,query_transformer = accelerator.prepare(
+        unet, text_encoder, network, optimizer, train_dataloader, lr_scheduler, position_embedder,query_transformer)
 
     text_encoders = transform_models_if_DDP([text_encoder])
     unet, network = transform_models_if_DDP([unet, network])
@@ -171,12 +171,15 @@ def main(args):
                 b, pix_num, dim = out_feat.shape
                 res = int(pix_num ** 0.5)
                 out_feat = out_feat.permute(0,2,1).view(b,dim,res,res)
-                print(f'out feat : {out_feat.shape}')
+                # out feat : torch.Size([1, 1280, 16, 16])
+                # out feat : torch.Size([1, 640, 32, 32])
+                # out feat : torch.Size([1, 320, 64, 64])
+                # out feat : torch.Size([1, 1280, 8, 8])
                 query_list.append(out_feat)
                 block.activations = None
             query_list = right_rotate(query_list,1)
-            out = query_transformer(query_list)
-            qlobal_query, local_query = out[:, :64, :], out[:, 64:, :]
+            gquery, lquery = query_transformer(query_list) # [batch,64,768], [batch,64*64,768]
+
 
 
 
