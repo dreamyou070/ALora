@@ -106,11 +106,14 @@ def main(args):
     def resize_query_features(query):
 
         pix_num, dim = query.shape
+        #head_num, pix_num, dim = query.shape
         res = int(pix_num ** 0.5) # 8
         query_map = query.view(res, res, dim).permute(2,0,1).contiguous().unsqueeze(0)           # 1, channel, res, res
+        # query_map = query.view(head_num, res, res, dim).permute(0, 3, 1, 2).contiguous()  # 1, channel, res, res
         resized_query_map = nn.functional.interpolate(query_map, size=(64, 64), mode='bilinear') # 1, channel, 64,  64
-        resized_query = resized_query_map.permute(0, 2, 3, 1).contiguous().squeeze() # 64, 64, channel
-        resized_query = resized_query.view(64*64, dim) # #view(head_num, -1, dim).squeeze()  # 1, pix_num, dim
+        resized_query = resized_query_map.permute(0, 2, 3, 1).contiguous().squeeze() # head, 64, 64, channel
+        #resized_query = resized_query.view(head_num, 64*64, dim) # #view(head_num, -1, dim).squeeze()  # 1, pix_num, dim
+        resized_query = resized_query.view(64 * 64,dim)  # #view(head_num, -1, dim).squeeze()  # 1, pix_num, dim
         return resized_query
 
     for epoch in range(args.start_epoch, args.max_train_epochs):
@@ -136,7 +139,7 @@ def main(args):
                 controller.reset()
                 origin_query_list, query_list, key_list = [], [], []
                 for layer in args.trg_layer_list :
-                    query = query_dict[layer][0].squeeze() # pix_num, dim
+                    query = query_dict[layer][0].squeeze() # head, pix_num, dim
                     origin_query_list.append(query)
                     query_list.append(resize_query_features(query)) # pix_num, dim
                     key_list.append(key_dict[layer][0])
@@ -169,12 +172,9 @@ def main(args):
                 # [1] local
                 local_query = torch.cat(query_list, dim=-1)       # pix_num, long_dim
                 local_key = torch.cat(key_list, dim=-1).squeeze() # long_dim, 77
-                local_attn = (local_query @ local_key.T).softmax(dim=-1)[:,:2] #
-                normal_activator.collect_attention_scores(local_attn,
-                                                          anomal_position_vector,
-                                                          True)
-                normal_activator.collect_anomal_map_loss(local_attn, #
-                                                         anomal_position_vector)
+                local_attn = (local_query @ local_key.T).softmax(dim=-1)[: ,:2] #
+                normal_activator.collect_attention_scores(local_attn,anomal_position_vector, True)
+                normal_activator.collect_anomal_map_loss(local_attn, anomal_position_vector)
                 # [2] glocal
                 #global_query = gquery_transformer(origin_query_list)
 

@@ -80,9 +80,9 @@ class NormalActivator(nn.Module):
 
         # [1] preprocessing
         cls_score, trigger_score = attn_score.chunk(2, dim=-1)
-        cls_score, trigger_score = cls_score.squeeze(), trigger_score.squeeze()      # head, pix_num
+        cls_score, trigger_score = cls_score.squeeze(), trigger_score.squeeze()      # pix_num
 
-        cls_score, trigger_score = cls_score.mean(dim=0), trigger_score.mean(dim=0)  # pix_num
+        # cls_score, trigger_score = cls_score.mean(dim=0), trigger_score.mean(dim=0)  # pix_num
         total_score = torch.ones_like(cls_score)
 
         # [2]
