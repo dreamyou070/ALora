@@ -105,7 +105,7 @@ def main(args):
 
     def resize_query_features(query):
 
-        vpix_num, dim = query.shape
+        #pix_num, dim = query.shape
         head_num, pix_num, dim = query.shape
         res = int(pix_num ** 0.5) # 8
         # query_map = query.view(res, res, dim).permute(2,0,1).contiguous().unsqueeze(0)           # 1, channel, res, res
