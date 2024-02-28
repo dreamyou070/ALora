@@ -142,19 +142,18 @@ def main(args):
                 encoder_hidden_states = text_encoder(batch["input_ids"].to(device))["last_hidden_state"]
             object_position_vector = batch['object_mask'].squeeze().flatten()
             # --------------------------------------------------------------------------------------------------------- #
-            if args.do_normal_sample:
-                with torch.no_grad():
-                    latents = vae.encode(batch["image"].to(dtype=weight_dtype)).latent_dist.sample() * args.vae_scale_factor
-                anomal_position_vector = torch.zeros_like(object_position_vector)
-                with torch.set_grad_enabled(True):
-                    unet(latents, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list,noise_type=position_embedder,)
-                # check hooked hidden states
-                hidden_states = []
-                for i, block in enumerate(feature_blocks) :
-                    out_feat = block.output_hidden_state
-                    print(f'out feat : {out_feat.shape}')
-                    hidden_states.append(out_feat)
-                    block.output_hidden_state = None
+            with torch.no_grad():
+                latents = vae.encode(batch["image"].to(dtype=weight_dtype)).latent_dist.sample() * args.vae_scale_factor
+            anomal_position_vector = torch.zeros_like(object_position_vector)
+            with torch.set_grad_enabled(True):
+                unet(latents, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list,noise_type=position_embedder,)
+            # check hooked hidden states
+            hidden_states = []
+            for i, block in enumerate(feature_blocks) :
+                out_feat = block.output_hidden_state
+                print(f'out feat : {out_feat.shape}')
+                hidden_states.append(out_feat)
+                block.output_hidden_state = None
 
 
 
