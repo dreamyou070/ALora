@@ -101,13 +101,32 @@ def main(args):
         return out
 
     unet_blocks = unet.down_blocks + nn.ModuleList([unet.mid_block]) + unet.up_blocks
+    # 0,1,2,3
+    # 4
+    # 5,6,7,8
+
     feature_blocks  = []
-    target_idxs = [6,9,12,15]
-    for idx, block in enumerate(unet_blocks):
-        if idx in target_idxs :
-            print(f'{idx} : {block.__class__.__name__}')
-            block.register_forward_hook(save_out_hook)
-            feature_blocks.append(block)
+    def register_recr(net_, count, layer_name):
+        if net_.__class__.__name__ == 'CrossAttention':
+            net.register_forward_hook(save_out_hook)
+            print(f'register name : {layer_name}')
+            feature_blocks.append(net)
+        elif hasattr(net_, 'children'):
+            for name__, net__ in net_.named_children():
+                full_name = f'{layer_name}_{name__}'
+                count = register_recr(net__, count, full_name)
+        return count
+
+    cross_att_count = 0
+    for net in unet.named_children():
+        if "down" in net[0]:
+            cross_att_count += register_recr(net[1], 0, net[0])
+        elif "up" in net[0]:
+            cross_att_count += register_recr(net[1], 0, net[0])
+        elif "mid" in net[0]:
+            cross_att_count += register_recr(net[1], 0, net[0])
+
+
 
     for epoch in range(args.start_epoch, args.max_train_epochs):
 
