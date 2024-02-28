@@ -325,7 +325,7 @@ class ResnetBlock2D(nn.Module):
         if self.use_in_shortcut:
             self.conv_shortcut = torch.nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=1, padding=0)
 
-    def forward(self, input_tensor, temb):
+    def forward(self, input_tensor, temb,**model_kwargs):
 
         # [1] only hidden state
         hidden_states = input_tensor
@@ -682,19 +682,19 @@ class BasicTransformerBlock(nn.Module):
                 context=None,
                 timestep=None,
                 trg_layer_list=None,
-                noise_type=None) :
+                noise_type=None,**model_kwargs) :
 
         # 1. Self-Attention
         norm_hidden_states = self.norm1(hidden_states)
         hidden_states = self.attn1(norm_hidden_states,
                                    trg_layer_list=trg_layer_list,
-                                   noise_type=noise_type) + hidden_states
+                                   noise_type=noise_type,**model_kwargs) + hidden_states
 
         # 2. Cross-Attention
         norm_hidden_states = self.norm2(hidden_states)
         hidden_states = self.attn2(norm_hidden_states,
                                    context=context,trg_layer_list=trg_layer_list,
-                                   noise_type=noise_type) + hidden_states
+                                   noise_type=noise_type,**model_kwargs) + hidden_states
 
 
         # 3. Feed-forward
@@ -757,7 +757,7 @@ class Transformer2DModel(nn.Module):
                 encoder_hidden_states=None,
                 timestep=None, return_dict: bool = True,
                 trg_layer_list=None,
-                noise_type=None):
+                noise_type=None,**model_kwargs):
         # 1. Input
         batch, _, height, weight = hidden_states.shape
         residual = hidden_states
@@ -779,7 +779,7 @@ class Transformer2DModel(nn.Module):
                                   context=encoder_hidden_states,
                                   timestep=timestep,
                                   trg_layer_list=trg_layer_list,
-                                  noise_type=noise_type)
+                                  noise_type=noise_type,**model_kwargs)
 
         # 3. Output
         if not self.use_linear_projection:
@@ -847,7 +847,8 @@ class CrossAttnDownBlock2D(nn.Module):
                 temb=None,
                 encoder_hidden_states=None,
                 trg_layer_list=None,
-                noise_type=None,):
+                noise_type=None,
+                **model_kwargs):
         output_states = ()
         for resnet, attn in zip(self.resnets, self.attentions):
 
@@ -872,14 +873,14 @@ class CrossAttnDownBlock2D(nn.Module):
                                                                   encoder_hidden_states)[0]
             else:
                 #print(f'before resnet, hiden_states : {hidden_states.shape}')
-                hidden_states = resnet(hidden_states, temb) # batch, 4, 512,512
+                hidden_states = resnet(hidden_states, temb, **model_kwargs) # batch, 4, 512,512
                 #print(f'after resnet block, hiden_states : {hidden_states.shape}')
 
                 hidden_states = attn(hidden_states,
                                      encoder_hidden_states=encoder_hidden_states,
                                      trg_layer_list=trg_layer_list,
                                      noise_type=noise_type,
-                                     timestep=temb).sample
+                                     timestep=temb, **model_kwargs).sample
             output_states += (hidden_states,)
 
         if self.downsamplers is not None:
@@ -939,7 +940,7 @@ class UNetMidBlock2DCrossAttn(nn.Module):
             attn.set_use_sdpa(sdpa)
 
     def forward(self, hidden_states, temb=None, encoder_hidden_states=None,
-                trg_layer_list=None, noise_type=None):
+                trg_layer_list=None, noise_type=None,**model_kwargs):
         for i, resnet in enumerate(self.resnets):
             attn = None if i == 0 else self.attentions[i - 1]
 
@@ -965,8 +966,8 @@ class UNetMidBlock2DCrossAttn(nn.Module):
                 if attn is not None:
                     hidden_states = attn(hidden_states, encoder_hidden_states,
                                          trg_layer_list=trg_layer_list, noise_type=noise_type,
-                                         timestep=temb).sample
-                hidden_states = resnet(hidden_states, temb)
+                                         timestep=temb,**model_kwargs).sample
+                hidden_states = resnet(hidden_states, temb,**model_kwargs)
 
         return hidden_states
 
@@ -978,7 +979,7 @@ class Upsample2D(nn.Module):
         self.out_channels = out_channels
         self.conv = nn.Conv2d(self.channels, self.out_channels, 3, padding=1)
 
-    def forward(self, hidden_states, output_size):
+    def forward(self, hidden_states, output_size,**model_kwargs):
         assert hidden_states.shape[1] == self.channels
 
         # Cast to float32 to as 'upsample_nearest2d_out_frame' op does not support bfloat16
@@ -1046,7 +1047,8 @@ class UpBlock2D(nn.Module):
     def set_use_sdpa(self, sdpa):
         pass
 
-    def forward(self, hidden_states, res_hidden_states_tuple, temb=None, upsample_size=None):
+    def forward(self, hidden_states, res_hidden_states_tuple, temb=None,
+                upsample_size=None,**model_kwargs):
         for resnet in self.resnets:
             # pop res hidden states
             res_hidden_states = res_hidden_states_tuple[-1]
@@ -1067,7 +1069,7 @@ class UpBlock2D(nn.Module):
 
         if self.upsamplers is not None:
             for upsampler in self.upsamplers:
-                hidden_states = upsampler(hidden_states, upsample_size)
+                hidden_states = upsampler(hidden_states, upsample_size,**model_kwargs)
 
         return hidden_states
 
@@ -1137,8 +1139,9 @@ class CrossAttnUpBlock2D(nn.Module):
         temb=None,
         encoder_hidden_states=None,
         upsample_size=None,
-            trg_layer_list=None,
-            noise_type=None,):
+        trg_layer_list=None,
+        noise_type=None,
+        **model_kwargs):
 
         j = 0
         for resnet, attn in zip(self.resnets, self.attentions):
@@ -1168,11 +1171,13 @@ class CrossAttnUpBlock2D(nn.Module):
                                                                   hidden_states, encoder_hidden_states,
                                                                   )[0]
             else:
-                hidden_states = resnet(hidden_states, temb)
-                hidden_states = attn(hidden_states, encoder_hidden_states=encoder_hidden_states,
+                hidden_states = resnet(hidden_states, temb, **model_kwargs)
+                hidden_states = attn(hidden_states,
+                                     encoder_hidden_states=encoder_hidden_states,
                                      trg_layer_list=trg_layer_list,
                                      noise_type=noise_type,
-                                     timestep=temb).sample
+                                     timestep=temb,
+                                     **model_kwargs).sample
             j += 1
 
         if self.upsamplers is not None:
@@ -1442,10 +1447,10 @@ class UNet2DConditionModel(nn.Module):
                                                        temb=emb,
                                                        encoder_hidden_states=encoder_hidden_states,
                                                        trg_layer_list=trg_layer_list,
-                                                       noise_type=noise_type)
+                                                       noise_type=noise_type,**model_kwargs)
             else:
                 sample, res_samples = downsample_block(hidden_states=sample,
-                                                       temb=emb)
+                                                       temb=emb,**model_kwargs)
             down_block_res_samples += res_samples
 
         # skip connectionにControlNetの出力を追加する
@@ -1460,7 +1465,7 @@ class UNet2DConditionModel(nn.Module):
                                 temb=emb,
                                 encoder_hidden_states=encoder_hidden_states,
                                 trg_layer_list=trg_layer_list,
-                                noise_type=noise_type,)
+                                noise_type=noise_type,**model_kwargs)
 
         # ControlNetの出力を追加する
         if mid_block_additional_residual is not None:
@@ -1481,13 +1486,12 @@ class UNet2DConditionModel(nn.Module):
                                         encoder_hidden_states=encoder_hidden_states, # text information
                                         upsample_size=upsample_size,
                                         trg_layer_list=trg_layer_list,
-                                        noise_type=noise_type)
+                                        noise_type=noise_type,**model_kwargs)
             else:
                 sample = upsample_block(hidden_states=sample,
                                         temb=emb,
                                         res_hidden_states_tuple=res_samples,
-                                        upsample_size=upsample_size)
-            #print(f'after {i} upblock, down_block_res_samples : {len(down_block_res_samples)}')
+                                        upsample_size=upsample_size,**model_kwargs)
 
         # 6. post-process
         sample = self.conv_norm_out(sample)
