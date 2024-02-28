@@ -83,10 +83,14 @@ def main(args):
     g_network.prepare_grad_etc(g_text_encoder, g_unet)
     g_vae.to(accelerator.device, dtype=weight_dtype)
 
+    l_vae.to(accelerator.device, dtype=weight_dtype)
+    l_vae.eval()
+
     l_unet.to(accelerator.device, dtype=weight_dtype)
     l_text_encoder.to(accelerator.device, dtype=weight_dtype)
     l_unet.eval()
     l_text_encoder.eval()
+
     l_network.to(accelerator.device, dtype=weight_dtype)
     l_network.eval()
 
