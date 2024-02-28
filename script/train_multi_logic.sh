@@ -9,7 +9,7 @@ sub_folder="up_16_32_64"
 file_name="train_logic_back_rotate"
 
 anomal_source_path="../../../MyData/anomal_source"
-network_weights="../../result/${bench_mark}/${obj_name}/${layer_name}/${sub_folder}/${file_name}/models/epoch-000015.safetensors"
+network_weights="../../result/${bench_mark}/${obj_name}/${layer_name}/${sub_folder}/rotating_2/models/epoch-000015.safetensors"
 
 accelerate launch --config_file ../../../gpu_config/gpu_0_config \
  --main_process_port $port_number ../train_multi_logic.py --log_with wandb \
