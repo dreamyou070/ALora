@@ -123,21 +123,6 @@ def main(args):
                 for trg_layer in args.trg_layer_list:
                     normal_activator.upsample_attn_scores(attn_dict[trg_layer][0])
                     normal_activator.downsample_attn_scores(attn_dict[trg_layer][0])
-
-                    def resize_attn_scores(self, attn_score):
-                        # attn_score = [head, pix_num, sen_len]
-                        head_num, pix_num, sen_len = attn_score.shape
-                        res = int(pix_num ** 0.5)
-                        attn_map = attn_score.view(head_num, res, res, sen_len).permute(0, 3, 1, 2).contiguous()
-                        resized_attn_map = nn.functional.interpolate(attn_map, size=(64, 64), mode='bilinear')
-                        resized_attn_score = resized_attn_map.permute(0, 2, 3, 1).contiguous().view(head_num, -1,
-                                                                                                    sen_len)  # 8, 64*64, sen_len
-                        self.resized_attn_scores.append(resized_attn_score)  # len = 3
-
-
-
-
-
                 c_query = normal_activator.generate_conjugated()
                 if args.mahalanobis_only_object:
                     normal_activator.collect_queries(c_query,
