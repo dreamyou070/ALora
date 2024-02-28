@@ -44,6 +44,7 @@ def main(args):
     print(f'\n step 4. model ')
     weight_dtype, save_dtype = prepare_dtype(args)
     text_encoder, vae, unet, network, position_embedder = call_model_package(args, weight_dtype, accelerator)
+    g_text_encoder, g_vae, g_unet, g_network, g_position_embedder = call_model_package(args, weight_dtype, accelerator)
 
     print(f'\n step 5. optimizer')
     args.max_train_steps = len(train_dataloader) * args.max_train_epochs
@@ -63,7 +64,8 @@ def main(args):
     print(f'\n step 8. model to device')
     unet, text_encoder, network, optimizer, train_dataloader, lr_scheduler, position_embedder = accelerator.prepare(
         unet, text_encoder, network, optimizer, train_dataloader, lr_scheduler, position_embedder,)
-
+    g_unet, g_text_encoder, g_network, g_position_embedder = accelerator.prepare(g_unet, g_text_encoder, g_network,
+                                                                                 g_position_embedder,)
     text_encoders = transform_models_if_DDP([text_encoder])
     unet, network = transform_models_if_DDP([unet, network])
     if args.gradient_checkpointing:
@@ -108,69 +110,146 @@ def main(args):
 
             with torch.set_grad_enabled(True):
                 encoder_hidden_states = text_encoder(batch["input_ids"].to(device))["last_hidden_state"]
+            object_position_vector = batch['object_mask'].squeeze().flatten()
+            # --------------------------------------------------------------------------------------------------------- #
+            if args.do_normal_sample:
+                with torch.no_grad():
+                    latents = vae.encode(batch["image"].to(dtype=weight_dtype)).latent_dist.sample() * args.vae_scale_factor
+                anomal_position_vector = torch.zeros_like(object_position_vector)
+                model_kwargs = {}
+                with torch.set_grad_enabled(True):
+                    noise_pred = unet(latents,
+                                      0,
+                                      encoder_hidden_states,
+                                      trg_layer_list=args.trg_layer_list,
+                                      noise_type=position_embedder,
+                                      **model_kwargs).sample
+                query_dict, attn_dict = controller.query_dict, controller.step_store
+                controller.reset()
+                for trg_layer in args.trg_layer_list:
+                    # query = [1, pox_num, dim]
+                    normal_activator.resize_query_features(query_dict[trg_layer][0].squeeze(0))
+                    normal_activator.resize_attn_scores(attn_dict[trg_layer][0])
+                query_list = normal_activator.resized_queries
+                global_quuery_generator = GlobalQueryGenerator()
+                global_query = global_quuery_generator(query_list)  # batch, 8*8, 1280
+
+                c_attn_score = normal_activator.generate_conjugated_attn_score()
+                normal_activator.collect_attention_scores(c_attn_score, anomal_position_vector)
+                normal_activator.collect_anomal_map_loss(c_attn_score, anomal_position_vector)
+                if args.test_noise_predicting_task_loss:
+                    normal_activator.collect_noise_prediction_loss(noise_pred, noise, anomal_position_vector)
+
+                # ------------------------------------------------------------------------------------------------ #
+                # global anomal map generating
+                g_unet()
+
             # --------------------------------------------------------------------------------------------------------- #
             if args.do_anomal_sample:
                 with torch.no_grad():
-                    latents = vae.encode(batch["anomal_image"].to(dtype=weight_dtype)).latent_dist.sample() * args.vae_scale_factor
+                    latents = vae.encode(
+                        batch["anomal_image"].to(dtype=weight_dtype)).latent_dist.sample() * args.vae_scale_factor
+                noise = torch.randn_like(latents, device=latents.device)
                 anomal_position_vector = batch["anomal_mask"].squeeze().flatten()
+                object_normal_position_vector = torch.where(
+                    (object_position_vector == 1) & (anomal_position_vector == 0), 1, 0)
                 model_kwargs = {}
                 with torch.set_grad_enabled(True):
-                    unet(latents,0,encoder_hidden_states,trg_layer_list=args.trg_layer_list,noise_type=position_embedder,**model_kwargs)
+                    noise_pred = unet(latents,
+                                      0,
+                                      encoder_hidden_states,
+                                      trg_layer_list=args.trg_layer_list,
+                                      noise_type=position_embedder,
+                                      **model_kwargs).sample
                 query_dict, attn_dict = controller.query_dict, controller.step_store
                 controller.reset()
                 for trg_layer in args.trg_layer_list:
-                    attn_score = attn_dict[trg_layer][0]
-                    head, pixel_num, pixe_num = attn_score.shape
-                    for pixel_idx in range(pixel_num):
-                        attn_score = attn_dict[trg_layer][0] # head, pixel_num, pixe_num
-                        normal_activator.resize_self_attn_scores(attn_score)
-                c_attn_score = normal_activator.generate_conjugated_self_attn_score()
+                    normal_activator.resize_query_features(query_dict[trg_layer][0].squeeze(0))
+                    normal_activator.resize_attn_scores(attn_dict[trg_layer][0])
+                c_query = normal_activator.generate_conjugated()
+                if args.mahalanobis_only_object:
+                    normal_activator.collect_queries(c_query,
+                                                     normal_position=object_normal_position_vector,
+                                                     anomal_position=anomal_position_vector,
+                                                     do_collect_normal=True)
+                else:
+                    normal_activator.collect_queries(c_query,
+                                                     normal_position=(1 - anomal_position_vector),
+                                                     anomal_position=anomal_position_vector,
+                                                     do_collect_normal=True)
+                #if args.global_queries :
+                #    normal_activator.collect_global_queries(anomal_position=anomal_position_vector)
+                c_attn_score = normal_activator.generate_conjugated_attn_score()
                 normal_activator.collect_attention_scores(c_attn_score, anomal_position_vector)
                 normal_activator.collect_anomal_map_loss(c_attn_score, anomal_position_vector)
-
+                if args.test_noise_predicting_task_loss:
+                    normal_activator.collect_noise_prediction_loss(noise_pred, noise, anomal_position_vector)
             # --------------------------------------------------------------------------------------------------------- #
             if args.do_background_masked_sample:
                 with torch.no_grad():
-                    latents = vae.encode(
-                        batch["bg_anomal_image"].to(dtype=weight_dtype)).latent_dist.sample() * args.vae_scale_factor
+                    latents = vae.encode(batch["bg_anomal_image"].to(dtype=weight_dtype)).latent_dist.sample() * args.vae_scale_factor
                 anomal_position_vector = batch["bg_anomal_mask"].squeeze().flatten()
+                object_normal_position_vector = torch.where(
+                    (object_position_vector == 1) & (anomal_position_vector == 0), 1, 0)
                 model_kwargs = {}
                 with torch.set_grad_enabled(True):
-                    unet(latents, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list,
-                         noise_type=position_embedder, **model_kwargs)
+                    noise_pred = unet(latents,
+                                      0,
+                                      encoder_hidden_states,
+                                      trg_layer_list=args.trg_layer_list,
+                                      noise_type=position_embedder,
+                                      **model_kwargs).sample
                 query_dict, attn_dict = controller.query_dict, controller.step_store
                 controller.reset()
                 for trg_layer in args.trg_layer_list:
-                    attn_score = attn_dict[trg_layer][0]
-                    head, pixel_num, pixe_num = attn_score.shape
-                    for pixel_idx in range(pixel_num):
-                        attn_score = attn_dict[trg_layer][0]  # head, pixel_num, pixe_num
-                        normal_activator.resize_self_attn_scores(attn_score)
-                c_attn_score = normal_activator.generate_conjugated_self_attn_score()
+                    normal_activator.resize_query_features(query_dict[trg_layer][0].squeeze(0))
+                    normal_activator.resize_attn_scores(attn_dict[trg_layer][0])
+                c_query = normal_activator.generate_conjugated()
+                if args.mahalanobis_only_object:
+                    normal_activator.collect_queries(c_query,
+                                                     normal_position=object_normal_position_vector,
+                                                     anomal_position=anomal_position_vector,
+                                                     do_collect_normal=True)
+                else:
+                    normal_activator.collect_queries(c_query,
+                                                     normal_position=(1 - anomal_position_vector),
+                                                     anomal_position=anomal_position_vector,
+                                                     do_collect_normal=True)
+                c_attn_score = normal_activator.generate_conjugated_attn_score()
                 normal_activator.collect_attention_scores(c_attn_score, anomal_position_vector)
                 normal_activator.collect_anomal_map_loss(c_attn_score, anomal_position_vector)
-
+                if args.test_noise_predicting_task_loss:
+                    normal_activator.collect_noise_prediction_loss(noise_pred, noise, anomal_position_vector)
 
             # --------------------------------------------------------------------------------------------------------- #
             if args.do_rotate_anomal_sample:
                 with torch.no_grad():
                     latents = vae.encode(batch["rotate_image"].to(dtype=weight_dtype)).latent_dist.sample() * args.vae_scale_factor
                 anomal_position_vector = batch["rotate_mask"].squeeze().flatten()
-                model_kwargs = {}
+                object_normal_position_vector = torch.where((object_position_vector == 1) & (anomal_position_vector == 0), 1, 0)
                 with torch.set_grad_enabled(True):
-                    unet(latents, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list,
-                         noise_type=position_embedder, **model_kwargs)
+                    unet(latents,0,encoder_hidden_states,trg_layer_list=args.trg_layer_list,noise_type=position_embedder,)
                 query_dict, attn_dict = controller.query_dict, controller.step_store
                 controller.reset()
                 for trg_layer in args.trg_layer_list:
-                    attn_score = attn_dict[trg_layer][0]
-                    head, pixel_num, pixe_num = attn_score.shape
-                    for pixel_idx in range(pixel_num):
-                        attn_score = attn_dict[trg_layer][0]  # head, pixel_num, pixe_num
-                        normal_activator.resize_self_attn_scores(attn_score)
-                c_attn_score = normal_activator.generate_conjugated_self_attn_score()
+                    normal_activator.resize_query_features(query_dict[trg_layer][0].squeeze(0))
+                    normal_activator.resize_attn_scores(attn_dict[trg_layer][0])
+                c_query = normal_activator.generate_conjugated()
+                if args.mahalanobis_only_object:
+                    normal_activator.collect_queries(c_query,
+                                                     normal_position=object_normal_position_vector,
+                                                     anomal_position=anomal_position_vector,
+                                                     do_collect_normal=True)
+                else:
+                    normal_activator.collect_queries(c_query,
+                                                     normal_position=(1 - anomal_position_vector),
+                                                     anomal_position=anomal_position_vector,
+                                                     do_collect_normal=True)
+                c_attn_score = normal_activator.generate_conjugated_attn_score()
                 normal_activator.collect_attention_scores(c_attn_score, anomal_position_vector)
                 normal_activator.collect_anomal_map_loss(c_attn_score, anomal_position_vector)
+                if args.test_noise_predicting_task_loss:
+                    normal_activator.collect_noise_prediction_loss(noise_pred, noise, anomal_position_vector)
             # ----------------------------------------------------------------------------------------------------------
             # [5] backprop
             dist_loss, normal_dist_mean, normal_dist_max = normal_activator.generate_mahalanobis_distance_loss()

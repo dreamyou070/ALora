@@ -6,7 +6,7 @@ obj_name='transistor'
 trigger_word='transistor'
 layer_name='layer_3'
 sub_folder="up_16_32_64"
-file_name="test_global"
+file_name="test_global_2"
 
 anomal_source_path="../../../MyData/anomal_source"
 
@@ -32,6 +32,5 @@ accelerate launch --config_file ../../../gpu_config/gpu_0_config \
  --do_normal_sample --do_object_detection --do_rotate_anomal_sample \
  --position_embedding_layer 'down_blocks_0_attentions_0_transformer_blocks_0_attn1' --d_dim 320 --latent_res 64 \
  --do_attn_loss --do_map_loss \
- --trg_layer_list "['up_blocks_1_attentions_2_transformer_blocks_0_attn2',
-                    'mid_block_attentions_0_transformer_blocks_0_attn2']" \
+ --trg_layer_list "['mid_block_attentions_0_transformer_blocks_0_attn2']" \
  --do_attn_loss --attn_loss_weight 1.0 --do_cls_train --normal_weight 1
