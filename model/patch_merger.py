@@ -106,7 +106,7 @@ class PatchEmbed(nn.Module):
             L, C = x.shape
             H = int(L ** 0.5)
             x = x.view(H, H, C).contiguous().unsqueeze(dim=0)
-        
+
         B, C, H, W = x.shape
         # FIXME look at relaxing size constraints
         assert H == self.img_size[0] and W == self.img_size[1], \
