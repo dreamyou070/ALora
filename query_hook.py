@@ -161,7 +161,7 @@ def main(args):
                 origin_query_list, query_list, key_list = [], [], []
                 for layer in args.trg_layer_list :
                     origin_query_list.append(query_dict[layer][0].squeeze())       # pix_num, dim
-                    query_list.append(resize_query_features(query_dict[layer][0])) # pix_num, dim
+                    query_list.append(resize_query_features(query_dict[layer][0].squeeze())) # pix_num, dim
                     key_list.append(key_dict[layer][0])
                 # [1] local
                 local_query = torch.cat(query_list, dim=-1)       # pix_num, long_dim
