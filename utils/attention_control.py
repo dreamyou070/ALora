@@ -67,9 +67,10 @@ def register_attention_control(unet: nn.Module,controller: AttentionStore):
             key = self.to_k(context)
             value = self.to_v(context)
 
-            if trg_layer_list is not None and layer_name in trg_layer_list :
-                controller.save_query(query, layer_name) # query = batch, seq_len, dim
-                controller.save_key(key, layer_name)
+            """ First Trial """
+            #if trg_layer_list is not None and layer_name in trg_layer_list :
+            #    controller.save_query(query, layer_name) # query = batch, seq_len, dim
+            #    controller.save_key(key, layer_name)
 
             query = self.reshape_heads_to_batch_dim(query)
             key = self.reshape_heads_to_batch_dim(key)
@@ -79,10 +80,23 @@ def register_attention_control(unet: nn.Module,controller: AttentionStore):
                 query = query.float()
                 key = key.float()
 
-            attention_scores = torch.baddbmm(torch.empty(query.shape[0], query.shape[1], key.shape[1],
-                                                         dtype=query.dtype, device=query.device),
-                                             query, key.transpose(-1, -2), beta=0, alpha=self.scale, )
+            """ Second Trial """
+            if trg_layer_list is not None and layer_name in trg_layer_list :
+                controller.save_query((query * self.scale), layer_name) # query = batch, seq_len, dim
+                controller.save_key(key, layer_name)
+
+            attention_scores = torch.baddbmm(
+                torch.empty(query.shape[0], query.shape[1], key.shape[1], dtype=query.dtype, device=query.device),
+                query, key.transpose(-1, -2),
+                beta=0,
+                alpha=self.scale,)
+
             attention_probs = attention_scores.softmax(dim=-1).to(value.dtype)
+
+            if trg_layer_list is not None and layer_name in trg_layer_list :
+                trg_attn = attention_probs[:,:,:2]
+                controller.save_attn(trg_attn, layer_name)
+
 
             hidden_states = torch.bmm(attention_probs, value)
             hidden_states = self.reshape_batch_dim_to_heads(hidden_states)
