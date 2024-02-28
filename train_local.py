@@ -146,17 +146,12 @@ def main(args):
                     #attn_list.append(attn_dict[layer][0])
                 # [1] local
                 local_query = torch.cat(query_list, dim=-1)       # head, pix_num, long_dim
-                print(f'local_query (8, 4096, dim) : {local_query.shape}')
                 local_key = torch.cat(key_list, dim=-1).squeeze() # head, 77, long_dim
-                print(f'local_key (8, 77, dim) : {local_key.shape}')
-                local_attn = (local_query @ local_key.T).softmax(dim=-1)[:,:,:2] # head, pixel_num, 2
-
-
-
-
-
-
-
+                attention_scores = torch.baddbmm(
+                  torch.empty(local_query.shape[0], local_query.shape[1], local_key.shape[1], dtype=query.dtype, device=query.device),
+                  local_query, local_key.transpose(-1, -2),
+                  beta=0,)
+                local_attn = attention_scores.softmax(dim=-1)[:,:,:2]
                 normal_activator.collect_attention_scores(local_attn,
                                                           anomal_position_vector,
                                                           True)
@@ -171,20 +166,28 @@ def main(args):
                 anomal_position_vector = batch["bg_anomal_mask"].squeeze().flatten()
                 with torch.set_grad_enabled(True):
                     unet(latents, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list,noise_type=position_embedder,)
-                query_dict, key_dict = controller.query_dict, controller.key_dict
+                query_dict, key_dict, attn_dict = controller.query_dict, controller.key_dict, controller.attn_dict
                 controller.reset()
-                origin_query_list, query_list, key_list = [], [], []
+                attn_list, origin_query_list, query_list, key_list = [], [], [], []
                 for layer in args.trg_layer_list :
-                    query = query_dict[layer][0].squeeze() # pix_num, dim
+                    query = query_dict[layer][0].squeeze()          # head, pix_num, dim
                     origin_query_list.append(query)
-                    query_list.append(resize_query_features(query)) # pix_num, dim
-                    key_list.append(key_dict[layer][0])
+                    query_list.append(resize_query_features(query)) # head, pix_num, dim
+                    key_list.append(key_dict[layer][0])             # head, pix_num, dim
+                    #attn_list.append(attn_dict[layer][0])
                 # [1] local
-                local_query = torch.cat(query_list, dim=-1)       # pix_num, long_dim
-                local_key = torch.cat(key_list, dim=-1).squeeze() # long_dim, 77
-                local_attn = (local_query @ local_key.T).softmax(dim=-1)[: ,:2] #
-                normal_activator.collect_attention_scores(local_attn,anomal_position_vector, True)
-                normal_activator.collect_anomal_map_loss(local_attn, anomal_position_vector)
+                local_query = torch.cat(query_list, dim=-1)       # head, pix_num, long_dim
+                local_key = torch.cat(key_list, dim=-1).squeeze() # head, 77, long_dim
+                attention_scores = torch.baddbmm(
+                  torch.empty(local_query.shape[0], local_query.shape[1], local_key.shape[1], dtype=query.dtype, device=query.device),
+                  local_query, local_key.transpose(-1, -2),
+                  beta=0,)
+                local_attn = attention_scores.softmax(dim=-1)[:,:,:2]
+                normal_activator.collect_attention_scores(local_attn,
+                                                          anomal_position_vector,
+                                                          True)
+                normal_activator.collect_anomal_map_loss(local_attn, #
+                                                         anomal_position_vector)
                 # [2] glocal
                 #global_query = gquery_transformer(origin_query_list)
 
