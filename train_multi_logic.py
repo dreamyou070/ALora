@@ -133,10 +133,11 @@ def main(args):
                 global_query = global_quuery_generator(normal_activator.resized_queries)  # batch, 8*8, 1280
                 # -----------------------------------------------------------------------------------------------------#
                 with torch.set_grad_enabled(True):
+                    print(f'start of global !')
                     model_kwargs = {}
                     model_kwargs['global_query'] = global_query
                     g_unet(latents,0, encoder_hidden_states, trg_layer_list=args.global_trg_layer_list,
-                                      noise_type=g_position_embedder, **model_kwargs).sample
+                          noise_type=g_position_embedder, **model_kwargs).sample
                 g_query_dict, g_attn_dict = g_controller.query_dict, g_controller.step_store
                 g_controller.reset()
                 for trg_layer in args.global_trg_layer_list:
