@@ -108,7 +108,7 @@ class PatchEmbed(nn.Module):
         if x.dim() == 2 :
             L, C = x.shape
             H = int(L ** 0.5)
-            x = x.view(H, H, C).contiguous().unsqueeze(dim=0)
+            x = x.view(H, H, C).permute(2,0,1).unsqueeze(0)
 
         B, C, H, W = x.shape
         # FIXME look at relaxing size constraints
@@ -142,6 +142,10 @@ class GlobalQueryGenerator(nn.Module) :
     def forward(self, query_list):
 
         query_1, query_2, query_3 = query_list[0],query_list[1], query_list[2]
+
+        # query_1 = 1, 16*16, 1280
+        # query_2 = 1, 32*32, 640
+        # query_3 = 1, 64*64, 320
 
         q1 = self.patch_merger_16(self.patch_embed_16(query_1))
         q2 = self.patch_merger_32(self.patch_embed_32(query_2))
