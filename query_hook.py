@@ -61,6 +61,7 @@ def main(args):
     normal_activator = NormalActivator(loss_focal, loss_l2, args.use_focal_loss)
 
     print(f'\n step 8. model to device')
+    """
     unet, text_encoder, network, optimizer, train_dataloader, lr_scheduler, position_embedder = accelerator.prepare(
         unet, text_encoder, network, optimizer, train_dataloader, lr_scheduler, position_embedder,)
 
@@ -82,7 +83,7 @@ def main(args):
     del t_enc
     network.prepare_grad_etc(text_encoder, unet)
     vae.to(accelerator.device, dtype=weight_dtype)
-
+    """
     print(f'\n step 9. registering saving tensor')
     from torch import nn
     def save_tensors(module: nn.Module, features, name: str):
@@ -100,17 +101,18 @@ def main(args):
         save_tensors(out, 'output_hidden_state')
         return out
 
-    unet_blocks = unet.down_blocks + nn.ModuleList([unet.mid_block]) + unet.up_blocks
-    # 0,1,2,3
-    # 4
-    # 5,6,7,8
-
+    trg_layer_list = ['mid_block_attentions_0_transformer_blocks_0_attn2',
+                      'up_blocks_1_attentions_2_transformer_blocks_0_attn2',
+                      'up_blocks_2_attentions_2_transformer_blocks_0_attn2',
+                      'up_blocks_3_attentions_2_transformer_blocks_0_attn2',]
     feature_blocks  = []
+
     def register_recr(net_, count, layer_name):
         if net_.__class__.__name__ == 'CrossAttention':
-            net.register_forward_hook(save_out_hook)
-            print(f'register name : {layer_name}')
-            feature_blocks.append(net)
+            if layer_name in trg_layer_list :
+                net.register_forward_hook(save_out_hook)
+                print(f'register name : {layer_name}')
+                feature_blocks.append(net)
         elif hasattr(net_, 'children'):
             for name__, net__ in net_.named_children():
                 full_name = f'{layer_name}_{name__}'
@@ -118,6 +120,7 @@ def main(args):
         return count
 
     cross_att_count = 0
+
     for net in unet.named_children():
         if "down" in net[0]:
             cross_att_count += register_recr(net[1], 0, net[0])
@@ -125,8 +128,6 @@ def main(args):
             cross_att_count += register_recr(net[1], 0, net[0])
         elif "mid" in net[0]:
             cross_att_count += register_recr(net[1], 0, net[0])
-
-
 
     for epoch in range(args.start_epoch, args.max_train_epochs):
 
@@ -150,8 +151,10 @@ def main(args):
                     unet(latents, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list,noise_type=position_embedder,)
                 # check hooked hidden states
                 hidden_states = []
-                for block in feature_blocks:
-                    hidden_states.append(block.output_hidden_state)
+                for i, block in enumerate(feature_blocks) :
+                    out_feat = block.output_hidden_state
+                    print(f'out feat : {out_feat.shape}')
+                    hidden_states.append(out_feat)
                     block.output_hidden_state = None
 
 
