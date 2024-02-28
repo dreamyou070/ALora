@@ -101,6 +101,8 @@ def main(args):
     l_vae.eval()
     l_position_embedder.to(accelerator.device, dtype=weight_dtype)
     l_position_embedder.eval()
+    l_network.to(accelerator.device, dtype=weight_dtype)
+    l_network.eval()
 
     print(f'\n step 9. registering saving tensor')
     g_controller = AttentionStore()
