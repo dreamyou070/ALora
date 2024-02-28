@@ -126,10 +126,12 @@ def main(args):
                     l_unet(latents,0,encoder_hidden_states,trg_layer_list=args.local_trg_layer_list, noise_type=l_position_embedder, **model_kwargs)
                 query_dict, attn_dict = l_controller.query_dict, l_controller.step_store
                 l_controller.reset()
-                for trg_layer in args.local_trg_layer_list:
-                    normal_activator.resize_query_features(query_dict[trg_layer][0].squeeze(0))
-                    normal_activator.resize_attn_scores(attn_dict[trg_layer][0])
-                global_query = global_query_generator(normal_activator.resized_queries)  # batch, 8*8, 1280
+                query_list = [query_dict[trg_layer][0] for trg_layer in args.local_trg_layer_list]
+                global_query = global_query_generator(query_list)  # batch, 8*8, 1280
+                first_query = query_list[0]
+                print(f'first_query : {first_query.shape}')
+                second_query = query_list[1]
+                print(f'second_query : {second_query.shape}')
                 # -----------------------------------------------------------------------------------------------------#
                 with torch.set_grad_enabled(True):
                     print(f'start of global !')
