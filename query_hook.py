@@ -120,12 +120,6 @@ def main(args):
     global_step = 0
     loss_list = []
 
-    def oneDtotwoD_hiddenstates(hidden_state):
-        out_feat = hidden_state
-        b, pix_num, dim = out_feat.shape
-        res = int(pix_num ** 0.5)
-        out_feat = out_feat.permute(0, 2, 1).view(b, dim, res, res)
-        return out_feat
 
     def resize_query_features(query):
 
@@ -160,8 +154,10 @@ def main(args):
                 controller.reset()
                 origin_query_list, query_list, key_list = [], [], []
                 for layer in args.trg_layer_list :
-                    origin_query_list.append(query_dict[layer][0].squeeze())       # pix_num, dim
-                    query_list.append(resize_query_features(query_dict[layer][0].squeeze())) # pix_num, dim
+                    query = query_dict[layer][0].squeeze()
+                    print(f'query (pix_num, dim) : {query.shape}')
+                    origin_query_list.append(query)
+                    query_list.append(resize_query_features(query)) # pix_num, dim
                     key_list.append(key_dict[layer][0])
                 # [1] local
                 local_query = torch.cat(query_list, dim=-1)       # pix_num, long_dim
