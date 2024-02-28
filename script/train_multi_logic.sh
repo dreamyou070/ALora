@@ -6,7 +6,7 @@ obj_name='transistor'
 trigger_word='transistor'
 layer_name='layer_3'
 sub_folder="up_16_32_64"
-file_name="test_4_selfattn"
+file_name="rotating_2"
 
 anomal_source_path="../../../MyData/anomal_source"
 network_weights="../../result/${bench_mark}/${obj_name}/${layer_name}/${sub_folder}/${file_name}/models/epoch-000015.safetensors"
