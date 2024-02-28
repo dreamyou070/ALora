@@ -19,15 +19,19 @@ from attention_store.normal_activator import NormalActivator
 from attention_store.normal_activator import passing_normalize_argument
 from torch import nn
 
-def resize_query_features(query):
-    pix_num, dim = query.shape
-    res = int(pix_num ** 0.5)  # 8
-    query_map = query.view(res, res, dim).permute(2, 0, 1).contiguous().unsqueeze(0)  # 1, channel, res, res
-    resized_query_map = nn.functional.interpolate(query_map, size=(64, 64), mode='bilinear')  # 1, channel, 64,  64
-    resized_query = resized_query_map.permute(0, 2, 3, 1).contiguous().squeeze()  # 64, 64, channel
-    resized_query = resized_query.view(64 * 64, dim)  # #view(head_num, -1, dim).squeeze()  # 1, pix_num, dim
-    return resized_query
 
+def resize_query_features(query):
+    # pix_num, dim = query.shape
+    head_num, pix_num, dim = query.shape
+    res = int(pix_num ** 0.5)  # 8
+    # query_map = query.view(res, res, dim).permute(2,0,1).contiguous().unsqueeze(0)           # 1, channel, res, res
+    query_map = query.view(head_num, res, res, dim).permute(0, 3, 1, 2).contiguous()  # 1, channel, res, res
+    resized_query_map = nn.functional.interpolate(query_map, size=(64, 64), mode='bilinear')  # 1, channel, 64,  64
+    resized_query = resized_query_map.permute(0, 2, 3, 1).contiguous().squeeze()  # head, 64, 64, channel
+    resized_query = resized_query.view(head_num, 64 * 64,
+                                       dim)  # #view(head_num, -1, dim).squeeze()  # head, pix_num, dim
+    # resized_query = resized_query.view(64 * 64,dim)  # #view(head_num, -1, dim).squeeze()  # 1, pix_num, dim
+    return resized_query
 
 
 def inference(latent,
@@ -37,21 +41,29 @@ def inference(latent,
     input_ids, attention_mask = get_input_ids(tokenizer, args.prompt)
     encoder_hidden_states = text_encoder(input_ids.to(text_encoder.device))["last_hidden_state"]
     # [2] unet
-    unet(latent, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list,
-         noise_type=position_embedder, )
-    query_dict, key_dict = controller.query_dict, controller.key_dict
+    unet(latent, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list, noise_type=position_embedder, )
+    query_dict, key_dict, attn_dict = controller.query_dict, controller.key_dict, controller.attn_dict
     controller.reset()
-    origin_query_list, query_list, key_list = [], [], []
+    attn_list, origin_query_list, query_list, key_list = [], [], [], []
     for layer in args.trg_layer_list:
-        query = query_dict[layer][0].squeeze()  # pix_num, dim
-        query_list.append(resize_query_features(query))  # pix_num, dim
-        key_list.append(key_dict[layer][0])
+        query = query_dict[layer][0].squeeze()  # head, pix_num, dim
+        origin_query_list.append(query)
+        query_list.append(resize_query_features(query))  # head, pix_num, dim
+        key_list.append(key_dict[layer][0])  # head, pix_num, dim
+        # attn_list.append(attn_dict[layer][0])
     # [1] local
-    local_query = torch.cat(query_list, dim=-1)  # pix_num, long_dim
-    local_key = torch.cat(key_list, dim=-1).squeeze()  # long_dim, 77
-    attn_score = (local_query @ local_key.T).softmax(dim=-1)[:, :2]  #
-    cls_map = attn_score[:, 0].squeeze()
-    trigger_map = attn_score[:, 1].squeeze()
+    local_query = torch.cat(query_list, dim=-1)  # head, pix_num, long_dim
+    local_key = torch.cat(key_list, dim=-1).squeeze()  # head, 77, long_dim
+    attention_scores = torch.baddbmm(
+        torch.empty(local_query.shape[0], local_query.shape[1], local_key.shape[1], dtype=query.dtype,
+                    device=query.device),
+        local_query, local_key.transpose(-1, -2),
+        beta=0, )
+    attn_score = attention_scores.softmax(dim=-1)[:, :, :2]
+
+    cls_score, trigger_score = attn_score.chunk(2, dim=-1)  # [head,pixel], [head,pixel]
+    cls_score, trigger_score = cls_score.squeeze(), trigger_score.squeeze()  # [head,pixel], [head,pixel]
+    cls_map, trigger_map = cls_score.mean(dim=0), trigger_score.mean(dim=0)  # pix_num
     pix_num = trigger_map.shape[0]
     res = int(pix_num ** 0.5)
     cls_map = cls_map.unsqueeze(0).view(res, res)
