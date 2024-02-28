@@ -13,7 +13,7 @@ network_weights="../../result/${bench_mark}/${obj_name}/${layer_name}/${sub_fold
 accelerate launch --config_file ../../../gpu_config/gpu_0_config \
  --main_process_port $port_number ../train_multi_logic.py --log_with wandb \
  --output_dir "../../result/${bench_mark}/${obj_name}/${layer_name}/${sub_folder}/${file_name}" \
- --network_weights ${network_weoghts} \
+ --network_weights ${network_weights} \
  --train_unet --train_text_encoder --start_epoch 0 --max_train_epochs 30 \
  --pretrained_model_name_or_path ../../../pretrained_stable_diffusion/stable-diffusion-v1-5/v1-5-pruned.safetensors \
  --data_path "../../../MyData/anomaly_detection/${bench_mark}" \
