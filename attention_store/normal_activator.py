@@ -207,7 +207,7 @@ class NormalActivator(nn.Module):
         res = int(pix_num ** 0.5)
         query_map = query.view(head_num, res, res, dim).permute(0, 3, 1, 2).contiguous() # batch, channel, res, res
         resized_query_map = nn.functional.interpolate(query_map, size=(64, 64), mode='bilinear')
-        resized_query = resized_query_map.permute(0, 2, 3, 1).contiguous().view(head_num, -1, dim).squeeze()
+        resized_query = resized_query_map.permute(0, 2, 3, 1).contiguous().view(head_num, -1, dim).squeeze() # len, dim
         self.resized_queries.append(resized_query) # len = 3
 
 

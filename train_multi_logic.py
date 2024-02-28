@@ -108,7 +108,7 @@ def main(args):
         epoch_loss_total = 0
         accelerator.print(f"\nepoch {epoch + 1}/{args.start_epoch + args.max_train_epochs}")
         from model.patch_merger import GlobalQueryGenerator
-        global_quuery_generator = GlobalQueryGenerator()
+        global_query_generator = GlobalQueryGenerator()
 
         for step, batch in enumerate(train_dataloader):
 
@@ -123,14 +123,13 @@ def main(args):
                     latents = l_vae.encode(batch["bg_anomal_image"].to(dtype=weight_dtype)).latent_dist.sample() * args.vae_scale_factor
                     anomal_position_vector = batch["bg_anomal_mask"].squeeze().flatten()
                     model_kwargs = {}
-                    l_unet(latents,0,encoder_hidden_states,trg_layer_list=args.local_trg_layer_list,
-                           noise_type=l_position_embedder, **model_kwargs).sample
+                    l_unet(latents,0,encoder_hidden_states,trg_layer_list=args.local_trg_layer_list, noise_type=l_position_embedder, **model_kwargs)
                 query_dict, attn_dict = l_controller.query_dict, l_controller.step_store
                 l_controller.reset()
                 for trg_layer in args.local_trg_layer_list:
                     normal_activator.resize_query_features(query_dict[trg_layer][0].squeeze(0))
                     normal_activator.resize_attn_scores(attn_dict[trg_layer][0])
-                global_query = global_quuery_generator(normal_activator.resized_queries)  # batch, 8*8, 1280
+                global_query = global_query_generator(normal_activator.resized_queries)  # batch, 8*8, 1280
                 # -----------------------------------------------------------------------------------------------------#
                 with torch.set_grad_enabled(True):
                     print(f'start of global !')
@@ -160,7 +159,7 @@ def main(args):
                 for trg_layer in args.local_trg_layer_list:
                     normal_activator.resize_query_features(query_dict[trg_layer][0].squeeze(0))
                     normal_activator.resize_attn_scores(attn_dict[trg_layer][0])
-                global_query = global_quuery_generator(normal_activator.resized_queries)  # batch, 8*8, 1280
+                global_query = global_query_generator(normal_activator.resized_queries)  # batch, 8*8, 1280
                 # -----------------------------------------------------------------------------------------------------#
                 with torch.set_grad_enabled(True):
                     model_kwargs = {}
