@@ -63,15 +63,12 @@ def main(args):
     gquery_transformer = GlobalQueryTransformer(hidden_dim=768,
                                                 num_feature_levels=4,
                                                 with_fea2d_pos=True)
-    local_k = nn.Parameter((1280 + 1280 + 640 + 320, 1))
-
     print(f'\n step 5. optimizer')
     args.max_train_steps = len(train_dataloader) * args.max_train_epochs
     trainable_params = network.prepare_optimizer_params(args.text_encoder_lr,
                                                         args.unet_lr, args.learning_rate)
     trainable_params.append({"params": position_embedder.parameters(), "lr": args.learning_rate})
     trainable_params.append({"params": gquery_transformer.parameters(), "lr": args.learning_rate})
-    trainable_params.append({'params' : local_k})
     optimizer_name, optimizer_args, optimizer = get_optimizer(args, trainable_params)
 
     print(f'\n step 6. lr')
@@ -83,8 +80,8 @@ def main(args):
     normal_activator = NormalActivator(loss_focal, loss_l2, args.use_focal_loss)
 
     print(f'\n step 8. model to device')
-    unet, text_encoder, network, optimizer, train_dataloader, lr_scheduler, position_embedder,query_transformer,local_k = accelerator.prepare(
-        unet, text_encoder, network, optimizer, train_dataloader, lr_scheduler, position_embedder, gquery_transformer,local_k)
+    unet, text_encoder, network, optimizer, train_dataloader, lr_scheduler, position_embedder,query_transformer = accelerator.prepare(
+        unet, text_encoder, network, optimizer, train_dataloader, lr_scheduler, position_embedder, gquery_transformer)
 
     text_encoders = transform_models_if_DDP([text_encoder])
     unet, network = transform_models_if_DDP([unet, network])
@@ -106,49 +103,16 @@ def main(args):
     vae.to(accelerator.device, dtype=weight_dtype)
 
     print(f'\n step 9. registering saving tensor')
-    from torch import nn
-    def save_tensors(module: nn.Module, features, name: str):
-        if type(features) in [list, tuple]:
-            features = [f.detach().float() if f is not None else None for f in features]
-            setattr(module, name, features)
-        elif isinstance(features, dict):
-            features = {k: f.detach().float() for k, f in features.items()}
-            setattr(module, name, features)
-        else:
-            setattr(module, name, features.detach().float())
+    controller = AttentionStore()
+    register_attention_control(unet, controller)
 
-    def save_out_hook(self, inp, out): # new function
-        save_tensors(self, out, 'activations')
-        return out
-
-    trg_layer_list = args.trg_layer_list
-    feature_blocks  = []
-    def register_recr(net_, count, layer_name):
-        if net_.__class__.__name__ == 'CrossAttention':
-            if layer_name in trg_layer_list :
-                net_.register_forward_hook(save_out_hook)
-                feature_blocks.append(net_)
-        elif hasattr(net_, 'children'):
-            for name__, net__ in net_.named_children():
-                full_name = f'{layer_name}_{name__}'
-                count = register_recr(net__, count, full_name)
-        return count
-
-    cross_att_count = 0
-
-    for net in unet.named_children():
-        if "down" in net[0]:
-            cross_att_count += register_recr(net[1], 0, net[0])
-        elif "up" in net[0]:
-            cross_att_count += register_recr(net[1], 0, net[0])
-        elif "mid" in net[0]:
-            cross_att_count += register_recr(net[1], 0, net[0])
 
     def right_rotate(test_list, n):
         new_list = [None for _ in range(len(test_list))]  # [None, None, None, None, None]
         for i in range(len(test_list)):
             new_list[i] = test_list[i - n]
         return new_list
+
 
     print(f'\n step 9. Training !')
     progress_bar = tqdm(range(args.max_train_steps), smoothing=0,
@@ -164,13 +128,13 @@ def main(args):
         return out_feat
 
     def resize_query_features(query):
-        if query.dim() == 2:
-            query = query.unsqueeze(0)
-        head_num, pix_num, dim = query.shape
+
+        pix_num, dim = query.shape
         res = int(pix_num ** 0.5)
-        query_map = query.view(head_num, res, res, dim).permute(0, 3, 1, 2).contiguous()  # batch, channel, res, res
-        resized_query_map = nn.functional.interpolate(query_map, size=(64, 64), mode='bilinear')
-        resized_query = resized_query_map.permute(0, 2, 3, 1).contiguous().view(head_num, -1, dim).squeeze()  # len, dim
+        query_map = query.view(res, res, dim).permute(2,0,1).contiguous().unsqueeze(0)           # 1, channel, res, res
+        resized_query_map = nn.functional.interpolate(query_map, size=(64, 64), mode='bilinear') # 1, channel, 64,  64
+        resized_query = resized_query_map.permute(0, 2, 3, 1).contiguous().squeeze() # 64, 64, channel
+        resized_query = resized_query.view(pix_num, dim) # #view(head_num, -1, dim).squeeze()  # 1, pix_num, dim
         return resized_query
 
     for epoch in range(args.start_epoch, args.max_train_epochs):
@@ -185,42 +149,32 @@ def main(args):
 
             with torch.set_grad_enabled(True):
                 encoder_hidden_states = text_encoder(batch["input_ids"].to(device))["last_hidden_state"]
-            # --------------------------------------------------------------------------------------------------------- #
+
             if args.do_anomal_sample:
                 with torch.no_grad():
                     latents = vae.encode(batch["anomal_image"].to(dtype=weight_dtype)).latent_dist.sample() * args.vae_scale_factor
                 anomal_position_vector = batch["anomal_mask"].squeeze().flatten()
                 with torch.set_grad_enabled(True):
                     unet(latents, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list,noise_type=position_embedder,)
-                query_list = []
-                for i, block in enumerate(feature_blocks) :
-                    query_list.append(oneDtotwoD_hiddenstates(block.activations))
-                    block.activations = None
-                query_list = right_rotate(query_list,1)
-                output = gquery_transformer(query_list)
-                local_query = [resize_query_features(q) for q in query_list ]
-                local_query = torch.cat(local_query, dim=-1).squeeze()
-                l_attn = local_query @ local_k
-                normal_activator.collect_attention_scores(l_attn, anomal_position_vector)
-                normal_activator.collect_anomal_map_loss(l_attn, anomal_position_vector)
+                query_dict, key_dict = controller.query_dict, controller.key_dict
+                controller.reset()
+                origin_query_list, query_list, key_list = [], [], []
+                for layer in args.trg_layer_list :
+                    origin_query_list.append(query_dict[layer][0].squeeze())       # pix_num, dim
+                    query_list.append(resize_query_features(query_dict[layer][0])) # pix_num, dim
+                    key_list.append(key_dict[layer][0])
+                # [1] local
+                local_query = torch.cat(query_list, dim=-1)       # pix_num, long_dim
+                local_key = torch.cat(key_list, dim=-1).squeeze() # long_dim, 77
+                local_attn = (local_query @ local_key.T).softmax(dim=-1)[:,:2] #
+                normal_activator.collect_attention_scores(local_attn, anomal_position_vector)
+                normal_activator.collect_anomal_map_loss(local_attn, anomal_position_vector)
 
-            if args.do_background_masked_sample :
-                with torch.no_grad():
-                    latents = vae.encode(batch["bg_anomal_image"].to(dtype=weight_dtype)).latent_dist.sample() * args.vae_scale_factor
-                anomal_position_vector = batch["bg_anomal_mask"].squeeze().flatten()
-                with torch.set_grad_enabled(True):
-                    unet(latents, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list,noise_type=position_embedder,)
-                query_list = []
-                for i, block in enumerate(feature_blocks) :
-                    query_list.append(oneDtotwoD_hiddenstates(block.activations))
-                    block.activations = None
-                query_list = right_rotate(query_list,1)
-                output = gquery_transformer(query_list)
-                local_query = [resize_query_features(q) for q in query_list ]
-                local_query = torch.cat(local_query, dim=-1).squeeze()
-                l_attn = local_query @ local_k
-                normal_activator.collect_attention_scores(l_attn, anomal_position_vector)
-                normal_activator.collect_anomal_map_loss(l_attn, anomal_position_vector)
+                # [2] glocal
+                global_query = gquery_transformer(local_query)
+
+
+
             # --------------------------------------------------------------------------------------------------------- #
             """
             if args.do_background_masked_sample:

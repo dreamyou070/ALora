@@ -47,8 +47,7 @@ def passing_argument(args):
 def register_attention_control(unet: nn.Module,controller: AttentionStore):
 
     def ca_forward(self, layer_name):
-        def forward(hidden_states, context=None, trg_layer_list=None, noise_type=None,
-                    **model_kwargs):
+        def forward(hidden_states, context=None, trg_layer_list=None, noise_type=None,):
 
             is_cross_attention = False
             if context is not None:
@@ -71,14 +70,6 @@ def register_attention_control(unet: nn.Module,controller: AttentionStore):
             key = self.reshape_heads_to_batch_dim(key)
             value = self.reshape_heads_to_batch_dim(value)
 
-            
-            # cashing query, key
-            if argument.gen_batchwise_attn :
-                if trg_layer_list is not None and layer_name in trg_layer_list :
-                    controller.save_batshaped_qk(query, key, layer_name)
-                    controller.save_scale(self.scale, layer_name)
-            
-
             if self.upcast_attention:
                 query = query.float()
                 key = key.float()
@@ -91,19 +82,6 @@ def register_attention_control(unet: nn.Module,controller: AttentionStore):
             hidden_states = torch.bmm(attention_probs, value)
             hidden_states = self.reshape_batch_dim_to_heads(hidden_states)
             hidden_states = self.to_out[0](hidden_states)
-
-            if trg_layer_list is not None and layer_name in trg_layer_list :
-                if argument.use_focal_loss :
-                    attention_probs = attention_scores[:, :, :2].softmax(dim=-1).to(value.dtype)
-                    trg_map = attention_probs
-                    controller.store(trg_map, layer_name)
-                else :
-                    if is_cross_attention :
-                        trg_map = attention_probs[:, :, :2]
-                    else :
-                        trg_map = attention_probs # head, pixel_num, pixel_num
-                    controller.store(trg_map, layer_name)
-
             return hidden_states
 
         return forward
