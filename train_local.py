@@ -144,9 +144,10 @@ def main(args):
                     query_list.append(resize_query_features(query)) # pix_num, dim
                     key_list.append(key_dict[layer][0])
                 # [1] local
-                local_query = torch.cat(query_list, dim=-1)       # pix_num, long_dim
-                local_key = torch.cat(key_list, dim=-1).squeeze() # long_dim, 77
+                local_query = torch.cat(query_list, dim=-1)       # 1, pix_num, long_dim
+                local_key = torch.cat(key_list, dim=-1).squeeze() # 1, 77, long_dim
                 local_attn = (local_query @ local_key.T).softmax(dim=-1)[:,:2] #
+                print(f'local_attn : {local_attn.shape}')
                 normal_activator.collect_attention_scores(local_attn,
                                                           anomal_position_vector,
                                                           True)
