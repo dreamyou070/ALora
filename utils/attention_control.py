@@ -58,20 +58,15 @@ def register_attention_control(unet: nn.Module,controller: AttentionStore):
                 hidden_states_pos = noise_type(hidden_states)
                 hidden_states = hidden_states_pos
 
-            print(f'model_kwargs : {model_kwargs}')
-            if 'global_query' in model_kwargs and layer_name == 'mid_block_attentions_0_transformer_blocks_0_attn2' :
-                hidden_states = model_kwargs['global_query']
-
             query = self.to_q(hidden_states)
-            if trg_layer_list is not None and layer_name in trg_layer_list :
-                controller.save_query(query, layer_name) # query = batch, seq_len, dim
             context = context if context is not None else hidden_states
-
-            #if not is_cross_attention and use_self_embedding :
-            #    context = use_self_embedding(layer_name, context)
-
             key = self.to_k(context)
             value = self.to_v(context)
+
+            if trg_layer_list is not None and layer_name in trg_layer_list :
+                controller.save_query(query, layer_name) # query = batch, seq_len, dim
+                controller.save_key(key, layer_name)
+
             query = self.reshape_heads_to_batch_dim(query)
             key = self.reshape_heads_to_batch_dim(key)
             value = self.reshape_heads_to_batch_dim(value)

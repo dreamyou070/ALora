@@ -2,6 +2,7 @@
 <project version="4">
   <component name="VcsDirectoryMappings">
     <mapping directory="" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/AnomalLora_OriginCode" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/Swin-Transformer" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/transformers" vcs="Git" />
   </component>
 </project>

@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 
+
 def passing_normalize_argument(args) :
     global argument
     argument = args
@@ -33,6 +34,18 @@ class NormalActivator(nn.Module):
         self.resized_attn_scores = []
         self.noise_prediction_loss = []
         self.resized_self_attn_scores = []
+
+    def merging(self, x):
+        B, L, C = x.shape
+        H, W = int(L ** 0.5)
+        x = x.view(B, H, W, C)
+        x0 = x[:, 0::2, 0::2, :]  # B H/2 W/2 C
+        x1 = x[:, 1::2, 0::2, :]  # B H/2 W/2 C
+        x2 = x[:, 0::2, 1::2, :]  # B H/2 W/2 C
+        x3 = x[:, 1::2, 1::2, :]  # B H/2 W/2 C
+        x = torch.cat([x0, x1, x2, x3], -1)  # B H/2 W/2 4*C
+        x = x.view(B, -1, C)  # B, L, C
+        return x
 
     def collect_queries(self, origin_query, normal_position, anomal_position, do_collect_normal):
 

@@ -43,13 +43,13 @@ def main(args):
 
     print(f'\n step 4. model ')
     weight_dtype, save_dtype = prepare_dtype(args)
-    l_text_encoder, l_vae, l_unet, l_network, l_position_embedder = call_model_package(args, weight_dtype, accelerator, is_local = True)
-    g_text_encoder, g_vae, g_unet, g_network, g_position_embedder = call_model_package(args, weight_dtype, accelerator, is_local = False)
+    text_encoder, vae, unet, network, position_embedder = call_model_package(args, weight_dtype, accelerator, True)
 
     print(f'\n step 5. optimizer')
     args.max_train_steps = len(train_dataloader) * args.max_train_epochs
-    trainable_params = g_network.prepare_optimizer_params(args.text_encoder_lr,args.unet_lr, args.learning_rate)
-    trainable_params.append({"params": g_position_embedder.parameters(), "lr": args.learning_rate})
+    trainable_params = network.prepare_optimizer_params(args.text_encoder_lr,
+                                                        args.unet_lr, args.learning_rate)
+    trainable_params.append({"params": position_embedder.parameters(), "lr": args.learning_rate})
     optimizer_name, optimizer_args, optimizer = get_optimizer(args, trainable_params)
 
     print(f'\n step 6. lr')
@@ -61,188 +61,57 @@ def main(args):
     normal_activator = NormalActivator(loss_focal, loss_l2, args.use_focal_loss)
 
     print(f'\n step 8. model to device')
-    g_unet, g_text_encoder, g_network, optimizer, train_dataloader, lr_scheduler, g_position_embedder = accelerator.prepare(
-        g_unet, g_text_encoder, g_network, optimizer, train_dataloader, lr_scheduler, g_position_embedder,)
+    unet, text_encoder, network, optimizer, train_dataloader, lr_scheduler, position_embedder = accelerator.prepare(
+        unet, text_encoder, network, optimizer, train_dataloader, lr_scheduler, position_embedder,)
 
-    g_text_encoders = transform_models_if_DDP([g_text_encoder])
-    g_unet, g_network = transform_models_if_DDP([g_unet, g_network])
+    text_encoders = transform_models_if_DDP([text_encoder])
+    unet, network = transform_models_if_DDP([unet, network])
     if args.gradient_checkpointing:
-        g_unet.train()
-        g_position_embedder.train()
-        for g_t_enc in g_text_encoders:
-            g_t_enc.train()
+        unet.train()
+        position_embedder.train()
+        for t_enc in text_encoders:
+            t_enc.train()
             if args.train_text_encoder:
-                g_t_enc.text_model.embeddings.requires_grad_(True)
+                t_enc.text_model.embeddings.requires_grad_(True)
         if not args.train_text_encoder:  # train U-Net only
-            g_unet.parameters().__next__().requires_grad_(True)
+            unet.parameters().__next__().requires_grad_(True)
     else:
-        g_unet.eval()
-        for g_t_enc in g_text_encoders:
-            g_t_enc.eval()
-    del g_t_enc
-    g_network.prepare_grad_etc(g_text_encoder, g_unet)
-    g_vae.to(accelerator.device, dtype=weight_dtype)
-
-    l_vae.to(accelerator.device, dtype=weight_dtype)
-    l_vae.eval()
-    l_unet.to(accelerator.device, dtype=weight_dtype)
-    l_unet.eval()
-    l_text_encoder.to(accelerator.device, dtype=weight_dtype)
-    l_text_encoder.eval()
-    l_network.to(accelerator.device, dtype=weight_dtype)
-    l_network.eval()
-    l_position_embedder.to(accelerator.device, dtype=weight_dtype)
-    l_position_embedder.eval()
+        unet.eval()
+        for t_enc in text_encoders:
+            t_enc.eval()
+    del t_enc
+    network.prepare_grad_etc(text_encoder, unet)
+    vae.to(accelerator.device, dtype=weight_dtype)
 
     print(f'\n step 9. Training !')
-    progress_bar = tqdm(range(args.max_train_steps), smoothing=0,
-                        disable=not accelerator.is_local_main_process, desc="steps")
-    global_step = 0
-    loss_list = []
-    l_controller = AttentionStore()
-    register_attention_control(l_unet, l_controller)
-    g_controller = AttentionStore()
-    register_attention_control(g_unet, g_controller)
+    from torch import nn
 
-    for epoch in range(args.start_epoch, args.max_train_epochs):
-        epoch_loss_total = 0
-        accelerator.print(f"\nepoch {epoch + 1}/{args.start_epoch + args.max_train_epochs}")
-        from model.patch_merger import GlobalQueryGenerator
-        global_query_generator = GlobalQueryGenerator()
+    def save_tensors(module: nn.Module, features, name: str):
+        """ Process and save activations in the module. """
+        if type(features) in [list, tuple]:
+            features = [f.detach().float() if f is not None else None
+                        for f in features]
+            setattr(module, name, features)
+        elif isinstance(features, dict):
+            features = {k: f.detach().float() for k, f in features.items()}
+            setattr(module, name, features)
+        else:
+            setattr(module, name, features.detach().float())
 
-        for step, batch in enumerate(train_dataloader):
-
-            device = accelerator.device
-            loss = torch.tensor(0.0, dtype=weight_dtype, device=accelerator.device)
-            loss_dict = {}
-            with torch.set_grad_enabled(True):
-                encoder_hidden_states = l_text_encoder(batch["input_ids"].to(device))["last_hidden_state"]
-            # --------------------------------------------------------------------------------------------------------- #
-            if args.do_background_masked_sample :
-
-                with torch.no_grad():
-                    latents = l_vae.encode(batch["bg_anomal_image"].to(dtype=weight_dtype)).latent_dist.sample() * args.vae_scale_factor
-                    anomal_position_vector = batch["bg_anomal_mask"].squeeze().flatten()
-                    model_kwargs = {}
-                    l_unet(latents,0,encoder_hidden_states,trg_layer_list=args.local_trg_layer_list, noise_type=l_position_embedder, **model_kwargs)
-                query_dict, attn_dict = l_controller.query_dict, l_controller.step_store
-                l_controller.reset()
-                query_list = [query_dict[trg_layer][0] for trg_layer in args.local_trg_layer_list] # batch, pix_num, dim
-
-                first_query = query_list[0]
-                print(f'first_query : {first_query.shape}')
-                second_query = query_list[1]
-                print(f'second_query : {second_query.shape}')
+    def save_out_hook(out):
+        save_tensors(out, 'activations')
+        return out
 
 
-
-                global_query = global_query_generator(query_list)  # batch, 8*8, 1280
-                # -----------------------------------------------------------------------------------------------------#
-                with torch.set_grad_enabled(True):
-                    print(f'start of global !')
-                    model_kwargs = {}
-                    model_kwargs['global_query'] = global_query
-                    g_unet(latents,0, encoder_hidden_states, trg_layer_list=args.global_trg_layer_list,
-                          noise_type=g_position_embedder, **model_kwargs).sample
-                g_query_dict, g_attn_dict = g_controller.query_dict, g_controller.step_store
-                g_controller.reset()
-                for trg_layer in args.global_trg_layer_list:
-                    normal_activator.resize_query_features(g_query_dict[trg_layer][0].squeeze(0))
-                    normal_activator.resize_attn_scores(g_attn_dict[trg_layer][0])
-                g_c_attn_score = normal_activator.generate_conjugated_attn_score()
-                normal_activator.collect_attention_scores(g_c_attn_score, anomal_position_vector)
-                normal_activator.collect_anomal_map_loss(g_c_attn_score, anomal_position_vector)
-
-            # --------------------------------------------------------------------------------------------------------- #
-            if args.do_rotate_anomal_sample:
-                with torch.no_grad():
-                    latents = l_vae.encode(batch["rotate_image"].to(dtype=weight_dtype)).latent_dist.sample() * args.vae_scale_factor
-                    anomal_position_vector = batch["rotate_mask"].squeeze().flatten()
-                    model_kwargs = {}
-                    l_unet(latents, 0, encoder_hidden_states, trg_layer_list=args.local_trg_layer_list,
-                           noise_type=l_position_embedder, **model_kwargs).sample
-                query_dict, attn_dict = l_controller.query_dict, l_controller.step_store
-                l_controller.reset()
-                for trg_layer in args.local_trg_layer_list:
-                    normal_activator.resize_query_features(query_dict[trg_layer][0].squeeze(0))
-                    normal_activator.resize_attn_scores(attn_dict[trg_layer][0])
-                global_query = global_query_generator(normal_activator.resized_queries)  # batch, 8*8, 1280
-                # -----------------------------------------------------------------------------------------------------#
-                with torch.set_grad_enabled(True):
-                    model_kwargs = {}
-                    model_kwargs['global_query'] = global_query
-                    g_unet(latents, 0, encoder_hidden_states, trg_layer_list=args.glocal_trg_layer_list,
-                           noise_type=g_position_embedder, **model_kwargs).sample
-                g_query_dict, g_attn_dict = g_controller.query_dict, g_controller.step_store
-                g_controller.reset()
-                for trg_layer in args.global_trg_layer_list:
-                    normal_activator.resize_query_features(g_query_dict[trg_layer][0].squeeze(0))
-                    normal_activator.resize_attn_scores(g_attn_dict[trg_layer][0])
-                g_c_attn_score = normal_activator.generate_conjugated_attn_score()
-                normal_activator.collect_attention_scores(g_c_attn_score, anomal_position_vector)
-                normal_activator.collect_anomal_map_loss(g_c_attn_score, anomal_position_vector)
-
-            # ----------------------------------------------------------------------------------------------------------
-            # [5] backprop
-            normal_cls_loss, normal_trigger_loss, anomal_cls_loss, anomal_trigger_loss = normal_activator.generate_attention_loss()
-            if type(anomal_cls_loss) == float:
-                attn_loss = args.normal_weight * normal_trigger_loss.mean()
-            else:
-                attn_loss = args.normal_weight * normal_cls_loss.mean() + args.anomal_weight * anomal_cls_loss.mean()
-            if args.do_cls_train:
-                if type(anomal_trigger_loss) == float:
-                    attn_loss = args.normal_weight * normal_cls_loss.mean()
-                else:
-                    attn_loss += args.normal_weight * normal_cls_loss.mean() + args.anomal_weight * anomal_cls_loss.mean()
-            loss += attn_loss
-            loss_dict['attn_loss'] = attn_loss.item()
-            if args.do_map_loss:
-                map_loss = normal_activator.generate_anomal_map_loss()
-                loss += map_loss
-                loss_dict['map_loss'] = map_loss.item()
-
-            if args.test_noise_predicting_task_loss:
-                noise_pred_loss = normal_activator.generate_noise_prediction_loss()
-                loss += noise_pred_loss
-                loss_dict['noise_pred_loss'] = noise_pred_loss.item()
-
-            loss = loss.to(weight_dtype)
-            current_loss = loss.detach().item()
-            if epoch == args.start_epoch:
-                loss_list.append(current_loss)
-            else:
-                epoch_loss_total -= loss_list[step]
-                loss_list[step] = current_loss
-            epoch_loss_total += current_loss
-            avr_loss = epoch_loss_total / len(loss_list)
-            loss_dict['avr_loss'] = avr_loss
-            accelerator.backward(loss)
-            optimizer.step()
-            lr_scheduler.step()
-            optimizer.zero_grad(set_to_none=True)
-            if accelerator.sync_gradients:
-                progress_bar.update(1)
-                global_step += 1
-            if is_main_process:
-                progress_bar.set_postfix(**loss_dict)
-            normal_activator.reset()
-            l_controller.reset()
-            g_controller.reset()
-            if global_step >= args.max_train_steps:
-                break
-        # [6] epoch final
-        accelerator.wait_for_everyone()
-        if is_main_process:
-            ckpt_name = get_epoch_ckpt_name(args, "." + args.save_model_as, epoch + 1)
-            save_model(args, ckpt_name, accelerator.unwrap_model(g_network), save_dtype)
-            if g_position_embedder is not None:
-                position_embedder_base_save_dir = os.path.join(args.output_dir, 'position_embedder')
-                os.makedirs(position_embedder_base_save_dir, exist_ok=True)
-                p_save_dir = os.path.join(position_embedder_base_save_dir,
-                                          f'position_embedder_{epoch + 1}.safetensors')
-                pe_model_save(accelerator.unwrap_model(g_position_embedder), save_dtype, p_save_dir)
-    accelerator.end_training()
-
+    unet_blocks = unet.down_blocks + nn.ModuleList([unet.mid_block]) + unet.up_blocks
+    for idx, block in enumerate(unet_blocks):
+        print(f'{idx} : {block.__class__.__name__}')
+        print(f'')
+        block.register_forward_hook(save_out_hook)
+        #feature_blocks.append(block)
+    """
+    
+    """
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -342,8 +211,7 @@ if __name__ == "__main__":
     parser.add_argument("--attn_loss_weight", type=float, default=1.0)
     parser.add_argument("--anomal_weight", type=float, default=1.0)
     parser.add_argument('--normal_weight', type=float, default=1.0)
-    parser.add_argument("--local_trg_layer_list", type=arg_as_list, default=[])
-    parser.add_argument("--global_trg_layer_list", type=arg_as_list, default=[])
+    parser.add_argument("--trg_layer_list", type=arg_as_list, default=[])
     parser.add_argument("--original_normalized_score", action='store_true')
     # [3]
     parser.add_argument("--do_map_loss", action='store_true')
