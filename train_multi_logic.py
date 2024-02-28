@@ -123,8 +123,8 @@ def main(args):
                     latents = l_vae.encode(batch["bg_anomal_image"].to(dtype=weight_dtype)).latent_dist.sample() * args.vae_scale_factor
                     anomal_position_vector = batch["bg_anomal_mask"].squeeze().flatten()
                     model_kwargs = {}
-                    l_unet(latents,0,encoder_hidden_states,trg_layer_list=args.trg_layer_list,noise_type=l_position_embedder,
-                                      **model_kwargs).sample
+                    l_unet(latents,0,encoder_hidden_states,trg_layer_list=args.local_trg_layer_list,
+                           noise_type=l_position_embedder, **model_kwargs).sample
                 query_dict, attn_dict = l_controller.query_dict, l_controller.step_store
                 l_controller.reset()
                 for trg_layer in args.local_trg_layer_list:
@@ -135,7 +135,7 @@ def main(args):
                 with torch.set_grad_enabled(True):
                     model_kwargs = {}
                     model_kwargs['global_query'] = global_query
-                    g_unet(latents,0, encoder_hidden_states, trg_layer_list=args.trg_layer_list,
+                    g_unet(latents,0, encoder_hidden_states, trg_layer_list=args.global_trg_layer_list,
                                       noise_type=g_position_embedder, **model_kwargs).sample
                 g_query_dict, g_attn_dict = g_controller.query_dict, g_controller.step_store
                 g_controller.reset()
@@ -152,9 +152,8 @@ def main(args):
                     latents = l_vae.encode(batch["rotate_image"].to(dtype=weight_dtype)).latent_dist.sample() * args.vae_scale_factor
                     anomal_position_vector = batch["rotate_mask"].squeeze().flatten()
                     model_kwargs = {}
-                    l_unet(latents, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list,
-                           noise_type=l_position_embedder,
-                           **model_kwargs).sample
+                    l_unet(latents, 0, encoder_hidden_states, trg_layer_list=args.local_trg_layer_list,
+                           noise_type=l_position_embedder, **model_kwargs).sample
                 query_dict, attn_dict = l_controller.query_dict, l_controller.step_store
                 l_controller.reset()
                 for trg_layer in args.local_trg_layer_list:
@@ -165,7 +164,7 @@ def main(args):
                 with torch.set_grad_enabled(True):
                     model_kwargs = {}
                     model_kwargs['global_query'] = global_query
-                    g_unet(latents, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list,
+                    g_unet(latents, 0, encoder_hidden_states, trg_layer_list=args.glocal_trg_layer_list,
                            noise_type=g_position_embedder, **model_kwargs).sample
                 g_query_dict, g_attn_dict = g_controller.query_dict, g_controller.step_store
                 g_controller.reset()
