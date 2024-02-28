@@ -165,7 +165,8 @@ def main(args):
                 normal_activator.collect_attention_scores(local_attn,
                                                           anomal_position_vector,
                                                           True)
-                normal_activator.collect_anomal_map_loss(local_attn, anomal_position_vector)
+                normal_activator.collect_anomal_map_loss(local_attn, #
+                                                         anomal_position_vector)
 
                 # [2] glocal
                 global_query = gquery_transformer(origin_query_list)
