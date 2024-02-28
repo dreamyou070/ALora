@@ -58,7 +58,7 @@ def register_attention_control(unet: nn.Module,controller: AttentionStore):
                 hidden_states_pos = noise_type(hidden_states)
                 hidden_states = hidden_states_pos
 
-            print(f'model_kwargs : {model_kwargs}')
+            #print(f'model_kwargs : {model_kwargs}')
             if 'global_query' in model_kwargs and layer_name == 'mid_block_attentions_0_transformer_blocks_0_attn2' :
                 hidden_states = model_kwargs['global_query']
 
