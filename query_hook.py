@@ -61,7 +61,6 @@ def main(args):
     normal_activator = NormalActivator(loss_focal, loss_l2, args.use_focal_loss)
 
     print(f'\n step 8. model to device')
-    """
     unet, text_encoder, network, optimizer, train_dataloader, lr_scheduler, position_embedder = accelerator.prepare(
         unet, text_encoder, network, optimizer, train_dataloader, lr_scheduler, position_embedder,)
 
@@ -83,7 +82,7 @@ def main(args):
     del t_enc
     network.prepare_grad_etc(text_encoder, unet)
     vae.to(accelerator.device, dtype=weight_dtype)
-    """
+
     print(f'\n step 9. registering saving tensor')
     from torch import nn
     def save_tensors(module: nn.Module, features, name: str):
