@@ -112,12 +112,8 @@ def main(args):
         save_tensors(self, out, 'activations')
         return out
 
-    trg_layer_list = ['mid_block_attentions_0_transformer_blocks_0_attn2',
-                      'up_blocks_1_attentions_2_transformer_blocks_0_attn2',
-                      'up_blocks_2_attentions_2_transformer_blocks_0_attn2',
-                      'up_blocks_3_attentions_2_transformer_blocks_0_attn2',]
+    trg_layer_list = args.trg_layer_list
     feature_blocks  = []
-
     def register_recr(net_, count, layer_name):
         if net_.__class__.__name__ == 'CrossAttention':
             if layer_name in trg_layer_list :
@@ -145,6 +141,11 @@ def main(args):
             new_list[i] = test_list[i - n]
         return new_list
 
+    print(f'\n step 9. Training !')
+    progress_bar = tqdm(range(args.max_train_steps), smoothing=0,
+                        disable=not accelerator.is_local_main_process, desc="steps")
+    global_step = 0
+    loss_list = []
     for epoch in range(args.start_epoch, args.max_train_epochs):
 
         epoch_loss_total = 0
@@ -157,33 +158,137 @@ def main(args):
 
             with torch.set_grad_enabled(True):
                 encoder_hidden_states = text_encoder(batch["input_ids"].to(device))["last_hidden_state"]
-            object_position_vector = batch['object_mask'].squeeze().flatten()
             # --------------------------------------------------------------------------------------------------------- #
-            with torch.no_grad():
-                latents = vae.encode(batch["image"].to(dtype=weight_dtype)).latent_dist.sample() * args.vae_scale_factor
-            anomal_position_vector = torch.zeros_like(object_position_vector)
-            with torch.set_grad_enabled(True):
-                unet(latents, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list,noise_type=position_embedder,)
-            # check hooked hidden states
-            query_list = []
-            for i, block in enumerate(feature_blocks) :
-                out_feat = block.activations
-                b, pix_num, dim = out_feat.shape
-                res = int(pix_num ** 0.5)
-                out_feat = out_feat.permute(0,2,1).view(b,dim,res,res)
-                # out feat : torch.Size([1, 1280, 16, 16])
-                # out feat : torch.Size([1, 640, 32, 32])
-                # out feat : torch.Size([1, 320, 64, 64])
-                # out feat : torch.Size([1, 1280, 8, 8])
-                query_list.append(out_feat)
-                block.activations = None
-            query_list = right_rotate(query_list,1)
-            gquery, lquery = query_transformer(query_list) # [batch,64,768], [batch,64*64,768]
+            if args.do_anomal_sample:
+                with torch.no_grad():
+                    latents = vae.encode(batch["anomal_image"].to(dtype=weight_dtype)).latent_dist.sample() * args.vae_scale_factor
+                anomal_position_vector = batch["anomal_mask"].squeeze().flatten()
+                with torch.set_grad_enabled(True):
+                    unet(latents, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list,noise_type=position_embedder,)
+                # check hooked hidden states
+                query_list = []
+                for i, block in enumerate(feature_blocks) :
+                    out_feat = block.activations
+                    b, pix_num, dim = out_feat.shape
+                    res = int(pix_num ** 0.5)
+                    out_feat = out_feat.permute(0,2,1).view(b,dim,res,res)
+                    query_list.append(out_feat)
+                    block.activations = None
+                query_list = right_rotate(query_list,1)
+                gquery, lquery = query_transformer(query_list) # [batch,64,768], [batch,64*64,768]
+                g_attn = torch.baddbmm(torch.empty(gquery.shape[0], gquery.shape[1], encoder_hidden_states.shape[1], dtype=gquery.dtype,
+                                                   device=gquery.device),
+                                       gquery,encoder_hidden_states.transpose(-1, -2), beta=0)[:,:,1]
+                l_attn = torch.baddbmm(torch.empty(lquery.shape[0], lquery.shape[1], encoder_hidden_states.shape[1], dtype=lquery.dtype,
+                                                   device=lquery.device),
+                                       lquery, encoder_hidden_states.transpose(-1, -2), beta=0)[:,:,:2]
+                normal_activator.collect_attention_scores(l_attn, anomal_position_vector)
+                normal_activator.collect_anomal_map_loss(l_attn, anomal_position_vector)
+            # --------------------------------------------------------------------------------------------------------- #
+            if args.do_background_masked_sample:
+                with torch.no_grad():
+                    latents = vae.encode(batch["bg_anomal_image"].to(
+                        dtype=weight_dtype)).latent_dist.sample() * args.vae_scale_factor
+                anomal_position_vector = batch["bg_anomal_mask"].squeeze().flatten()
+                with torch.set_grad_enabled(True):
+                    unet(latents, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list,
+                         noise_type=position_embedder, )
+                # check hooked hidden states
+                query_list = []
+                for i, block in enumerate(feature_blocks):
+                    out_feat = block.activations
+                    b, pix_num, dim = out_feat.shape
+                    res = int(pix_num ** 0.5)
+                    out_feat = out_feat.permute(0, 2, 1).view(b, dim, res, res)
+                    query_list.append(out_feat)
+                    block.activations = None
+                query_list = right_rotate(query_list, 1)
+                gquery, lquery = query_transformer(query_list)  # [batch,64,768], [batch,64*64,768]
+                g_attn = torch.baddbmm(torch.empty(gquery.shape[0], gquery.shape[1], encoder_hidden_states.shape[1],
+                                                   dtype=gquery.dtype,device=gquery.device),
+                                       gquery, encoder_hidden_states.transpose(-1, -2), beta=0)[:, :, 1]
+                l_attn = torch.baddbmm(torch.empty(lquery.shape[0], lquery.shape[1], encoder_hidden_states.shape[1],
+                                                   dtype=lquery.dtype,device=lquery.device),
+                                       lquery, encoder_hidden_states.transpose(-1, -2), beta=0)[:, :, :2]
+                normal_activator.collect_attention_scores(l_attn, anomal_position_vector)
+                normal_activator.collect_anomal_map_loss(l_attn, anomal_position_vector)
+            # [5] backprop
+            if args.do_attn_loss:
+                normal_cls_loss, normal_trigger_loss, anomal_cls_loss, anomal_trigger_loss = normal_activator.generate_attention_loss()
+                if type(anomal_cls_loss) == float:
+                    attn_loss = args.normal_weight * normal_trigger_loss.mean()
+                else:
+                    attn_loss = args.normal_weight * normal_cls_loss.mean() + args.anomal_weight * anomal_cls_loss.mean()
+                if args.do_cls_train:
+                    if type(anomal_trigger_loss) == float:
+                        attn_loss = args.normal_weight * normal_cls_loss.mean()
+                    else:
+                        attn_loss += args.normal_weight * normal_cls_loss.mean() + args.anomal_weight * anomal_cls_loss.mean()
+                loss += attn_loss
+                loss_dict['attn_loss'] = attn_loss.item()
 
+            if args.do_map_loss:
+                map_loss = normal_activator.generate_anomal_map_loss()
+                loss += map_loss
+                loss_dict['map_loss'] = map_loss.item()
 
+            if args.test_noise_predicting_task_loss:
+                noise_pred_loss = normal_activator.generate_noise_prediction_loss()
+                loss += noise_pred_loss
+                loss_dict['noise_pred_loss'] = noise_pred_loss.item()
 
-
-
+            loss = loss.to(weight_dtype)
+            current_loss = loss.detach().item()
+            if epoch == args.start_epoch:
+                loss_list.append(current_loss)
+            else:
+                epoch_loss_total -= loss_list[step]
+                loss_list[step] = current_loss
+            epoch_loss_total += current_loss
+            avr_loss = epoch_loss_total / len(loss_list)
+            loss_dict['avr_loss'] = avr_loss
+            accelerator.backward(loss)
+            optimizer.step()
+            lr_scheduler.step()
+            optimizer.zero_grad(set_to_none=True)
+            if accelerator.sync_gradients:
+                progress_bar.update(1)
+                global_step += 1
+            if is_main_process:
+                progress_bar.set_postfix(**loss_dict)
+            normal_activator.reset()
+            if global_step >= args.max_train_steps:
+                break
+        # ----------------------------------------------------------------------------------------------------------- #
+        # [6] epoch final
+        accelerator.wait_for_everyone()
+        if is_main_process:
+            ckpt_name = get_epoch_ckpt_name(args, "." + args.save_model_as, epoch + 1)
+            save_model(args, ckpt_name, accelerator.unwrap_model(network), save_dtype)
+            if position_embedder is not None:
+                position_embedder_base_save_dir = os.path.join(args.output_dir, 'position_embedder')
+                os.makedirs(position_embedder_base_save_dir, exist_ok=True)
+                p_save_dir = os.path.join(position_embedder_base_save_dir,
+                                          f'position_embedder_{epoch + 1}.safetensors')
+                pe_model_save(accelerator.unwrap_model(position_embedder), save_dtype, p_save_dir)
+            # saving query transformer
+            query_transformer_save_dir = os.path.join(args.output_dir, 'query_transformer')
+            os.makedirs(query_transformer_save_dir, exist_ok = True)
+            qt_save_dir = os.path.join(query_transformer_save_dir,f'query_transformer_{epoch + 1}.safetensors')
+            def qt_model_save(model, save_dtype, save_dir):
+                state_dict = model.state_dict()
+                for key in list(state_dict.keys()):
+                    v = state_dict[key]
+                    v = v.detach().clone().to("cpu").to(save_dtype)
+                    state_dict[key] = v
+                _, file = os.path.split(save_dir)
+                if os.path.splitext(file)[1] == ".safetensors":
+                    from safetensors.torch import save_file
+                    save_file(state_dict, save_dir)
+                else:
+                    torch.save(state_dict, save_dir)
+            qt_model_save(accelerator.unwrap_model(query_transformer), save_dtype, qt_save_dir)
+    accelerator.end_training()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

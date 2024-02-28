@@ -267,12 +267,10 @@ class QueryTransformer(nn.Module):
                                                                       nhead=nheads,
                                                                       dropout=0.0,
                                                                       normalize_before=pre_norm, ))
-
             self.transformer_crossatt_layers.append(CrossAttentionLayer(channels=hidden_dim,
                                                                         nhead=nheads,
                                                                         dropout=0.0,
                                                                         normalize_before=pre_norm, ))
-
             self.transformer_feedforward_layers.append(
                 FeedForwardLayer(
                     channels=hidden_dim,
@@ -313,10 +311,8 @@ class QueryTransformer(nn.Module):
             xi = xi.transpose(1, 2) # 1,1,768
             fea2d.append(xi)
             fea2d_pos.append(pi)
-
         bs, _, _ = fea2d[0].shape #
         num_gq, num_lq = self.num_queries
-
         # [1] start from scratch query
         gquery = self.init_query.weight[:num_gq].unsqueeze(0).repeat(bs, 1, 1)
         lquery = self.init_query.weight[num_gq:].unsqueeze(0).repeat(bs, 1, 1)
@@ -335,12 +331,10 @@ class QueryTransformer(nn.Module):
             lquery = qout
             # [2.2] self attention and FF with both global and local queries
             qout = self.transformer_selfatt_layers[i](qkv = torch.cat([gquery, lquery], dim=1),
-                                                      qk_pos = torch.cat([gquery_pos, lquery_pos], dim=1),)
-            print(f'before feed forward, qout : {qout.shape}')
+                                                      qk_pos = torch.cat([gquery_pos, lquery_pos], dim=1),) # 768 dim
             qout = self.transformer_feedforward_layers[i](qout)
-            print(f'after feed forward, qout : {qout.shape}')
             # [2.3] original shape
-            gquery = qout[:, :num_gq]
-            lquery = qout[:, num_gq:]
+            gquery = qout[:, :num_gq] # batch, len, dim
+            lquery = qout[:, num_gq:] # batch, len, dim
         #output = torch.cat([gquery, lquery], dim=1)
         return gquery, lquery
