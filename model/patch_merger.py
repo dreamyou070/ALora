@@ -102,6 +102,9 @@ class PatchEmbed(nn.Module):
 
     def forward(self, x):
 
+        if x.dim() == 3 :
+            x = x.squeeze()
+
         if x.dim() == 2 :
             L, C = x.shape
             H = int(L ** 0.5)

@@ -119,6 +119,7 @@ def main(args):
                 encoder_hidden_states = l_text_encoder(batch["input_ids"].to(device))["last_hidden_state"]
             # --------------------------------------------------------------------------------------------------------- #
             if args.do_background_masked_sample :
+
                 with torch.no_grad():
                     latents = l_vae.encode(batch["bg_anomal_image"].to(dtype=weight_dtype)).latent_dist.sample() * args.vae_scale_factor
                     anomal_position_vector = batch["bg_anomal_mask"].squeeze().flatten()
@@ -126,12 +127,16 @@ def main(args):
                     l_unet(latents,0,encoder_hidden_states,trg_layer_list=args.local_trg_layer_list, noise_type=l_position_embedder, **model_kwargs)
                 query_dict, attn_dict = l_controller.query_dict, l_controller.step_store
                 l_controller.reset()
-                query_list = [query_dict[trg_layer][0] for trg_layer in args.local_trg_layer_list]
-                global_query = global_query_generator(query_list)  # batch, 8*8, 1280
+                query_list = [query_dict[trg_layer][0] for trg_layer in args.local_trg_layer_list] # batch, pix_num, dim
+
                 first_query = query_list[0]
                 print(f'first_query : {first_query.shape}')
                 second_query = query_list[1]
                 print(f'second_query : {second_query.shape}')
+
+
+
+                global_query = global_query_generator(query_list)  # batch, 8*8, 1280
                 # -----------------------------------------------------------------------------------------------------#
                 with torch.set_grad_enabled(True):
                     print(f'start of global !')
