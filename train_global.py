@@ -18,8 +18,12 @@ from data.prepare_dataset import call_dataset
 from model import call_model_package
 from attention_store.normal_activator import passing_normalize_argument
 from data.mvtec import passing_mvtec_argument
+from model.query_transformer import GlobalQueryTransformer
+from torch import nn
+
 
 def main(args):
+
     print(f'\n step 1. setting')
     output_dir = args.output_dir
     print(f' *** output_dir : {output_dir}')
@@ -44,30 +48,17 @@ def main(args):
 
     print(f'\n step 4. model ')
     weight_dtype, save_dtype = prepare_dtype(args)
-    text_encoder, vae, unet, network, position_embedder = call_model_package(args, weight_dtype, accelerator, True)
-    """
-    query_transformer = QueryTransformer(in_channels = [1280, 1280, 640, 320],
-                                         hidden_dim=768,
-                                         num_queries=[8 * 8, 64 * 64],
-                                         nheads=8,
-                                         num_layers=9,
-                                         feedforward_dim=2048,
-                                         mask_dim=256,
-                                         pre_norm=False,
-                                         num_feature_levels=4,
-                                         enforce_input_project=False,
-                                         with_fea2d_pos=False)
-    """
-    from model.query_transformer import GlobalQueryTransformer
-    from torch import nn
+    l_text_encoder, l_vae, l_unet, l_network, l_position_embedder = call_model_package(args, weight_dtype, accelerator, True)
+    g_text_encoder, g_vae, g_unet, g_network, g_position_embedder = call_model_package(args, weight_dtype, accelerator,False)
+
     gquery_transformer = GlobalQueryTransformer(hidden_dim=768,
                                                 num_feature_levels=4,
                                                 with_fea2d_pos=True)
     print(f'\n step 5. optimizer')
     args.max_train_steps = len(train_dataloader) * args.max_train_epochs
-    trainable_params = network.prepare_optimizer_params(args.text_encoder_lr,
+    trainable_params = g_network.prepare_optimizer_params(args.text_encoder_lr,
                                                         args.unet_lr, args.learning_rate)
-    trainable_params.append({"params": position_embedder.parameters(), "lr": args.learning_rate})
+    trainable_params.append({"params": g_position_embedder.parameters(), "lr": args.learning_rate})
     trainable_params.append({"params": gquery_transformer.parameters(), "lr": args.learning_rate})
     optimizer_name, optimizer_args, optimizer = get_optimizer(args, trainable_params)
 
@@ -80,31 +71,39 @@ def main(args):
     normal_activator = NormalActivator(loss_focal, loss_l2, args.use_focal_loss)
 
     print(f'\n step 8. model to device')
-    unet, text_encoder, network, optimizer, train_dataloader, lr_scheduler, position_embedder,query_transformer = accelerator.prepare(
-        unet, text_encoder, network, optimizer, train_dataloader, lr_scheduler, position_embedder, gquery_transformer)
+    g_unet, g_text_encoder, g_network, optimizer, train_dataloader, lr_scheduler, g_position_embedder,query_transformer = accelerator.prepare(
+        g_unet, g_text_encoder, g_network, optimizer, train_dataloader, lr_scheduler, g_position_embedder, gquery_transformer)
 
-    text_encoders = transform_models_if_DDP([text_encoder])
-    unet, network = transform_models_if_DDP([unet, network])
+    g_text_encoders = transform_models_if_DDP([g_text_encoder])
+    g_unet, g_network = transform_models_if_DDP([g_unet, g_network])
     if args.gradient_checkpointing:
-        unet.train()
-        position_embedder.train()
-        for t_enc in text_encoders:
+        g_unet.train()
+        g_position_embedder.train()
+        for t_enc in g_text_encoders:
             t_enc.train()
             if args.train_text_encoder:
                 t_enc.text_model.embeddings.requires_grad_(True)
         if not args.train_text_encoder:  # train U-Net only
-            unet.parameters().__next__().requires_grad_(True)
+            g_unet.parameters().__next__().requires_grad_(True)
     else:
-        unet.eval()
-        for t_enc in text_encoders:
+        g_unet.eval()
+        for t_enc in g_text_encoders:
             t_enc.eval()
     del t_enc
-    network.prepare_grad_etc(text_encoder, unet)
-    vae.to(accelerator.device, dtype=weight_dtype)
+    g_network.prepare_grad_etc(g_text_encoder, g_unet)
+    g_vae.to(accelerator.device, dtype=weight_dtype)
+
+    l_unet = l_unet.to(accelerator.device, dtype=weight_dtype)
+    l_unet.eval()
+    l_text_encoder = l_text_encoder.to(accelerator.device, dtype=weight_dtype)
+    l_text_encoder.eval()
+    l_vae = l_vae.to(accelerator.device, dtype=weight_dtype)
+    l_vae.eval()
 
     print(f'\n step 9. registering saving tensor')
-    controller = AttentionStore()
-    register_attention_control(unet, controller)
+    g_controller = AttentionStore()
+    register_attention_control(g_unet, g_controller)
+    l_controller = AttentionStore()
 
 
     def right_rotate(test_list, n):
