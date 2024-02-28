@@ -87,6 +87,8 @@ def main(args):
     l_text_encoder.to(accelerator.device, dtype=weight_dtype)
     l_unet.eval()
     l_text_encoder.eval()
+    l_network.to(accelerator.device, dtype=weight_dtype)
+    l_network.eval()
 
     print(f'\n step 9. Training !')
     progress_bar = tqdm(range(args.max_train_steps), smoothing=0,
