@@ -2,8 +2,8 @@
 
 port_number=50000
 bench_mark="MVTec"
-obj_name='screw'
-trigger_word='screw'
+obj_name='transistor'
+trigger_word='transistor'
 layer_name='layer_3'
 sub_folder="up_16_32_64"
 file_name="test_4_selfattn"
