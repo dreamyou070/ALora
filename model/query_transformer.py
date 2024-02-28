@@ -1,6 +1,7 @@
 import torch
 from torch import nn
 import torch.nn.functional as F
+from timm.models.layers import DropPath, to_2tuple, trunc_normal_
 def c2_xavier_fill(module):
     # Caffe2 implementation of XavierFill in fact
     nn.init.kaiming_uniform_(module.weight, a=1)
@@ -129,16 +130,19 @@ class CrossAttentionLayer(nn.Module):
 class PPE_MLP(nn.Module):
     def __init__(self, freq_num=20, freq_max=None, out_channel=768, mlp_layer=3):
         import math
+
         super().__init__()
-        self.freq_num = freq_num
-        self.freq_max = freq_max
-        self.out_channel = out_channel
-        self.mlp_layer = mlp_layer
-        self.twopi = 2 * math.pi
+        self.freq_num = freq_num # 20
+        self.freq_max = freq_max #
+        self.out_channel = out_channel # 768
+        self.mlp_layer = mlp_layer # 3
+        self.twopi = 2 * math.pi # 2 * pi
 
         mlp = []
-        in_channel = freq_num * 4
+        in_channel = freq_num * 4 # 80
+
         for idx in range(mlp_layer):
+            # 3 of linear layers
             linear = nn.Linear(in_channel, out_channel, bias=True)
             nn.init.xavier_normal_(linear.weight)
             nn.init.constant_(linear.bias, 0)
@@ -153,27 +157,23 @@ class PPE_MLP(nn.Module):
         assert mask is None, "Mask not implemented"
         h, w = x.shape[-2:]
         minlen = min(h, w)
-
         h_embed, w_embed = torch.meshgrid(torch.arange(h), torch.arange(w), indexing='ij')
         if self.training:
             import numpy.random as npr
             pertube_h, pertube_w = npr.uniform(-0.5, 0.5), npr.uniform(-0.5, 0.5)
         else:
             pertube_h, pertube_w = 0, 0
-
         h_embed = (h_embed + 0.5 - h / 2 + pertube_h) / (minlen) * self.twopi
         w_embed = (w_embed + 0.5 - w / 2 + pertube_w) / (minlen) * self.twopi
         h_embed, w_embed = h_embed.to(x.device).to(x.dtype), w_embed.to(x.device).to(x.dtype)
-
         dim_t = torch.linspace(0, 1, self.freq_num, dtype=torch.float32, device=x.device)
-        freq_max = self.freq_max if self.freq_max is not None else minlen / 2
+        freq_max = self.freq_max if self.freq_max is not None else minlen / 2 # 8
         dim_t = freq_max ** dim_t.to(x.dtype)
-
         pos_h = h_embed[:, :, None] * dim_t
         pos_w = w_embed[:, :, None] * dim_t
-        pos = torch.cat((pos_h.sin(), pos_h.cos(), pos_w.sin(), pos_w.cos()), dim=-1)
+        pos = torch.cat((pos_h.sin(), pos_h.cos(), pos_w.sin(), pos_w.cos()), dim=-1) # 4 배
         pos = self.mlp(pos)
-        pos = pos.permute(2, 0, 1)[None]
+        pos = pos.permute(2, 0, 1)[None] # dim, res, res
         return pos
 
     def __repr__(self, _repr_indent=4):
@@ -243,7 +243,10 @@ class QueryTransformer(nn.Module):
         super().__init__()
 
         if with_fea2d_pos:
-            self.pe_layer = PPE_MLP(freq_num=20, freq_max=None, out_channel=hidden_dim, mlp_layer=3)
+            self.pe_layer = PPE_MLP(freq_num=20,
+                                    freq_max=None,
+                                    out_channel=hidden_dim,
+                                    mlp_layer=3)
         else:
             self.pe_layer = None
         if in_channels!=hidden_dim or enforce_input_project:
@@ -298,19 +301,22 @@ class QueryTransformer(nn.Module):
         fea2d_pos = []
         size_list = []
         for i in range(self.num_feature_levels):
-            size_list.append(x[i].shape[-2:]) # dim, pix_num
+            size_list.append(x[i].shape[-2:]) # pix_num, dim
+            # [1] feature2d position
             if self.pe_layer is not None:
+
                 pi = self.pe_layer(x[i], None).flatten(2)
                 pi = pi.transpose(1, 2)
             else:
                 pi = None
-            # [2.1] input projectiong
-            # xi = i th query
-            xi = self.input_proj[i](x[i]) if self.input_proj is not None else x[i]
-            xi = xi.flatten(2) #+ self.level_embed.weight[i][None, :, None]
-            xi = xi.transpose(1, 2) # 1,1,768
-            fea2d.append(xi)
             fea2d_pos.append(pi)
+
+            # [2] feature in 2d
+            xi = self.input_proj[i](x[i]) if self.input_proj is not None else x[i]
+            xi = xi.flatten(2) + self.level_embed.weight[i][None, :, None]
+            xi = xi.transpose(1, 2) # 1,1,768
+            fea2d.append(xi) # feature 2d
+
         bs, _, _ = fea2d[0].shape #
         num_gq, num_lq = self.num_queries
         # [1] start from scratch query
@@ -338,3 +344,98 @@ class QueryTransformer(nn.Module):
             lquery = qout[:, num_gq:] # batch, len, dim
         #output = torch.cat([gquery, lquery], dim=1)
         return gquery, lquery
+
+class PatchEmbed(nn.Module):
+    r""" Image to Patch Embedding
+
+    Args:
+        img_size (int): Image size.  Default: 224.
+        patch_size (int): Patch token size. Default: 4.
+        in_chans (int): Number of input image channels. Default: 3.
+        embed_dim (int): Number of linear projection output channels. Default: 96.
+        norm_layer (nn.Module, optional): Normalization layer. Default: None
+    """
+
+    def __init__(self, img_size=224, patch_size=4, in_chans=3, embed_dim=96, norm_layer=None):
+        super().__init__()
+        img_size = to_2tuple(img_size)
+        patch_size = to_2tuple(patch_size)
+        patches_resolution = [img_size[0] // patch_size[0], img_size[1] // patch_size[1]]
+        self.img_size = img_size
+        self.patch_size = patch_size
+        self.patches_resolution = patches_resolution
+        self.num_patches = patches_resolution[0] * patches_resolution[1]
+
+        self.in_chans = in_chans
+        self.embed_dim = embed_dim
+        self.proj = nn.Conv2d(in_chans, embed_dim, kernel_size=patch_size, stride=patch_size)
+        if norm_layer is not None:
+            self.norm = norm_layer(embed_dim)
+        else:
+            self.norm = None
+
+    def forward(self, x):
+
+        B, C, H, W = x.shape
+        assert H == self.img_size[0] and W == self.img_size[1], \
+            f"Input image size ({H}*{W}) doesn't match model ({self.img_size[0]}*{self.img_size[1]})."
+        # conv2d : 1280dim -> 768dim
+        # b,768dim,res,res
+        # b,768dim,pix_len
+        # b,pix_len, 768dim
+        x = self.proj(x).flatten(2).transpose(1, 2)  # B Ph*Pw C
+        if self.norm is not None:
+            x = self.norm(x)
+        return x
+
+    def flops(self):
+        Ho, Wo = self.patches_resolution
+        flops = Ho * Wo * self.embed_dim * self.in_chans * (self.patch_size[0] * self.patch_size[1])
+        if self.norm is not None:
+            flops += Ho * Wo * self.embed_dim
+        return flops
+
+
+
+class GlobalQueryTransformer(nn.Module):
+
+    def __init__(self,
+                 hidden_dim=768,
+                 num_feature_levels = 4,
+                 with_fea2d_pos=True):
+
+        super().__init__()
+
+        # [1] semantic tokens
+        if with_fea2d_pos:
+            self.pe_layer = PPE_MLP(freq_num=20,
+                                    freq_max=None,
+                                    out_channel=hidden_dim,
+                                    mlp_layer=3)
+        else:
+            self.pe_layer = None
+
+        self.num_feature_levels = num_feature_levels
+        self.patch_embeddings = nn.ModuleList()
+        base_channels = [1280, 1280, 640, 320]
+        for j in range(num_feature_levels) :
+            self.patch_embeddings.append(PatchEmbed(patch_size = 2 ** j,
+                                                    img_size = 8*(2 ** j),
+                                                    in_chans=base_channels[j],
+                                                    embed_dim = hidden_dim))
+    def forward(self, x):
+
+        # [1] check how many feature to use
+        assert len(x) == self.num_feature_levels
+
+        # [2] patch embedding
+        pi = 0
+        for i in range(self.num_feature_levels):
+            xi = x[i] # batch=1, dim, res, res
+            # b, pix_len, 768dim
+            pi += self.patch_embeddings[i](xi) # 1, 8**2, dim
+
+        si = self.pe_layer(x[0]).permute(0,2,3,1) # 1, res, res, dim
+        import einops
+        si = einops.rearrange(si, 'p a b c -> p (a b) c')
+        return (pi,pi+si)

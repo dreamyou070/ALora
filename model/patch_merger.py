@@ -1,10 +1,3 @@
-# --------------------------------------------------------
-# Swin Transformer
-# Copyright (c) 2021 Microsoft
-# Licensed under The MIT License [see LICENSE for details]
-# Written by Ze Liu
-# --------------------------------------------------------
-
 import torch
 import torch.nn as nn
 import torch.utils.checkpoint as checkpoint
@@ -125,31 +118,3 @@ class PatchEmbed(nn.Module):
         if self.norm is not None:
             flops += Ho * Wo * self.embed_dim
         return flops
-
-class GlobalQueryGenerator(nn.Module) :
-    def __init__(self,):
-        super().__init__()
-
-        self.patch_embed_16 = PatchEmbed(img_size=16, patch_size=1, in_chans=320 * 4, embed_dim=320 * 2, )
-        self.patch_merger_16 = PatchMerging(input_resolution=(16,16), dim=640)
-
-        self.patch_embed_32 = PatchEmbed(img_size=32, patch_size=2, in_chans=320*2, embed_dim=320*2)
-        self.patch_merger_32 = PatchMerging(input_resolution=(16,16), dim=320*2)
-
-        self.patch_embed_64 = PatchEmbed(img_size=64, patch_size=4, in_chans=320, embed_dim=320 * 2, )
-        self.patch_merger_64 = PatchMerging(input_resolution=(16,16), dim=320*2)
-
-    def forward(self, query_list):
-
-        query_1, query_2, query_3 = query_list[0],query_list[1], query_list[2]
-
-        # query_1 = 1, 16*16, 1280
-        # query_2 = 1, 32*32, 640
-        # query_3 = 1, 64*64, 320
-
-        q1 = self.patch_merger_16(self.patch_embed_16(query_1))
-        q2 = self.patch_merger_32(self.patch_embed_32(query_2))
-        q3 = self.patch_merger_64(self.patch_embed_64(query_3))
-
-        q = q1 + q2 + q3
-        return q

@@ -312,7 +312,7 @@ class SwinTransformerBlock(nn.Module):
         return flops
 
 
-class PatchMerging(nn.Module):
+class ing(nn.Module):
     r""" Patch Merging Layer.
 
     Args:
