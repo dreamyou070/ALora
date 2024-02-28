@@ -1,5 +1,6 @@
 import torch
 from torch import nn
+import torch.nn.functional as F
 def c2_xavier_fill(module):
     # Caffe2 implementation of XavierFill in fact
     nn.init.kaiming_uniform_(module.weight, a=1)
