@@ -50,7 +50,8 @@ def passing_argument(args):
 def register_attention_control(unet: nn.Module,controller: AttentionStore):
 
     def ca_forward(self, layer_name):
-        def forward(hidden_states, context=None, trg_layer_list=None, noise_type=None):
+        def forward(hidden_states, context=None, trg_layer_list=None, noise_type=None,
+                    **model_kwargs):
 
             is_cross_attention = False
             if context is not None:
@@ -59,6 +60,9 @@ def register_attention_control(unet: nn.Module,controller: AttentionStore):
             if layer_name == argument.position_embedding_layer :
                 hidden_states_pos = noise_type(hidden_states)
                 hidden_states = hidden_states_pos
+
+            if 'global_query' in model_kwargs and layer_name == 'mid_block_attentions_0_transformer_blocks_0_attn2' :
+                hidden_states = model_kwargs['global_query']
 
             query = self.to_q(hidden_states)
             if trg_layer_list is not None and layer_name in trg_layer_list :

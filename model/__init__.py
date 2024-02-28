@@ -6,7 +6,7 @@ from safetensors.torch import load_file
 from model.unet import TimestepEmbedding
 
 
-def call_model_package(args, weight_dtype, accelerator):
+def call_model_package(args, weight_dtype, accelerator, is_local ):
 
     # [1] diffusion
     text_encoder, vae, unet, _ = load_target_model(args, weight_dtype, accelerator)
@@ -25,7 +25,7 @@ def call_model_package(args, weight_dtype, accelerator):
     network = create_network(1.0, args.network_dim, args.network_alpha,
                              vae, text_encoder, unet, neuron_dropout=args.network_dropout, **net_kwargs, )
     network.apply_to(text_encoder, unet, True, True)
-    if args.network_weights is not None:
+    if args.network_weights is not None and is_local :
         info = network.load_weights(args.network_weights)
         print(f'Loaded weights from {args.network_weights}: {info}')
     network.to(weight_dtype)

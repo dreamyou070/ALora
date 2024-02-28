@@ -43,14 +43,13 @@ def main(args):
 
     print(f'\n step 4. model ')
     weight_dtype, save_dtype = prepare_dtype(args)
-    text_encoder, vae, unet, network, position_embedder = call_model_package(args, weight_dtype, accelerator)
-    g_text_encoder, g_vae, g_unet, g_network, g_position_embedder = call_model_package(args, weight_dtype, accelerator)
+    l_text_encoder, l_vae, l_unet, l_network, l_position_embedder = call_model_package(args, weight_dtype, accelerator, is_local = True)
+    g_text_encoder, g_vae, g_unet, g_network, g_position_embedder = call_model_package(args, weight_dtype, accelerator, is_local = False)
 
     print(f'\n step 5. optimizer')
     args.max_train_steps = len(train_dataloader) * args.max_train_epochs
-    trainable_params = network.prepare_optimizer_params(args.text_encoder_lr,
-                                                        args.unet_lr, args.learning_rate)
-    trainable_params.append({"params": position_embedder.parameters(), "lr": args.learning_rate})
+    trainable_params = g_network.prepare_optimizer_params(args.text_encoder_lr,args.unet_lr, args.learning_rate)
+    trainable_params.append({"params": g_position_embedder.parameters(), "lr": args.learning_rate})
     optimizer_name, optimizer_args, optimizer = get_optimizer(args, trainable_params)
 
     print(f'\n step 6. lr')
@@ -62,45 +61,48 @@ def main(args):
     normal_activator = NormalActivator(loss_focal, loss_l2, args.use_focal_loss)
 
     print(f'\n step 8. model to device')
-    unet, text_encoder, network, optimizer, train_dataloader, lr_scheduler, position_embedder = accelerator.prepare(
-        unet, text_encoder, network, optimizer, train_dataloader, lr_scheduler, position_embedder,)
-    g_unet, g_text_encoder, g_network, g_position_embedder = accelerator.prepare(g_unet, g_text_encoder, g_network,
-                                                                                 g_position_embedder,)
-    text_encoders = transform_models_if_DDP([text_encoder])
-    unet, network = transform_models_if_DDP([unet, network])
+    g_unet, g_text_encoder, g_network, optimizer, train_dataloader, lr_scheduler, g_position_embedder = accelerator.prepare(
+        g_unet, g_text_encoder, g_network, optimizer, train_dataloader, lr_scheduler, g_position_embedder,)
+
+    g_text_encoders = transform_models_if_DDP([g_text_encoder])
+    g_unet, g_network = transform_models_if_DDP([g_unet, g_network])
     if args.gradient_checkpointing:
-        unet.train()
-        position_embedder.train()
-        for t_enc in text_encoders:
-            t_enc.train()
+        g_unet.train()
+        g_position_embedder.train()
+        for g_t_enc in g_text_encoders:
+            g_t_enc.train()
             if args.train_text_encoder:
-                t_enc.text_model.embeddings.requires_grad_(True)
+                g_t_enc.text_model.embeddings.requires_grad_(True)
         if not args.train_text_encoder:  # train U-Net only
-            unet.parameters().__next__().requires_grad_(True)
+            g_unet.parameters().__next__().requires_grad_(True)
     else:
-        unet.eval()
-        for t_enc in text_encoders:
-            t_enc.eval()
-    del t_enc
-    network.prepare_grad_etc(text_encoder, unet)
-    vae.to(accelerator.device, dtype=weight_dtype)
+        g_unet.eval()
+        for g_t_enc in g_text_encoders:
+            g_t_enc.eval()
+    del g_t_enc
+    g_network.prepare_grad_etc(g_text_encoder, g_unet)
+    g_vae.to(accelerator.device, dtype=weight_dtype)
+
+    l_unet.to(accelerator.device, dtype=weight_dtype)
+    l_text_encoder.to(accelerator.device, dtype=weight_dtype)
+    l_unet.eval()
+    l_text_encoder.eval()
 
     print(f'\n step 9. Training !')
     progress_bar = tqdm(range(args.max_train_steps), smoothing=0,
                         disable=not accelerator.is_local_main_process, desc="steps")
     global_step = 0
     loss_list = []
-    controller = AttentionStore()
-    register_attention_control(unet, controller)
-    if is_main_process:
-        logging_info = f"'step', 'normal dist mean', 'normal dist max'"
-        with open(logging_file, 'a') as f:
-            f.write(logging_info + '\n')
-
+    l_controller = AttentionStore()
+    register_attention_control(l_unet, l_controller)
+    g_controller = AttentionStore()
+    register_attention_control(g_unet, g_controller)
 
     for epoch in range(args.start_epoch, args.max_train_epochs):
         epoch_loss_total = 0
         accelerator.print(f"\nepoch {epoch + 1}/{args.start_epoch + args.max_train_epochs}")
+        from model.patch_merger import GlobalQueryGenerator
+        global_quuery_generator = GlobalQueryGenerator()
 
         for step, batch in enumerate(train_dataloader):
 
@@ -109,117 +111,38 @@ def main(args):
             loss_dict = {}
 
             with torch.set_grad_enabled(True):
-                encoder_hidden_states = text_encoder(batch["input_ids"].to(device))["last_hidden_state"]
+                encoder_hidden_states = l_text_encoder(batch["input_ids"].to(device))["last_hidden_state"]
             object_position_vector = batch['object_mask'].squeeze().flatten()
             # --------------------------------------------------------------------------------------------------------- #
             if args.do_normal_sample:
                 with torch.no_grad():
-                    latents = vae.encode(batch["image"].to(dtype=weight_dtype)).latent_dist.sample() * args.vae_scale_factor
-                anomal_position_vector = torch.zeros_like(object_position_vector)
-                model_kwargs = {}
-                with torch.set_grad_enabled(True):
-                    noise_pred = unet(latents,
-                                      0,
-                                      encoder_hidden_states,
-                                      trg_layer_list=args.trg_layer_list,
-                                      noise_type=position_embedder,
+                    latents = l_vae.encode(batch["image"].to(dtype=weight_dtype)).latent_dist.sample() * args.vae_scale_factor
+                    anomal_position_vector = torch.zeros_like(object_position_vector)
+                    model_kwargs = {}
+                    l_unet(latents,0,encoder_hidden_states,trg_layer_list=args.trg_layer_list,noise_type=l_position_embedder,
                                       **model_kwargs).sample
-                query_dict, attn_dict = controller.query_dict, controller.step_store
-                controller.reset()
-                for trg_layer in args.trg_layer_list:
-                    # query = [1, pox_num, dim]
-                    normal_activator.resize_query_features(query_dict[trg_layer][0].squeeze(0))
-                    normal_activator.resize_attn_scores(attn_dict[trg_layer][0])
-                query_list = normal_activator.resized_queries
-                global_quuery_generator = GlobalQueryGenerator()
-                global_query = global_quuery_generator(query_list)  # batch, 8*8, 1280
-
-                c_attn_score = normal_activator.generate_conjugated_attn_score()
-                normal_activator.collect_attention_scores(c_attn_score, anomal_position_vector)
-                normal_activator.collect_anomal_map_loss(c_attn_score, anomal_position_vector)
-                if args.test_noise_predicting_task_loss:
-                    normal_activator.collect_noise_prediction_loss(noise_pred, noise, anomal_position_vector)
-
-                # ------------------------------------------------------------------------------------------------ #
-                # global anomal map generating
-                g_unet()
-
-            # --------------------------------------------------------------------------------------------------------- #
-            if args.do_anomal_sample:
-                with torch.no_grad():
-                    latents = vae.encode(
-                        batch["anomal_image"].to(dtype=weight_dtype)).latent_dist.sample() * args.vae_scale_factor
-                noise = torch.randn_like(latents, device=latents.device)
-                anomal_position_vector = batch["anomal_mask"].squeeze().flatten()
-                object_normal_position_vector = torch.where(
-                    (object_position_vector == 1) & (anomal_position_vector == 0), 1, 0)
-                model_kwargs = {}
-                with torch.set_grad_enabled(True):
-                    noise_pred = unet(latents,
-                                      0,
-                                      encoder_hidden_states,
-                                      trg_layer_list=args.trg_layer_list,
-                                      noise_type=position_embedder,
-                                      **model_kwargs).sample
-                query_dict, attn_dict = controller.query_dict, controller.step_store
-                controller.reset()
+                query_dict, attn_dict = l_controller.query_dict, l_controller.step_store
+                l_controller.reset()
                 for trg_layer in args.trg_layer_list:
                     normal_activator.resize_query_features(query_dict[trg_layer][0].squeeze(0))
                     normal_activator.resize_attn_scores(attn_dict[trg_layer][0])
-                c_query = normal_activator.generate_conjugated()
-                if args.mahalanobis_only_object:
-                    normal_activator.collect_queries(c_query,
-                                                     normal_position=object_normal_position_vector,
-                                                     anomal_position=anomal_position_vector,
-                                                     do_collect_normal=True)
-                else:
-                    normal_activator.collect_queries(c_query,
-                                                     normal_position=(1 - anomal_position_vector),
-                                                     anomal_position=anomal_position_vector,
-                                                     do_collect_normal=True)
-                #if args.global_queries :
-                #    normal_activator.collect_global_queries(anomal_position=anomal_position_vector)
-                c_attn_score = normal_activator.generate_conjugated_attn_score()
-                normal_activator.collect_attention_scores(c_attn_score, anomal_position_vector)
-                normal_activator.collect_anomal_map_loss(c_attn_score, anomal_position_vector)
-                if args.test_noise_predicting_task_loss:
-                    normal_activator.collect_noise_prediction_loss(noise_pred, noise, anomal_position_vector)
-            # --------------------------------------------------------------------------------------------------------- #
-            if args.do_background_masked_sample:
-                with torch.no_grad():
-                    latents = vae.encode(batch["bg_anomal_image"].to(dtype=weight_dtype)).latent_dist.sample() * args.vae_scale_factor
-                anomal_position_vector = batch["bg_anomal_mask"].squeeze().flatten()
-                object_normal_position_vector = torch.where(
-                    (object_position_vector == 1) & (anomal_position_vector == 0), 1, 0)
-                model_kwargs = {}
+                global_query = global_quuery_generator(normal_activator.resized_queries)  # batch, 8*8, 1280
+                # -----------------------------------------------------------------------------------------------------#
                 with torch.set_grad_enabled(True):
-                    noise_pred = unet(latents,
-                                      0,
-                                      encoder_hidden_states,
-                                      trg_layer_list=args.trg_layer_list,
-                                      noise_type=position_embedder,
-                                      **model_kwargs).sample
-                query_dict, attn_dict = controller.query_dict, controller.step_store
-                controller.reset()
+                    model_kwargs = {}
+                    model_kwargs['global_query'] = global_query
+                    g_unet(latents,0, encoder_hidden_states, trg_layer_list=args.trg_layer_list,
+                                      noise_type=g_position_embedder, **model_kwargs).sample
+                g_query_dict, g_attn_dict = g_controller.query_dict, g_controller.step_store
+                g_controller.reset()
                 for trg_layer in args.trg_layer_list:
-                    normal_activator.resize_query_features(query_dict[trg_layer][0].squeeze(0))
-                    normal_activator.resize_attn_scores(attn_dict[trg_layer][0])
-                c_query = normal_activator.generate_conjugated()
-                if args.mahalanobis_only_object:
-                    normal_activator.collect_queries(c_query,
-                                                     normal_position=object_normal_position_vector,
-                                                     anomal_position=anomal_position_vector,
-                                                     do_collect_normal=True)
-                else:
-                    normal_activator.collect_queries(c_query,
-                                                     normal_position=(1 - anomal_position_vector),
-                                                     anomal_position=anomal_position_vector,
-                                                     do_collect_normal=True)
-                c_attn_score = normal_activator.generate_conjugated_attn_score()
-                normal_activator.collect_attention_scores(c_attn_score, anomal_position_vector)
-                normal_activator.collect_anomal_map_loss(c_attn_score, anomal_position_vector)
-                if args.test_noise_predicting_task_loss:
-                    normal_activator.collect_noise_prediction_loss(noise_pred, noise, anomal_position_vector)
+                    normal_activator.resize_query_features(g_query_dict[trg_layer][0].squeeze(0))
+                    normal_activator.resize_attn_scores(g_attn_dict[trg_layer][0])
+                g_c_query = normal_activator.generate_conjugated()
+                g_c_attn_score = normal_activator.generate_conjugated_attn_score()
+                normal_activator.collect_attention_scores(g_c_attn_score, anomal_position_vector)
+                normal_activator.collect_anomal_map_loss(g_c_attn_score, anomal_position_vector)
+
 
             # --------------------------------------------------------------------------------------------------------- #
             if args.do_rotate_anomal_sample:
