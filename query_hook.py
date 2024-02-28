@@ -109,9 +109,7 @@ def main(args):
         print(f'')
         block.register_forward_hook(save_out_hook)
         #feature_blocks.append(block)
-    """
-    
-    """
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
