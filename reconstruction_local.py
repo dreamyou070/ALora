@@ -50,8 +50,8 @@ def inference(latent,
     local_query = torch.cat(query_list, dim=-1)  # pix_num, long_dim
     local_key = torch.cat(key_list, dim=-1).squeeze()  # long_dim, 77
     attn_score = (local_query @ local_key.T).softmax(dim=-1)[:, :2]  #
-    cls_map = attn_score[:, :, 0].squeeze().mean(dim=0)  # [res*res]
-    trigger_map = attn_score[:, :, 1].squeeze().mean(dim=0)
+    cls_map = attn_score[:, 0].squeeze()
+    trigger_map = attn_score[:, 1].squeeze()
     pix_num = trigger_map.shape[0]
     res = int(pix_num ** 0.5)
     cls_map = cls_map.unsqueeze(0).view(res, res)
