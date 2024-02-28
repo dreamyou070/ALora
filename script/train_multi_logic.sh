@@ -10,6 +10,7 @@ file_name="rotating_2"
 
 anomal_source_path="../../../MyData/anomal_source"
 network_weights="../../result/${bench_mark}/${obj_name}/${layer_name}/${sub_folder}/${file_name}/models/epoch-000015.safetensors"
+
 accelerate launch --config_file ../../../gpu_config/gpu_0_config \
  --main_process_port $port_number ../train_multi_logic.py --log_with wandb \
  --output_dir "../../result/${bench_mark}/${obj_name}/${layer_name}/${sub_folder}/${file_name}" \
@@ -34,7 +35,8 @@ accelerate launch --config_file ../../../gpu_config/gpu_0_config \
  --do_anomal_sample --do_background_masked_sample --do_object_detection \
  --position_embedding_layer 'down_blocks_0_attentions_0_transformer_blocks_0_attn1' --d_dim 320 --latent_res 64 \
  --do_attn_loss --do_map_loss \
- --trg_layer_list "['down_blocks_0_attentions_1_transformer_blocks_0_attn2',
-                    'down_blocks_1_attentions_1_transformer_blocks_0_attn2',
-                    'down_blocks_2_attentions_1_transformer_blocks_0_attn2',]" \
+ --local_trg_layer_list "['up_blocks_1_attentions_2_transformer_blocks_0_attn2',
+                    'up_blocks_2_attentions_2_transformer_blocks_0_attn2',
+                    'up_blocks_3_attentions_2_transformer_blocks_0_attn2',]" \
+--global_trg_layer_list "['mid_block_attentions_0_transformer_blocks_0_attn2']"
  --do_attn_loss --attn_loss_weight 1.0 --do_cls_train --normal_weight 1

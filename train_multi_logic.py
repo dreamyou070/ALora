@@ -111,21 +111,19 @@ def main(args):
             device = accelerator.device
             loss = torch.tensor(0.0, dtype=weight_dtype, device=accelerator.device)
             loss_dict = {}
-
             with torch.set_grad_enabled(True):
                 encoder_hidden_states = l_text_encoder(batch["input_ids"].to(device))["last_hidden_state"]
-            object_position_vector = batch['object_mask'].squeeze().flatten()
             # --------------------------------------------------------------------------------------------------------- #
-            if args.do_normal_sample:
+            if args.do_background_masked_sample :
                 with torch.no_grad():
-                    latents = l_vae.encode(batch["image"].to(dtype=weight_dtype)).latent_dist.sample() * args.vae_scale_factor
-                    anomal_position_vector = torch.zeros_like(object_position_vector)
+                    latents = l_vae.encode(batch["bg_anomal_image"].to(dtype=weight_dtype)).latent_dist.sample() * args.vae_scale_factor
+                    anomal_position_vector = batch["bg_anomal_mask"].squeeze().flatten()
                     model_kwargs = {}
                     l_unet(latents,0,encoder_hidden_states,trg_layer_list=args.trg_layer_list,noise_type=l_position_embedder,
                                       **model_kwargs).sample
                 query_dict, attn_dict = l_controller.query_dict, l_controller.step_store
                 l_controller.reset()
-                for trg_layer in args.trg_layer_list:
+                for trg_layer in args.local_trg_layer_list:
                     normal_activator.resize_query_features(query_dict[trg_layer][0].squeeze(0))
                     normal_activator.resize_attn_scores(attn_dict[trg_layer][0])
                 global_query = global_quuery_generator(normal_activator.resized_queries)  # batch, 8*8, 1280
@@ -137,10 +135,9 @@ def main(args):
                                       noise_type=g_position_embedder, **model_kwargs).sample
                 g_query_dict, g_attn_dict = g_controller.query_dict, g_controller.step_store
                 g_controller.reset()
-                for trg_layer in args.trg_layer_list:
+                for trg_layer in args.global_trg_layer_list:
                     normal_activator.resize_query_features(g_query_dict[trg_layer][0].squeeze(0))
                     normal_activator.resize_attn_scores(g_attn_dict[trg_layer][0])
-                g_c_query = normal_activator.generate_conjugated()
                 g_c_attn_score = normal_activator.generate_conjugated_attn_score()
                 normal_activator.collect_attention_scores(g_c_attn_score, anomal_position_vector)
                 normal_activator.collect_anomal_map_loss(g_c_attn_score, anomal_position_vector)
@@ -156,7 +153,7 @@ def main(args):
                            **model_kwargs).sample
                 query_dict, attn_dict = l_controller.query_dict, l_controller.step_store
                 l_controller.reset()
-                for trg_layer in args.trg_layer_list:
+                for trg_layer in args.local_trg_layer_list:
                     normal_activator.resize_query_features(query_dict[trg_layer][0].squeeze(0))
                     normal_activator.resize_attn_scores(attn_dict[trg_layer][0])
                 global_query = global_quuery_generator(normal_activator.resized_queries)  # batch, 8*8, 1280
@@ -168,38 +165,27 @@ def main(args):
                            noise_type=g_position_embedder, **model_kwargs).sample
                 g_query_dict, g_attn_dict = g_controller.query_dict, g_controller.step_store
                 g_controller.reset()
-                for trg_layer in args.trg_layer_list:
+                for trg_layer in args.global_trg_layer_list:
                     normal_activator.resize_query_features(g_query_dict[trg_layer][0].squeeze(0))
                     normal_activator.resize_attn_scores(g_attn_dict[trg_layer][0])
-                g_c_query = normal_activator.generate_conjugated()
                 g_c_attn_score = normal_activator.generate_conjugated_attn_score()
                 normal_activator.collect_attention_scores(g_c_attn_score, anomal_position_vector)
                 normal_activator.collect_anomal_map_loss(g_c_attn_score, anomal_position_vector)
 
-
-
             # ----------------------------------------------------------------------------------------------------------
             # [5] backprop
-            dist_loss, normal_dist_mean, normal_dist_max = normal_activator.generate_mahalanobis_distance_loss()
-            if args.do_dist_loss:
-                if args.dist_loss_with_max :
-                    dist_loss = normal_dist_max
-                loss += dist_loss
-                loss_dict['dist_loss'] = dist_loss.item()
-            if args.do_attn_loss:
-                normal_cls_loss, normal_trigger_loss, anomal_cls_loss, anomal_trigger_loss = normal_activator.generate_attention_loss()
-                if type(anomal_cls_loss) == float:
-                    attn_loss = args.normal_weight * normal_trigger_loss.mean()
+            normal_cls_loss, normal_trigger_loss, anomal_cls_loss, anomal_trigger_loss = normal_activator.generate_attention_loss()
+            if type(anomal_cls_loss) == float:
+                attn_loss = args.normal_weight * normal_trigger_loss.mean()
+            else:
+                attn_loss = args.normal_weight * normal_cls_loss.mean() + args.anomal_weight * anomal_cls_loss.mean()
+            if args.do_cls_train:
+                if type(anomal_trigger_loss) == float:
+                    attn_loss = args.normal_weight * normal_cls_loss.mean()
                 else:
-                    attn_loss = args.normal_weight * normal_cls_loss.mean() + args.anomal_weight * anomal_cls_loss.mean()
-                if args.do_cls_train:
-                    if type(anomal_trigger_loss) == float:
-                        attn_loss = args.normal_weight * normal_cls_loss.mean()
-                    else:
-                        attn_loss += args.normal_weight * normal_cls_loss.mean() + args.anomal_weight * anomal_cls_loss.mean()
-                loss += attn_loss
-                loss_dict['attn_loss'] = attn_loss.item()
-
+                    attn_loss += args.normal_weight * normal_cls_loss.mean() + args.anomal_weight * anomal_cls_loss.mean()
+            loss += attn_loss
+            loss_dict['attn_loss'] = attn_loss.item()
             if args.do_map_loss:
                 map_loss = normal_activator.generate_anomal_map_loss()
                 loss += map_loss
@@ -228,29 +214,23 @@ def main(args):
                 progress_bar.update(1)
                 global_step += 1
             if is_main_process:
-                logging_info = f'{global_step}, {normal_dist_mean}, {normal_dist_max}'
-                with open(logging_file, 'a') as f:
-                    f.write(logging_info + '\n')
                 progress_bar.set_postfix(**loss_dict)
             normal_activator.reset()
-            controller.reset()
+            l_controller.reset()
+            g_controller.reset()
             if global_step >= args.max_train_steps:
                 break
-            # ----------------------------------------------------------------------------------------------------------- #
-            # [6] epoch final
-
+        # [6] epoch final
         accelerator.wait_for_everyone()
         if is_main_process:
             ckpt_name = get_epoch_ckpt_name(args, "." + args.save_model_as, epoch + 1)
-            save_model(args, ckpt_name, accelerator.unwrap_model(network), save_dtype)
-            if position_embedder is not None:
+            save_model(args, ckpt_name, accelerator.unwrap_model(g_network), save_dtype)
+            if g_position_embedder is not None:
                 position_embedder_base_save_dir = os.path.join(args.output_dir, 'position_embedder')
                 os.makedirs(position_embedder_base_save_dir, exist_ok=True)
                 p_save_dir = os.path.join(position_embedder_base_save_dir,
                                           f'position_embedder_{epoch + 1}.safetensors')
-                pe_model_save(accelerator.unwrap_model(position_embedder), save_dtype, p_save_dir)
-
-
+                pe_model_save(accelerator.unwrap_model(g_position_embedder), save_dtype, p_save_dir)
     accelerator.end_training()
 
 
@@ -352,7 +332,8 @@ if __name__ == "__main__":
     parser.add_argument("--attn_loss_weight", type=float, default=1.0)
     parser.add_argument("--anomal_weight", type=float, default=1.0)
     parser.add_argument('--normal_weight', type=float, default=1.0)
-    parser.add_argument("--trg_layer_list", type=arg_as_list, default=[])
+    parser.add_argument("--local_trg_layer_list", type=arg_as_list, default=[])
+    parser.add_argument("--global_trg_layer_list", type=arg_as_list, default=[])
     parser.add_argument("--original_normalized_score", action='store_true')
     # [3]
     parser.add_argument("--do_map_loss", action='store_true')
