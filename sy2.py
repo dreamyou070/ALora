@@ -11,9 +11,9 @@ def resize_query_features(query):
     resized_query_map = nn.functional.interpolate(query_map, size=(64, 64), mode='bilinear')  # 1, channel, 64,  64
     print(f'resized_query_map : {resized_query_map.shape}')
     resized_query = resized_query_map.permute(0, 2, 3, 1).contiguous().squeeze()  # 64, 64, channel
-    resized_query = resized_query.view(pix_num, dim)
+    resized_query = resized_query.view(64*64, dim)
     return resized_query
 
-query = torch.randn(64*64, 320)
+query = torch.randn(64, 1280)
 a = resize_query_features(query)
 print(query)

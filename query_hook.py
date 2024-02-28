@@ -124,11 +124,11 @@ def main(args):
     def resize_query_features(query):
 
         pix_num, dim = query.shape
-        res = int(pix_num ** 0.5)
+        res = int(pix_num ** 0.5) # 8
         query_map = query.view(res, res, dim).permute(2,0,1).contiguous().unsqueeze(0)           # 1, channel, res, res
         resized_query_map = nn.functional.interpolate(query_map, size=(64, 64), mode='bilinear') # 1, channel, 64,  64
         resized_query = resized_query_map.permute(0, 2, 3, 1).contiguous().squeeze() # 64, 64, channel
-        resized_query = resized_query.view(pix_num, dim) # #view(head_num, -1, dim).squeeze()  # 1, pix_num, dim
+        resized_query = resized_query.view(64*64, dim) # #view(head_num, -1, dim).squeeze()  # 1, pix_num, dim
         return resized_query
 
     for epoch in range(args.start_epoch, args.max_train_epochs):
@@ -155,7 +155,6 @@ def main(args):
                 origin_query_list, query_list, key_list = [], [], []
                 for layer in args.trg_layer_list :
                     query = query_dict[layer][0].squeeze()
-                    print(f'query (pix_num, dim) : {query.shape}')
                     origin_query_list.append(query)
                     query_list.append(resize_query_features(query)) # pix_num, dim
                     key_list.append(key_dict[layer][0])
