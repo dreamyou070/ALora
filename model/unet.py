@@ -871,9 +871,9 @@ class CrossAttnDownBlock2D(nn.Module):
                                                                   hidden_states,
                                                                   encoder_hidden_states)[0]
             else:
-                print(f'before resnet, hiden_states : {hidden_states.shape}')
+                #print(f'before resnet, hiden_states : {hidden_states.shape}')
                 hidden_states = resnet(hidden_states, temb) # batch, 4, 512,512
-                print(f'after resnet block, hiden_states : {hidden_states.shape}')
+                #print(f'after resnet block, hiden_states : {hidden_states.shape}')
 
                 hidden_states = attn(hidden_states,
                                      encoder_hidden_states=encoder_hidden_states,
@@ -1517,3 +1517,4 @@ class UNet2DConditionModel(nn.Module):
         timesteps = timesteps.expand(sample.shape[0])
 
         return timesteps
+
