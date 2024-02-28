@@ -437,9 +437,8 @@ class GlobalQueryTransformer(nn.Module):
             res = int(pix_num ** 0.5)
             xi = xi.transpose(-1,-2) # dim, pix_num
             xi = xi.view(-1, res,res).unsqueeze(0) # 1, dim, res, res
-
+            x[i] = xi
             pi += self.patch_embeddings[i](xi) # 1, 8**2, dim
-
         si = self.pe_layer(x[0]).permute(0,2,3,1) # 1, res, res, dim
         import einops
         si = einops.rearrange(si, 'p a b c -> p (a b) c')
