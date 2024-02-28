@@ -1414,7 +1414,7 @@ class UNet2DConditionModel(nn.Module):
         trg_layer_list=None,
         noise_type='perline',
         **model_kwargs) -> Union[Dict, Tuple]:
-        print(f'Unet start, model_kwargs : {model_kwargs}')
+        #print(f'Unet start, model_kwargs : {model_kwargs}')
 
 
         default_overall_up_factor = 2**self.num_upsamplers
