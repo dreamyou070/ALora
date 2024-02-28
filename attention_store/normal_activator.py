@@ -73,7 +73,8 @@ class NormalActivator(nn.Module):
                 self.normal_feat_list.append(feat.unsqueeze(0))
          
 
-    def collect_attention_scores(self, attn_score, anomal_position_vector,
+    def collect_attention_scores(self,
+                                 attn_score, anomal_position_vector,
                                  do_normal_activating = True):
 
 
@@ -89,7 +90,6 @@ class NormalActivator(nn.Module):
         normal_trigger_score = trigger_score * (1 - anomal_position_vector)
         anomal_cls_score = cls_score * anomal_position_vector
         anomal_trigger_score = trigger_score * anomal_position_vector
-
 
         # [3]
         normal_cls_score = normal_cls_score / total_score
@@ -112,6 +112,7 @@ class NormalActivator(nn.Module):
         if anomal_pixel_num > 0:
             self.attention_loss['anomal_cls_loss'].append(anomal_cls_loss.mean())
             self.attention_loss['anomal_trigger_loss'].append(anomal_trigger_loss.mean())
+        print(f'self.attention_loss : {self.attention_loss}')
 
     def collect_anomal_map_loss(self, attn_score, anomal_position_vector):
 

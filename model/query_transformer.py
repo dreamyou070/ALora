@@ -426,6 +426,7 @@ class GlobalQueryTransformer(nn.Module):
     def forward(self, x):
 
         # [1] check how many feature to use
+        # len(x) = 4
         assert len(x) == self.num_feature_levels
 
         # [2] patch embedding

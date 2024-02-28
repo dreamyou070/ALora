@@ -162,11 +162,13 @@ def main(args):
                 local_query = torch.cat(query_list, dim=-1)       # pix_num, long_dim
                 local_key = torch.cat(key_list, dim=-1).squeeze() # long_dim, 77
                 local_attn = (local_query @ local_key.T).softmax(dim=-1)[:,:2] #
-                normal_activator.collect_attention_scores(local_attn, anomal_position_vector)
+                normal_activator.collect_attention_scores(local_attn,
+                                                          anomal_position_vector,
+                                                          True)
                 normal_activator.collect_anomal_map_loss(local_attn, anomal_position_vector)
 
                 # [2] glocal
-                global_query = gquery_transformer(local_query)
+                global_query = gquery_transformer(origin_query_list)
 
 
 
