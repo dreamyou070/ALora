@@ -110,7 +110,7 @@ def main(args):
     def register_recr(net_, count, layer_name):
         if net_.__class__.__name__ == 'CrossAttention':
             if layer_name in trg_layer_list :
-                net.register_forward_hook(save_out_hook)
+                net_.register_forward_hook(save_out_hook)
                 print(f'register name : {layer_name}')
                 feature_blocks.append(net)
         elif hasattr(net_, 'children'):
