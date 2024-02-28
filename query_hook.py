@@ -83,9 +83,8 @@ def main(args):
     network.prepare_grad_etc(text_encoder, unet)
     vae.to(accelerator.device, dtype=weight_dtype)
 
-    print(f'\n step 9. Training !')
+    print(f'\n step 9. registering saving tensor')
     from torch import nn
-
     def save_tensors(module: nn.Module, features, name: str):
         """ Process and save activations in the module. """
         if type(features) in [list, tuple]:
@@ -97,18 +96,47 @@ def main(args):
             setattr(module, name, features)
         else:
             setattr(module, name, features.detach().float())
-
     def save_out_hook(out):
-        save_tensors(out, 'activations')
+        save_tensors(out, 'output_hidden_state')
         return out
 
-
     unet_blocks = unet.down_blocks + nn.ModuleList([unet.mid_block]) + unet.up_blocks
+    feature_blocks  = []
+    target_idxs = [6,9,12,15]
     for idx, block in enumerate(unet_blocks):
-        print(f'{idx} : {block.__class__.__name__}')
-        print(f'')
-        block.register_forward_hook(save_out_hook)
-        #feature_blocks.append(block)
+        if idx in target_idxs :
+            print(f'{idx} : {block.__class__.__name__}')
+            block.register_forward_hook(save_out_hook)
+            feature_blocks.append(block)
+
+    for epoch in range(args.start_epoch, args.max_train_epochs):
+
+        epoch_loss_total = 0
+        accelerator.print(f"\nepoch {epoch + 1}/{args.start_epoch + args.max_train_epochs}")
+
+        for step, batch in enumerate(train_dataloader):
+            device = accelerator.device
+            loss = torch.tensor(0.0, dtype=weight_dtype, device=accelerator.device)
+            loss_dict = {}
+
+            with torch.set_grad_enabled(True):
+                encoder_hidden_states = text_encoder(batch["input_ids"].to(device))["last_hidden_state"]
+            object_position_vector = batch['object_mask'].squeeze().flatten()
+            # --------------------------------------------------------------------------------------------------------- #
+            if args.do_normal_sample:
+                with torch.no_grad():
+                    latents = vae.encode(batch["image"].to(dtype=weight_dtype)).latent_dist.sample() * args.vae_scale_factor
+                anomal_position_vector = torch.zeros_like(object_position_vector)
+                with torch.set_grad_enabled(True):
+                    unet(latents, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list,noise_type=position_embedder,)
+                # check hooked hidden states
+                hidden_states = []
+                for block in feature_blocks:
+                    hidden_states.append(block.output_hidden_state)
+                    block.output_hidden_state = None
+
+
+
 
 
 if __name__ == "__main__":
