@@ -146,8 +146,17 @@ def main(args):
                     #attn_list.append(attn_dict[layer][0])
                 # [1] local
                 local_query = torch.cat(query_list, dim=-1)       # head, pix_num, long_dim
+                print(f'local_query (8, 4096, dim) : {local_query.shape}')
                 local_key = torch.cat(key_list, dim=-1).squeeze() # head, 77, long_dim
+                print(f'local_key (8, 77, dim) : {local_key.shape}')
                 local_attn = (local_query @ local_key.T).softmax(dim=-1)[:,:,:2] # head, pixel_num, 2
+
+
+
+
+
+
+
                 normal_activator.collect_attention_scores(local_attn,
                                                           anomal_position_vector,
                                                           True)
