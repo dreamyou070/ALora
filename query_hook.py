@@ -86,18 +86,17 @@ def main(args):
     print(f'\n step 9. registering saving tensor')
     from torch import nn
     def save_tensors(module: nn.Module, features, name: str):
-        """ Process and save activations in the module. """
         if type(features) in [list, tuple]:
-            features = [f.detach().float() if f is not None else None
-                        for f in features]
+            features = [f.detach().float() if f is not None else None for f in features]
             setattr(module, name, features)
         elif isinstance(features, dict):
             features = {k: f.detach().float() for k, f in features.items()}
             setattr(module, name, features)
         else:
             setattr(module, name, features.detach().float())
-    def save_out_hook(out):
-        save_tensors(out, 'output_hidden_state')
+
+    def save_out_hook(self, inp, out): # new function
+        save_tensors(self, out, 'activations')
         return out
 
     trg_layer_list = ['mid_block_attentions_0_transformer_blocks_0_attn2',
@@ -110,7 +109,6 @@ def main(args):
         if net_.__class__.__name__ == 'CrossAttention':
             if layer_name in trg_layer_list :
                 net_.register_forward_hook(save_out_hook)
-                print(f'register name : {layer_name}')
                 feature_blocks.append(net)
         elif hasattr(net_, 'children'):
             for name__, net__ in net_.named_children():
@@ -145,6 +143,8 @@ def main(args):
             with torch.no_grad():
                 latents = vae.encode(batch["image"].to(dtype=weight_dtype)).latent_dist.sample() * args.vae_scale_factor
             anomal_position_vector = torch.zeros_like(object_position_vector)
+
+
             with torch.set_grad_enabled(True):
                 unet(latents, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list,noise_type=position_embedder,)
             # check hooked hidden states
