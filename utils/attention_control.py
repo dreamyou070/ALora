@@ -47,7 +47,12 @@ def passing_argument(args):
 def register_attention_control(unet: nn.Module,controller: AttentionStore):
 
     def ca_forward(self, layer_name):
-        def forward(hidden_states, context=None, trg_layer_list=None, noise_type=None,):
+
+
+        def forward(hidden_states, context=None, trg_layer_list=None, noise_type=None,**model_kwargs):
+
+            if 'global_feature' in model_kwargs and layer_name == 'mid_block_attentions_0_transformer_blocks_0_attn1':
+                hidden_states = model_kwargs['global_feature']
 
             is_cross_attention = False
             if context is not None:
