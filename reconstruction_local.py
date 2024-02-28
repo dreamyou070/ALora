@@ -38,12 +38,6 @@ def inference(latent,
     encoder_hidden_states = text_encoder(input_ids.to(text_encoder.device))["last_hidden_state"]
     # [2] unet
     unet(latent, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list,
-         noise_type=position_embedder)
-    query_dict, attn_dict = controller.query_dict, controller.step_store
-    controller.reset()
-    for trg_layer in args.trg_layer_list:
-        normal_activator.resize_attn_scores(attn_dict[trg_layer][0])
-    unet(latent, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list,
          noise_type=position_embedder, )
     query_dict, key_dict = controller.query_dict, controller.key_dict
     controller.reset()
