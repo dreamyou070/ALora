@@ -112,7 +112,7 @@ class NormalActivator(nn.Module):
         if anomal_pixel_num > 0:
             self.attention_loss['anomal_cls_loss'].append(anomal_cls_loss.mean())
             self.attention_loss['anomal_trigger_loss'].append(anomal_trigger_loss.mean())
-        print(f'self.attention_loss : {self.attention_loss}')
+
 
     def collect_anomal_map_loss(self, attn_score, anomal_position_vector):
 
@@ -136,6 +136,7 @@ class NormalActivator(nn.Module):
             cls_score, trigger_score = cls_score.mean(dim=0), trigger_score.mean(dim=0)  # pix_num
             trg_trigger_score = 1 - anomal_position_vector
             map_loss = self.loss_l2(trigger_score.float(), trg_trigger_score.float())
+            print(f'map_loss : {map_loss}')
 
         self.anomal_map_loss.append(map_loss)
 

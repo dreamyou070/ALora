@@ -154,7 +154,7 @@ def main(args):
                 controller.reset()
                 origin_query_list, query_list, key_list = [], [], []
                 for layer in args.trg_layer_list :
-                    query = query_dict[layer][0].squeeze()
+                    query = query_dict[layer][0].squeeze() # pix_num, dim
                     origin_query_list.append(query)
                     query_list.append(resize_query_features(query)) # pix_num, dim
                     key_list.append(key_dict[layer][0])

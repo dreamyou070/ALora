@@ -432,8 +432,12 @@ class GlobalQueryTransformer(nn.Module):
         # [2] patch embedding
         pi = 0
         for i in range(self.num_feature_levels):
-            xi = x[i] # batch=1, dim, res, res
-            # b, pix_len, 768dim
+            xi = x[i] # pix_num, dim
+            pix_num, dim = xi.shape
+            res = int(pix_num ** 0.5)
+            xi = xi.transpose(-1,-2) # dim, pix_num
+            xi = xi.view(-1, res,res).unsqueeze(0) # 1, dim, res, res
+
             pi += self.patch_embeddings[i](xi) # 1, 8**2, dim
 
         si = self.pe_layer(x[0]).permute(0,2,3,1) # 1, res, res, dim
