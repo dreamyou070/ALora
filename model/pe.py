@@ -66,6 +66,9 @@ class AllPositionalEmbedding(nn.Module):
         pe_layer = self.positional_encodings[layer_name]
         #pe = self.positional_encodings.expand(b_size, -1, -1)
         pe = pe_layer.expand(b_size, -1, -1)
+        print(f'layer_name = {layer_name}')
+        print(f'x = {x.shape}')
+        print(f'pe = {pe.shape}')
         x = x + pe.to(x.device)
         if start_dim == 4:
             x = einops.rearrange(x, 'b (h w) c -> b c h w', h=res, w=res)
