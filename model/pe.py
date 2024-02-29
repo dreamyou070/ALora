@@ -45,7 +45,33 @@ layer_names_res_dim = {'down_blocks_0_attentions_0_transformer_blocks_0_attn2' :
                        'up_blocks_3_attentions_0_transformer_blocks_0_attn2' : (64,320),
                        'up_blocks_3_attentions_1_transformer_blocks_0_attn2' : (64,320),
                        'up_blocks_3_attentions_2_transformer_blocks_0_attn2' : (64,320),}
+layer_names_self_res_dim = {'down_blocks_0_attentions_0_transformer_blocks_0_attn1' : (64,320),
+                            'down_blocks_0_attentions_1_transformer_blocks_0_attn1' : (64,320),
 
+                           'down_blocks_1_attentions_0_transformer_blocks_0_attn1' : (32,640),
+                           'down_blocks_1_attentions_1_transformer_blocks_0_attn1' : (32,640),
+
+                           'down_blocks_2_attentions_0_transformer_blocks_0_attn1' : (16,1280),
+                           'down_blocks_2_attentions_1_transformer_blocks_0_attn1' : (16,1280),
+
+                           'mid_block_attentions_0_transformer_blocks_0_attn1' : (8,1280),
+
+                           'up_blocks_1_attentions_0_transformer_blocks_0_attn1' : (16,1280),
+                           'up_blocks_1_attentions_1_transformer_blocks_0_attn1' : (16,1280),
+                           'up_blocks_1_attentions_2_transformer_blocks_0_attn1' : (16,1280),
+
+                           'up_blocks_2_attentions_0_transformer_blocks_0_attn1' : (32,640),
+                           'up_blocks_2_attentions_1_transformer_blocks_0_attn1' : (32,640),
+                           'up_blocks_2_attentions_2_transformer_blocks_0_attn1' : (32,640),
+
+                           'up_blocks_3_attentions_0_transformer_blocks_0_attn1' : (64,320),
+                           'up_blocks_3_attentions_1_transformer_blocks_0_attn1' : (64,320),
+                           'up_blocks_3_attentions_2_transformer_blocks_0_attn1' : (64,320),}
+layer_names_self_cross_res_dim = {}
+for k in layer_names_res_dim.keys() :
+    layer_names_self_cross_res_dim[k] = layer_names_res_dim[k]
+for k in layer_names_self_res_dim.keys() :
+    layer_names_self_cross_res_dim[k] = layer_names_self_res_dim[k]
 
 class AllPositionalEmbedding(nn.Module):
 
@@ -109,7 +135,36 @@ class MultiPositionalEmbedding(nn.Module):
         return x
 
 
+class AllPositionalEmbeddingSelfCross(nn.Module):
 
+    def __init__(self):
+        super().__init__()
+        self.positional_encodings = {}
+        for layer_name in layer_names_self_cross_res_dim.keys():
+            res,dim = layer_names_self_cross_res_dim[layer_name]
+            d_model = res*res
+            pe = nn.Parameter(torch.randn(1,d_model, dim), requires_grad=True)
+            self.positional_encodings[layer_name] = pe
+
+    def forward(self, x: torch.Tensor, layer_name):
+
+        start_dim = 3
+        if x.dim() == 4:
+            start_dim = 4
+            x = einops.rearrange(x, 'b c h w -> b (h w) c')  # B,H*W,C
+        b_size = x.shape[0]
+        res = int(x.shape[1] ** 0.5)
+
+        pe_layer = self.positional_encodings[layer_name]
+        #pe = self.positional_encodings.expand(b_size, -1, -1)
+        pe = pe_layer.expand(b_size, -1, -1)
+        #print(f'layer_name = {layer_name}')
+        #print(f'x = {x.shape}')
+        #print(f'pe = {pe.shape}')
+        x = x + pe.to(x.device)
+        if start_dim == 4:
+            x = einops.rearrange(x, 'b (h w) c -> b c h w', h=res, w=res)
+        return x
 # layer_name down_blocks_1_attentions_1_transformer_blocks_0_attn1
 # layer_name down_blocks_2_attentions_1_transformer_blocks_0_attn2
 

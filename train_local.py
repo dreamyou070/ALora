@@ -394,7 +394,7 @@ if __name__ == "__main__":
     parser.add_argument("--back_trg_beta", type=float)
     parser.add_argument("--on_desktop", action='store_true')
     parser.add_argument("--all_positional_embedder", action='store_true')
-
+    parser.add_argument("--all_positional_self_cross_embedder", action='store_true')
     # -----------------------------------------------------------------------------------------------------------------
     args = parser.parse_args()
     unet_passing_argument(args)
