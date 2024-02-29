@@ -313,6 +313,8 @@ if __name__ == "__main__":
     parser.add_argument("--network_dropout", type=float, default=None, )
     parser.add_argument("--network_args", type=str, default=None, nargs="*", )
     parser.add_argument("--dim_from_weights", action="store_true", )
+    parser.add_argument("--use_multi_position_embedder", action="store_true", )
+
     # step 5. optimizer
     parser.add_argument("--optimizer_type", type=str, default="AdamW",
                  help="AdamW , AdamW8bit, PagedAdamW8bit, PagedAdamW32bit, Lion8bit, PagedLion8bit, Lion, SGDNesterov,"

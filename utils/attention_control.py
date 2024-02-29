@@ -55,9 +55,14 @@ def register_attention_control(unet: nn.Module,controller: AttentionStore):
             if context is not None:
                 is_cross_attention = True
 
-            if layer_name == argument.position_embedding_layer :
-                hidden_states_pos = noise_type(hidden_states)
-                hidden_states = hidden_states_pos
+            if not argument.use_multi_position_embedder :
+                if layer_name == argument.position_embedding_layer :
+                    hidden_states_pos = noise_type(hidden_states)
+                    hidden_states = hidden_states_pos
+            else :
+                if layer_name in argument.trg_layer_list :
+                    hidden_states_pos = noise_type(hidden_states)
+                    hidden_states = hidden_states_pos
 
             query = self.to_q(hidden_states)
             context = context if context is not None else hidden_states
