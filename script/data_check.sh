@@ -17,7 +17,7 @@ accelerate launch --config_file ../../../gpu_config/gpu_0_config \
  --pretrained_model_name_or_path ../../../pretrained_stable_diffusion/stable-diffusion-v1-5/v1-5-pruned.safetensors \
  --data_path "../../../MyData/anomaly_detection/${bench_mark}" \
  --trigger_word "${trigger_word}" \
- --obj_name "${obj_name}" --anomal_only_on_object \
+ --obj_name "${obj_name}" --do_object_detection --anomal_only_on_object \
  --anomal_source_path "${anomal_source_path}" \
  --anomal_min_perlin_scale 0 \
  --anomal_max_perlin_scale 6 \
