@@ -8,7 +8,7 @@ def main(args) :
     folder_name = os.path.split(args.base_save_dir)[-1]
     total_matric_save_dir = os.path.join(base_save_dir, f'{class_name}_{folder_name}_total_metrics.csv')
 
-    metric_base_folder = os.path.join(base_save_dir, 'rec')
+    metric_base_folder = os.path.join(base_save_dir, 'reconstruction')
     lora_folders = os.listdir(metric_base_folder)
 
     total_metrics = []
