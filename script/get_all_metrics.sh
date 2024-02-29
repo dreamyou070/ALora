@@ -1,8 +1,7 @@
 #! /bin/bash
 
-
 bench_mark="MVTec"
-class_name='transistor'
+class_name='zipper'
 layer_name='layer_3'
 sub_folder="up_16_32_64"
 file_name="sigma_max_60_min_sigma_25_max_perlin_scale_6_max_beta_scale_0.6_min_beta_scale_0_not_rot"
