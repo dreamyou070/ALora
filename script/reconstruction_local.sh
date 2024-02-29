@@ -4,9 +4,9 @@ port_number=50003
 bench_mark="MVTec"
 obj_name='transistor'
 caption='transistor'
-layer_name='layer_3'
-sub_folder="up_16_32_64"
-file_name="test_train_local_scaled_query_only_back_anomal"
+layer_name='layer_4'
+sub_folder="mid_up_16_32_64"
+file_name="test_train_local_scaled_query"
 
 position_embedding_layer="down_blocks_0_attentions_0_transformer_blocks_0_attn1"
 
@@ -17,7 +17,8 @@ accelerate launch --config_file ../../../gpu_config/gpu_0_config \
  --data_path "../../../MyData/anomaly_detection/${bench_mark}/${obj_name}/test" \
  --obj_name "${obj_name}" --prompt "${caption}" \
  --latent_res 64 \
- --trg_layer_list "['up_blocks_1_attentions_2_transformer_blocks_0_attn2',
+ --trg_layer_list "[mid_block_attentions_0_transformer_blocks_0_attn2'',
+                    'up_blocks_1_attentions_2_transformer_blocks_0_attn2',
                     'up_blocks_2_attentions_2_transformer_blocks_0_attn2',
                     'up_blocks_3_attentions_2_transformer_blocks_0_attn2',]" \
  --d_dim 320 --use_position_embedder --position_embedding_layer ${position_embedding_layer} \
