@@ -70,6 +70,8 @@ def main(args):
             out = einops.rearrange(out, 'h a b d -> h (a b) d')
             return out  # head, pix_num, dim
     gquery_transformer = UNetUpBlock(in_size=160, out_size=280)
+    from model.global_local_segmentation import SegmentationSubNetwork
+    segmentation_net = SegmentationSubNetwork(in_channels=640, out_channels=1, base_channels=64)
 
     #gquery_transformer = GlobalQueryTransformer(hidden_dim=160,
     #                                            num_feature_levels=3,
@@ -91,8 +93,8 @@ def main(args):
     normal_activator = NormalActivator(loss_focal, loss_l2, args.use_focal_loss)
 
     print(f'\n step 8. model to device')
-    g_unet, g_text_encoder, g_network, optimizer, train_dataloader, lr_scheduler, g_position_embedder,query_transformer = accelerator.prepare(
-        g_unet, g_text_encoder, g_network, optimizer, train_dataloader, lr_scheduler, g_position_embedder, gquery_transformer)
+    g_unet, g_text_encoder, g_network, optimizer, train_dataloader, lr_scheduler, g_position_embedder,query_transformer,segmentation_net = accelerator.prepare(
+        g_unet, g_text_encoder, g_network, optimizer, train_dataloader, lr_scheduler, g_position_embedder, gquery_transformer,segmentation_net)
 
     g_text_encoders = transform_models_if_DDP([g_text_encoder])
     g_unet, g_network = transform_models_if_DDP([g_unet, g_network])
@@ -136,6 +138,7 @@ def main(args):
     global_step = 0
     loss_list = []
 
+
     def resize_query_features(query):
 
         # 8, 64, 160
@@ -150,6 +153,16 @@ def main(args):
         return resized_query
 
 
+    def reshape_batch_dim_to_heads(tensor):
+        batch_size, seq_len, dim = tensor.shape
+        head_size = 8
+        res = int(seq_len ** 0.5)
+        tensor = tensor.reshape(batch_size // head_size, head_size, seq_len, dim)
+        tensor = tensor.permute(0, 2, 1, 3).reshape(batch_size // head_size, seq_len, dim * head_size)
+        tensor = tensor.reshape(batch_size // head_size, res, res, dim * head_size)
+        return tensor
+
+
 
     for epoch in range(args.start_epoch, args.max_train_epochs):
 
@@ -162,7 +175,7 @@ def main(args):
             with torch.set_grad_enabled(True):
                 encoder_hidden_states = l_text_encoder(batch["input_ids"].to(device))["last_hidden_state"]
 
-            """ Train Only With Normal Data """
+            """ Train Only With Normal Data (normal feature matching, anomal feature unmatching..?) """
             with torch.no_grad():
                 latents = l_vae.encode(batch["image"].to(dtype=weight_dtype)).latent_dist.sample() * args.vae_scale_factor
                 l_unet(latents, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list,noise_type=l_position_embedder,)
@@ -185,10 +198,18 @@ def main(args):
                 elif 'up_blocks_3' in layer :
                     global_key = g_key_dict[layer][0].squeeze() # head,
             global_query = gquery_transformer(g_query)
-
             # matching loss
-            matching_loss = loss_l2(local_query.float(), global_query.float())
+            matching_loss = loss_l2(local_query.float(), global_query.float()) # matching loss anomal
+
+            # matching throug segmentation
+            local_map  = reshape_batch_dim_to_heads(local_query)
+            global_map = reshape_batch_dim_to_heads(global_query)
+            anomal_map = segmentation_net(torch.cat([local_map, global_map], dim = 1))
+            trg_anomal_map = torch.ones(1,1,64,64)
+            anomal_map_loss = loss_l2(anomal_map.float(),trg_anomal_map.float())
+
             print(f'matching loss : {matching_loss.shape}')
+            print(f'anomal_map_loss : {anomal_map_loss}')
 
             # loss = loss.to(weight_dtype)
             loss = matching_loss.mean()

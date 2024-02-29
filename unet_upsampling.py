@@ -26,8 +26,11 @@ class UNetConvBlock(nn.Module):
 
 
 # 160 -> 280
+matching_loss = torch.randn(8,64*64, 40)
 
-input = torch.randn((8,160,8,8))
-unet_upblock = UNetUpBlock(in_size=160, out_size=280)
-output = unet_upblock(input)
-print(output.shape)
+
+
+
+local_feature = torch.randn(8,64*64, 40)
+local_map = reshape_batch_dim_to_heads(local_feature)
+print(local_map.shape)
