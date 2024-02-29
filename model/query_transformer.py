@@ -439,7 +439,7 @@ class GlobalQueryTransformer(nn.Module):
             xi = xi.transpose(-1,-2) # head, dim, pix_num
             #xi = xi.view(-1, res,res).unsqueeze(0) # 1,    dim, res, res
             xi = xi.view(head, -1, res, res)        # head, dim, res, res
-            x[i] = xi
+            #x[i] = xi
             pi += self.patch_embeddings[i](xi) # 1, 8**2, dim
         #print(f'pi : {pi.shape}')
         #si = self.pe_layer(x[0]).permute(0,2,3,1) # 1, res, res, dim
