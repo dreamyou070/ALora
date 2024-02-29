@@ -87,6 +87,10 @@ def main(args):
             self.dim = out_size
 
         def forward(self, x):
+            #
+            h, pix_num, d = x.shape
+            res = int(pix_num ** 0.5)
+            x = x.reshape(h, res, res, d).permute(0,3,1,2)
             out = self.up(x)  # head, dim, res, res
             out = out.permute(0, 2, 3, 1)  # head, res, res, dim
             import einops
@@ -190,6 +194,7 @@ def main(args):
                     g_query = g_query_dict[layer][0].squeeze()
                 elif 'up_blocks_3' in layer :
                     global_key = g_key_dict[layer][0].squeeze() # head,
+            # g_query = 8, 64, 160
             global_query = gquery_transformer(g_query)
             # matching loss
             matching_loss = loss_l2(local_query.float(), global_query.float()) # matching loss anomal
