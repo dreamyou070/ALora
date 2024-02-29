@@ -147,9 +147,7 @@ def main(args):
                     l_unet(latents, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list,noise_type=l_position_embedder,)
                     l_query_dict, l_key_dict = l_controller.query_dict, l_controller.key_dict
                     l_controller.reset()
-
-                    l_origin_query_list = [l_query_dict[layer][0].squeeze() for layer in args.trg_layer_list ]
-
+                    l_origin_query_list = [l_query_dict[layer][0].squeeze() for layer in args.trg_layer_list]
                     global_query = gquery_transformer(l_origin_query_list) # 8,64, 160
                     def reshape_batch_dim_to_heads(tensor):
                         batch_size, seq_len, dim = tensor.shape
@@ -158,21 +156,18 @@ def main(args):
                         tensor = tensor.permute(0, 2, 1, 3).reshape(batch_size // head_size, seq_len, dim * head_size)
                         return tensor
                     global_query = reshape_batch_dim_to_heads(global_query) # 1, 64, 1280
-
                 with torch.set_grad_enabled(True) :
-                    #model_kwargs = {}
-                    #model_kwargs['global_feature'] = global_query
                     g_unet(latents,
                            0,
                            encoder_hidden_states,
                            trg_layer_list=args.trg_layer_list,
                            noise_type=[g_position_embedder,global_query])
-
                 g_query_dict, g_key_dict = g_controller.query_dict, g_controller.key_dict
                 g_controller.reset()
                 g_origin_query_list = [g_query_dict[layer][0].squeeze() for layer in args.trg_layer_list]
                 # [1] query matching
                 for g_query, l_query in zip(g_origin_query_list, l_origin_query_list) :
+                    print(f'g_query : {g_query.shape} | l_query : {l_query.shape}')
                     query_matching_loss = loss_l2(g_query.float(), l_query.float())
                     print(f'query matching loss = {query_matching_loss}')
                 # [2]
