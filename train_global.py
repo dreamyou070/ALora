@@ -79,8 +79,10 @@ def main(args):
 
             self.up = nn.Sequential(nn.Upsample(mode='bilinear', scale_factor=2),
                                     nn.Conv2d(in_size, out_size, kernel_size=1),
+                                    nn.ReLU(inplace=True),
                                     nn.Upsample(mode='bilinear', scale_factor=2),
                                     nn.Conv2d(out_size, out_size, kernel_size=1),
+                                    nn.ReLU(inplace=True),
                                     nn.Upsample(mode='bilinear', scale_factor=2),
                                     nn.Conv2d(out_size, out_size, kernel_size=1), )
             # self.conv_block = UNetConvBlock(out_size, out_size, padding, batch_norm)
@@ -202,7 +204,7 @@ def main(args):
                                                      global_map], dim = 1))
             trg_anomal_map = torch.ones(1,1,64,64)
             anomal_map_loss = loss_l2(anomal_map.float(),
-                                      trg_anomal_map.float()) # [1,1,64,64]
+                                      trg_anomal_map.float().to(anomal_map.device)) # [1,1,64,64]
 
             loss = matching_loss.mean() + anomal_map_loss.mean()
             loss = loss.to(weight_dtype)

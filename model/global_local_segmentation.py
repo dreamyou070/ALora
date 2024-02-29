@@ -189,14 +189,3 @@ class DecoderSegmentation(nn.Module):
         out = self.fin_out(db4)
         return out
 
-local_feature  = torch.randn(8, 64*64, 40)
-global_feature = torch.randn(8, 64*64, 40)
-local_map  = torch.randn(1,320,64,64)
-global_map = torch.randn(1,320,64,64)
-
-segmentation_net = SegmentationSubNetwork(in_channels=640,
-                       out_channels = 1,
-                       base_channels=64)
-input = torch.cat([local_map, global_map], dim=1)
-output = segmentation_net(input)
-print(output.shape)
