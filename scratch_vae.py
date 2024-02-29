@@ -133,7 +133,8 @@ def main(args):
             if args.do_normal_sample:
                 #with torch.set_grad_enabled(True):
                 latents = scratch_vae.encode(batch["image"].to(dtype=weight_dtype)).latent_dist.sample() * args.vae_scale_factor
-                anomal_position_vector = torch.zeros(64*64).to(latents.device).to(dtype=weight_dtype)
+                object_position_vector = batch['object_mask'].squeeze().flatten()
+                anomal_position_vector = object_position_vector * 0
                 with torch.set_grad_enabled(True):
                     unet(latents, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list,noise_type=position_embedder,)
                 query_dict, key_dict, attn_dict = controller.query_dict, controller.key_dict, controller.attn_dict
@@ -156,10 +157,10 @@ def main(args):
                   beta=0,)
                 local_attn = attention_scores.softmax(dim=-1)[:,:,:2]
                 normal_activator.collect_attention_scores(local_attn,
-                                                          anomal_position_vector,
+                                                          anomal_position_vector.to(local_attn.device),
                                                           True)
                 normal_activator.collect_anomal_map_loss(local_attn, #
-                                                         anomal_position_vector)
+                                                         anomal_position_vector.to(local_attn.device))
                 # [2] glocal
                 #global_query = gquery_transformer(origin_query_list)
 
