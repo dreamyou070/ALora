@@ -30,7 +30,7 @@ accelerate launch --config_file ../../../gpu_config/gpu_0_config \
  --back_min_beta_scale 0.6 \
  --back_max_beta_scale 0.9 \
  --back_trg_beta 0 \
- --do_background_masked_sample --do_object_detection --do_anomal_sample \
+ --do_background_masked_sample --do_object_detection --do_normal_sample \
  --position_embedding_layer 'down_blocks_0_attentions_0_transformer_blocks_0_attn1' --d_dim 320 --latent_res 64 \
  --trg_layer_list "['mid_block_attentions_0_transformer_blocks_0_attn2',
                     'up_blocks_1_attentions_2_transformer_blocks_0_attn2',
