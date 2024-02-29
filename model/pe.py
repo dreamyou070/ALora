@@ -32,7 +32,6 @@ class MultiPositionalEmbedding(nn.Module):
         self.positional_encodings = {}
         for d_model, max_len in zip(d_models, max_lens) :
             pe = nn.Parameter(torch.randn(1,max_len, d_model), requires_grad=True)
-            #self.positional_encodings.append(pe)
             self.positional_encodings[int(max_len ** 0.5)] = pe
 
     def forward(self, x: torch.Tensor):
@@ -47,7 +46,7 @@ class MultiPositionalEmbedding(nn.Module):
         pe_layer = self.positional_encodings[res]
         #pe = self.positional_encodings.expand(b_size, -1, -1)
         pe = pe_layer.expand(b_size, -1, -1)
-        x = x + pe
+        x = x + pe.to(x.device)
         if start_dim == 4:
             x = einops.rearrange(x, 'b (h w) c -> b c h w', h=res, w=res)
         return x

@@ -41,41 +41,31 @@ def inference(latent,
     input_ids, attention_mask = get_input_ids(tokenizer, args.prompt)
     encoder_hidden_states = text_encoder(input_ids.to(text_encoder.device))["last_hidden_state"]
     # [2] unet
-    unet(latent, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list, noise_type=position_embedder, )
-    query_dict, key_dict, attn_dict = controller.query_dict, controller.key_dict, controller.attn_dict
+    unet(latent, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list,noise_type=position_embedder)
+    query_dict, key_dict = controller.query_dict, controller.key_dict
     controller.reset()
-    attn_list, origin_query_list, query_list, key_list = [], [], [], []
     for layer in args.trg_layer_list:
-        query = query_dict[layer][0].squeeze()  # head, pix_num, dim
-        origin_query_list.append(query)
-        query_list.append(resize_query_features(query))  # head, pix_num, dim
-        key_list.append(key_dict[layer][0])  # head, pix_num, dim
-        # attn_list.append(attn_dict[layer][0])
-    # [1] local
-    local_query = torch.cat(query_list, dim=-1)  # head, pix_num, long_dim
-    local_key = torch.cat(key_list, dim=-1).squeeze()  # head, 77, long_dim
-    attention_scores = torch.baddbmm(
-        torch.empty(local_query.shape[0], local_query.shape[1], local_key.shape[1], dtype=query.dtype,
-                    device=query.device),
-        local_query, local_key.transpose(-1, -2),
-        beta=0, )
-    attn_score = attention_scores.softmax(dim=-1)[:, :, :2]
-
-    cls_score, trigger_score = attn_score.chunk(2, dim=-1)  # [head,pixel], [head,pixel]
-    cls_score, trigger_score = cls_score.squeeze(), trigger_score.squeeze()  # [head,pixel], [head,pixel]
-    cls_map, trigger_map = cls_score.mean(dim=0), trigger_score.mean(dim=0)  # pix_num
+        if 'mid' in layer:
+            g_query = query_dict[layer][0].squeeze()  # 8, 64, 160
+            g_key = key_dict[layer][0].squeeze()  # 8, 77, 160
+    attention_scores = torch.baddbmm(torch.empty(g_query.shape[0], g_query.shape[1], g_key.shape[1], dtype=g_query.dtype,
+                                                 device=g_query.device),
+                                     g_query, g_key.transpose(-1, -2), beta=0, )  # [head, 64, 77]
+    global_attn = attention_scores.softmax(dim=-1)[:, :, 1:65]  # [head, 64, 64]
+    head = global_attn.shape[0]
+    attn = [torch.diagonal(global_attn[i]) for i in range(head)]
+    global_anomal_map = torch.stack(attn, dim=0).mean(dim=0).view(8, 8).unsqueeze(0).unsqueeze(0)
+    trigger_map = nn.functional.interpolate(global_anomal_map, size=(64, 64),
+                                                  mode='bilinear').squeeze().flatten()
     pix_num = trigger_map.shape[0]
     res = int(pix_num ** 0.5)
-    cls_map = cls_map.unsqueeze(0).view(res, res)
-    cls_map_pil = Image.fromarray((255 * cls_map).cpu().detach().numpy().astype(np.uint8)).resize((org_h, org_w))
     normal_map = torch.where(trigger_map > thred, 1, trigger_map).squeeze()
     normal_map = normal_map.unsqueeze(0).view(res, res)
     normal_map_pil = Image.fromarray(
         normal_map.cpu().detach().numpy().astype(np.uint8) * 255).resize((org_h, org_w))
     anomal_np = ((1 - normal_map) * 255).cpu().detach().numpy().astype(np.uint8)
     anomaly_map_pil = Image.fromarray(anomal_np).resize((org_h, org_w))
-
-    return cls_map_pil, normal_map_pil, anomaly_map_pil
+    return normal_map_pil, anomaly_map_pil
 
 
 def generate_object_point(object_mask_pil):
@@ -258,14 +248,14 @@ def main(args):
                         with torch.no_grad():
                             img = np.array(input_img.resize((512, 512)))
                             latent = image2latent(img, vae, weight_dtype)
-                            cls_map_pil, normal_map_pil, anomaly_map_pil = inference(latent,
+                            normal_map_pil, anomaly_map_pil = inference(latent,
                                                                                      tokenizer, text_encoder, unet,
                                                                                      controller, normal_activator,
                                                                                      position_embedder,
                                                                                      args,
                                                                                      trg_h, trg_w,
                                                                                      thred)
-                            cls_map_pil.save(os.path.join(save_base_folder, f'{name}_cls.png'))
+                            #cls_map_pil.save(os.path.join(save_base_folder, f'{name}_cls.png'))
                             normal_map_pil.save(os.path.join(save_base_folder, f'{name}_normal.png'))
                             anomaly_map_pil.save( os.path.join(save_base_folder, f'{name}_anomal.png'))
                             anomaly_map_pil.save(os.path.join(answer_anomal_folder, f'{name}.tiff'))
@@ -278,6 +268,7 @@ def main(args):
                     # [3] original save
                     Image.open(rgb_img_dir).convert('RGB').save(os.path.join(save_base_folder, rgb_img))
             # ---------------------------------------------------------------------------------------------------------
+            """
             # [2] train path
             if not args.object_crop:
                 train_img_folder = os.path.join(parent, 'train')
@@ -324,6 +315,7 @@ def main(args):
                             anomaly_map_pil.save( os.path.join(save_base_folder, f'{name}_anomal.png'))
                             anomaly_map_pil.save(os.path.join(answer_anomal_folder, f'{name}.tiff'))
                         Image.open(rgb_img_dir).convert('RGB').save(os.path.join(save_base_folder, rgb_img))
+            """
         print(f'Model To Original')
         for k in raw_state_dict_orig.keys():
             raw_state_dict[k] = raw_state_dict_orig[k]
