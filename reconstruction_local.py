@@ -13,7 +13,7 @@ from PIL import Image
 from utils.image_utils import load_image, image2latent
 import numpy as np
 from model.diffusion_model import load_target_model
-from model.pe import PositionalEmbedding
+from model.pe import PositionalEmbedding, MultiPositionalEmbedding
 from safetensors.torch import load_file
 from attention_store.normal_activator import NormalActivator
 from attention_store.normal_activator import passing_normalize_argument
@@ -118,6 +118,9 @@ def main(args):
     if args.use_position_embedder:
         position_embedder = PositionalEmbedding(max_len=args.latent_res * args.latent_res,
                                                 d_model=args.d_dim)
+
+        if args.use_multi_position_embedder :
+            position_embedder = MultiPositionalEmbedding()
 
     print(f'\n step 2. accelerator and device')
     vae.requires_grad_(False)
@@ -331,6 +334,7 @@ if __name__ == '__main__':
     parser.add_argument("--use_focal_loss", action='store_true')
     parser.add_argument("--gen_batchwise_attn", action='store_true')
     parser.add_argument("--object_crop", action='store_true')
+    parser.add_argument("--use_multi_position_embedder", action='store_true')
     args = parser.parse_args()
     passing_argument(args)
     unet_passing_argument(args)
