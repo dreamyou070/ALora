@@ -51,7 +51,7 @@ def main(args):
     l_text_encoder, l_vae, l_unet, l_network, l_position_embedder = call_model_package(args, weight_dtype, accelerator, True)
     g_text_encoder, g_vae, g_unet, g_network, g_position_embedder = call_model_package(args, weight_dtype, accelerator,False)
 
-    gquery_transformer = GlobalQueryTransformer(hidden_dim=1280,
+    gquery_transformer = GlobalQueryTransformer(hidden_dim=160,
                                                 num_feature_levels=3,
                                                 with_fea2d_pos=True)
     print(f'\n step 5. optimizer')
@@ -150,9 +150,15 @@ def main(args):
 
                     l_origin_query_list = [l_query_dict[layer][0].squeeze() for layer in args.trg_layer_list ]
 
-                    global_query = gquery_transformer(l_origin_query_list) # 1,64, 1280
-                    _, global_query = global_query
-                    print(f'global_query : {global_query.shape}')
+                    global_query = gquery_transformer(l_origin_query_list) # 8,64, 160
+                    def reshape_batch_dim_to_heads(tensor):
+                        batch_size, seq_len, dim = tensor.shape
+                        head_size = 8
+                        tensor = tensor.reshape(batch_size // head_size, head_size, seq_len, dim)
+                        tensor = tensor.permute(0, 2, 1, 3).reshape(batch_size // head_size, seq_len, dim * head_size)
+                        return tensor
+                    global_query = reshape_batch_dim_to_heads(global_query)
+                    print(f'global_query (1,64,1280) : {global_query.shape}')
 
                 with torch.set_grad_enabled(True) :
                     model_kwargs = {}

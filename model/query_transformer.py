@@ -441,9 +441,10 @@ class GlobalQueryTransformer(nn.Module):
             xi = xi.view(head, -1, res, res)        # head, dim, res, res
             x[i] = xi
             pi += self.patch_embeddings[i](xi) # 1, 8**2, dim
-        print(f'pi : {pi.shape}')
-        si = self.pe_layer(x[0]).permute(0,2,3,1) # 1, res, res, dim
-        import einops
-        si = einops.rearrange(si, 'p a b c -> p (a b) c')
-        print(f'si : {si.shape}')
-        return (pi,pi+si)
+        #print(f'pi : {pi.shape}')
+        #si = self.pe_layer(x[0]).permute(0,2,3,1) # 1, res, res, dim
+        #import einops
+        #si = einops.rearrange(si, 'p a b c -> p (a b) c')
+        #print(f'si : {si.shape}')
+        # pi = 8(head), 64(pix_num), dim
+        return pi #,pi+si)
