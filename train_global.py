@@ -52,7 +52,7 @@ def main(args):
     g_text_encoder, g_vae, g_unet, g_network, g_position_embedder = call_model_package(args, weight_dtype, accelerator,False)
 
     gquery_transformer = GlobalQueryTransformer(hidden_dim=1280,
-                                                num_feature_levels=4,
+                                                num_feature_levels=3,
                                                 with_fea2d_pos=True)
     print(f'\n step 5. optimizer')
     args.max_train_steps = len(train_dataloader) * args.max_train_epochs
