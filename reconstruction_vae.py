@@ -334,8 +334,9 @@ if __name__ == '__main__':
     parser.add_argument("--thred", default=0.5, type=float)
     parser.add_argument("--image_classification_layer", type=str)
     parser.add_argument("--use_focal_loss", action='store_true')
-    parser.add_argument("--gen_batchwise_attn", action='store_true')
+    parser.add_argument("--all_positional_embedder", action='store_true')
     parser.add_argument("--object_crop", action='store_true')
+
     args = parser.parse_args()
     passing_argument(args)
     unet_passing_argument(args)
