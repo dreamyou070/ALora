@@ -209,7 +209,7 @@ def main(args):
 
 
             # -------------------------------------------------------------------------------------------------------- #
-            if args.do_anormal_sample :
+            if args.do_anomal_sample :
                 with torch.no_grad():
                     latents = l_vae.encode(batch["anomal_image"].to(dtype=weight_dtype)).latent_dist.sample() * args.vae_scale_factor
                     anomal_position_vector = batch["anomal_mask"].squeeze().flatten() # 64*64
