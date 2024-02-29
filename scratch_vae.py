@@ -133,7 +133,7 @@ def main(args):
             if args.do_normal_sample:
                 #with torch.set_grad_enabled(True):
                 latents = scratch_vae.encode(batch["image"].to(dtype=weight_dtype)).latent_dist.sample() * args.vae_scale_factor
-                anomal_position_vector = torch.zeros(64*64)
+                anomal_position_vector = torch.zeros(64*64).to(latents.device).to(dtype=weight_dtype)
                 with torch.set_grad_enabled(True):
                     unet(latents, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list,noise_type=position_embedder,)
                 query_dict, key_dict, attn_dict = controller.query_dict, controller.key_dict, controller.attn_dict
