@@ -13,7 +13,7 @@ from PIL import Image
 from utils.image_utils import load_image, image2latent
 import numpy as np
 from model.diffusion_model import load_target_model
-from model.pe import PositionalEmbedding, MultiPositionalEmbedding
+from model.pe import PositionalEmbedding, MultiPositionalEmbedding, AllPositionalEmbedding
 from safetensors.torch import load_file
 from attention_store.normal_activator import NormalActivator
 from attention_store.normal_activator import passing_normalize_argument
@@ -121,6 +121,9 @@ def main(args):
 
         if args.use_multi_position_embedder :
             position_embedder = MultiPositionalEmbedding()
+
+        elif args.all_positional_embedder :
+            position_embedder = AllPositionalEmbedding()
 
     print(f'\n step 2. accelerator and device')
     vae.requires_grad_(False)
