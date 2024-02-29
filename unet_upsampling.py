@@ -24,13 +24,14 @@ class UNetConvBlock(nn.Module):
         return out
 
 
-
-# 160 -> 280
-matching_loss = torch.randn(8,64*64, 40)
-
-
-
-
-local_feature = torch.randn(8,64*64, 40)
-local_map = reshape_batch_dim_to_heads(local_feature)
-print(local_map.shape)
+def reshape_batch_dim_to_heads(tensor):
+    batch_size, seq_len, dim = tensor.shape
+    head_size = 8
+    res = int(seq_len ** 0.5)
+    tensor = tensor.reshape(batch_size // head_size, head_size, seq_len, dim)
+    tensor = tensor.permute(0, 2, 1, 3).reshape(batch_size // head_size, seq_len, dim * head_size)
+    tensor = tensor.reshape(batch_size // head_size, res, res, dim * head_size).permute(0,3,1,2)
+    return tensor
+input = torch.randn(8, 64*64, 280)
+output = reshape_batch_dim_to_heads(input)
+print(output.shape)

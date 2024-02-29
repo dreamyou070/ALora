@@ -171,7 +171,6 @@ def main(args):
             loss_dict = {}
             with torch.set_grad_enabled(True):
                 encoder_hidden_states = l_text_encoder(batch["input_ids"].to(device))["last_hidden_state"]
-
             """ Train Only With Normal Data (normal feature matching, anomal feature unmatching..?) """
             with torch.no_grad():
                 latents = l_vae.encode(batch["image"].to(dtype=weight_dtype)).latent_dist.sample() * args.vae_scale_factor
@@ -183,26 +182,27 @@ def main(args):
                     if 'mid' not in layer :
                         l_query_list.append(resize_query_features(l_query_dict[layer][0].squeeze()))
                 local_query = torch.cat(l_query_list, dim=-1)  # 8, 64*64, 280
-
             with torch.set_grad_enabled(True):
-                g_unet(latents,0,encoder_hidden_states,trg_layer_list=args.trg_layer_list,
-                       noise_type=g_position_embedder)
+                g_unet(latents,0,encoder_hidden_states,trg_layer_list=args.trg_layer_list, noise_type=g_position_embedder)
             g_query_dict, g_key_dict = g_controller.query_dict, g_controller.key_dict
             g_controller.reset()
             for layer in args.trg_layer_list :
                 if 'mid' in layer :
                     g_query = g_query_dict[layer][0].squeeze()
-                elif 'up_blocks_3' in layer :
-                    global_key = g_key_dict[layer][0].squeeze() # head,
-            # g_query = 8, 64, 160
-            global_query = gquery_transformer(g_query)
+            global_query = gquery_transformer(g_query) # g_query = 8, 64, 160 -> 8, 64*64, 280
+            print(f'global_query : {global_query.shape}')
             # matching loss
             matching_loss = loss_l2(local_query.float(), global_query.float()) # matching loss anomal
-
+            print(f'matching_loss : {matching_loss}')
             # matching throug segmentation
-            local_map  = reshape_batch_dim_to_heads(local_query)
-            global_map = reshape_batch_dim_to_heads(global_query)
-            anomal_map = segmentation_net(torch.cat([local_map, global_map], dim = 1))
+            local_map  = reshape_batch_dim_to_heads(local_query)  # 8, 280, 64, 64
+            global_map = reshape_batch_dim_to_heads(global_query) # 8, 280, 64, 64
+            print(f'global_map : {global_map.shape}')
+
+
+
+            anomal_map = segmentation_net(torch.cat([local_map,
+                                                     global_map], dim = 1))
             trg_anomal_map = torch.ones(1,1,64,64)
             anomal_map_loss = loss_l2(anomal_map.float(),trg_anomal_map.float())
 
