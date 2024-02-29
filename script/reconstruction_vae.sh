@@ -1,12 +1,12 @@
 # !/bin/bash
 
-port_number=50004
+port_number=50003
 bench_mark="MVTec"
 obj_name='transistor'
 caption='transistor'
 layer_name='layer_3'
 sub_folder="up_16_32_64"
-file_name="train_from_vae_nomal_sample"
+file_name="train_from_vae_anomal_sample"
 
 position_embedding_layer="down_blocks_0_attentions_0_transformer_blocks_0_attn1"
 
