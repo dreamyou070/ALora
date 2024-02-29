@@ -49,6 +49,7 @@ def main(args):
     weight_dtype, save_dtype = prepare_dtype(args)
     text_encoder, vae, unet, network, position_embedder = call_model_package(args, weight_dtype, accelerator, True)
 
+    """ is it really scratch ? """
     vae_config = vae.config
     scratch_vae = AutoencoderKL.from_config(vae_config)
 
