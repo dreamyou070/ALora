@@ -116,15 +116,17 @@ def main(args):
     global_step = 0
     loss_list = []
 
-
     def resize_query_features(query):
 
-        pix_num, dim = query.shape
+        #pix_num, dim = query.shape
+        head_num, pix_num, dim = query.shape
         res = int(pix_num ** 0.5) # 8
-        query_map = query.view(res, res, dim).permute(2,0,1).contiguous().unsqueeze(0)           # 1, channel, res, res
+        # query_map = query.view(res, res, dim).permute(2,0,1).contiguous().unsqueeze(0)           # 1, channel, res, res
+        query_map = query.view(head_num, res, res, dim).permute(0, 3, 1, 2).contiguous()  # 1, channel, res, res
         resized_query_map = nn.functional.interpolate(query_map, size=(64, 64), mode='bilinear') # 1, channel, 64,  64
-        resized_query = resized_query_map.permute(0, 2, 3, 1).contiguous().squeeze() # 64, 64, channel
-        resized_query = resized_query.view(64*64, dim) # #view(head_num, -1, dim).squeeze()  # 1, pix_num, dim
+        resized_query = resized_query_map.permute(0, 2, 3, 1).contiguous().squeeze() # head, 64, 64, channel
+        resized_query = resized_query.view(head_num, 64*64, dim) # #view(head_num, -1, dim).squeeze()  # head, pix_num, dim
+        # resized_query = resized_query.view(64 * 64,dim)  # #view(head_num, -1, dim).squeeze()  # 1, pix_num, dim
         return resized_query
 
     for epoch in range(args.start_epoch, args.max_train_epochs):
@@ -151,7 +153,6 @@ def main(args):
                     l_origin_query_list = [l_query_dict[layer][0].squeeze() for layer in args.trg_layer_list]
                     for layer in args.trg_layer_list :
                         l_query = l_query_dict[layer][0].squeeze()
-                        print(f'l_query : {l_query.shape}')
                     global_query = gquery_transformer(l_origin_query_list) # 8,64, 160
                     def reshape_batch_dim_to_heads(tensor):
                         batch_size, seq_len, dim = tensor.shape
@@ -171,9 +172,7 @@ def main(args):
                 g_origin_query_list = [g_query_dict[layer][0].squeeze() for layer in args.trg_layer_list]
                 # [1] query matching
                 for g_query, l_query in zip(g_origin_query_list, l_origin_query_list) :
-                    print(f'g_query : {g_query.shape} | l_query : {l_query.shape}')
                     query_matching_loss = loss_l2(g_query.float(), l_query.float())
-                    print(f'query matching loss = {query_matching_loss}')
                 # [2]
                 g_query_list, g_key_list = [], []
                 for layer in args.trg_layer_list:
