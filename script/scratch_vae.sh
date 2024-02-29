@@ -9,7 +9,7 @@ sub_folder="up_16_32_64"
 file_name="train_from_vae"
 
 anomal_source_path="../../../MyData/anomal_source"
-# --do_anomal_sample 
+# --do_anomal_sample
 accelerate launch --config_file ../../../gpu_config/gpu_0_1_2_3_4_5_config \
  --main_process_port $port_number ../scratch_vae.py --log_with wandb \
  --output_dir "../../result/${bench_mark}/${obj_name}/${layer_name}/${sub_folder}/${file_name}" \
