@@ -54,8 +54,7 @@ def main(args):
 
     print(f'\n step 5. optimizer')
     args.max_train_steps = len(train_dataloader) * args.max_train_epochs
-    trainable_params = network.prepare_optimizer_params(args.text_encoder_lr,
-                                                        args.unet_lr, args.learning_rate)
+    trainable_params = network.prepare_optimizer_params(args.text_encoder_lr, args.unet_lr, args.learning_rate)
     trainable_params.append({"params": position_embedder.parameters(), "lr": args.learning_rate})
     trainable_params.append({"params": scratch_vae.parameters(), "lr": args.learning_rate})
     optimizer_name, optimizer_args, optimizer = get_optimizer(args, trainable_params)
@@ -69,14 +68,12 @@ def main(args):
     normal_activator = NormalActivator(loss_focal, loss_l2, args.use_focal_loss)
 
     print(f'\n step 8. model to device')
-    #unet, text_encoder, network, optimizer, train_dataloader, lr_scheduler, position_embedder,query_transformer = accelerator.prepare(
-    #    unet, text_encoder, network, optimizer, train_dataloader, lr_scheduler, position_embedder, gquery_transformer)
-    unet, text_encoder, network, optimizer, train_dataloader, lr_scheduler, position_embedder, scratch_vae = accelerator.prepare(unet,
-          text_encoder, network, optimizer, train_dataloader, lr_scheduler, position_embedder, scratch_vae)
+    unet, text_encoder, network, optimizer, train_dataloader, lr_scheduler, position_embedder, scratch_vae = accelerator.prepare(
+    unet, text_encoder, network, optimizer, train_dataloader, lr_scheduler, position_embedder, scratch_vae)
 
     text_encoders = transform_models_if_DDP([text_encoder])
     unet, network = transform_models_if_DDP([unet, network])
-    #scratch_vae = transform_models_if_DDP([scratch_vae])
+    scratch_vae = transform_models_if_DDP([scratch_vae])[0]
     if args.gradient_checkpointing:
         unet.train()
         position_embedder.train()
@@ -129,11 +126,12 @@ def main(args):
             loss_dict = {}
 
             with torch.set_grad_enabled(True):
+
                 encoder_hidden_states = text_encoder(batch["input_ids"].to(device))["last_hidden_state"]
 
             if args.do_anomal_sample:
-                with torch.set_grad_enabled(True):
-                    latents = scratch_vae.encode(batch["anomal_image"].to(dtype=weight_dtype)).latent_dist.sample() * args.vae_scale_factor
+                #with torch.set_grad_enabled(True):
+                latents = scratch_vae.encode(batch["anomal_image"].to(dtype=weight_dtype)).latent_dist.sample() * args.vae_scale_factor
                 anomal_position_vector = batch["anomal_mask"].squeeze().flatten()
                 with torch.set_grad_enabled(True):
                     unet(latents, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list,noise_type=position_embedder,)
@@ -165,8 +163,8 @@ def main(args):
                 #global_query = gquery_transformer(origin_query_list)
 
             if args.do_background_masked_sample:
-                with torch.set_grad_enabled(True):
-                    latents = scratch_vae.encode(batch["bg_anomal_image"].to(dtype=weight_dtype)).latent_dist.sample() * args.vae_scale_factor
+                #with torch.set_grad_enabled(True):
+                latents = scratch_vae.encode(batch["bg_anomal_image"].to(dtype=weight_dtype)).latent_dist.sample() * args.vae_scale_factor
                 anomal_position_vector = batch["bg_anomal_mask"].squeeze().flatten()
                 with torch.set_grad_enabled(True):
                     unet(latents, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list,noise_type=position_embedder,)
