@@ -100,7 +100,7 @@ def main(args):
             return out  # head, pix_num, dim
 
     gquery_transformer = UNetUpBlock(in_size=160, out_size=280)
-    segmentation_net = SegmentationSubNetwork(in_channels=4480,
+    segmentation_net = SegmentationSubNetwork(in_channels=2240,
                                               out_channels=1,
                                               base_channels=64)
 
@@ -195,17 +195,16 @@ def main(args):
                 for layer in args.trg_layer_list :
                     if 'mid' in layer :
                         g_query = g_query_dict[layer][0].squeeze()
-                global_query = gquery_transformer(g_query) # g_query = 8, 64, 160 -> 8, 64*64, 280
+                global_query = gquery_transformer(g_query) # g_query = 8, 64, 160 -> 8, 64*64, 280 (feature generating with only global context)
                 # matching loss
                 matching_loss += loss_l2(local_query.float(), global_query.float()) # [8, 64*64, 280]
                 # matching throug segmentation
-                local_map  = reshape_batch_dim_to_heads(local_query)  # [1,64,64,2240]
+                #local_map  = reshape_batch_dim_to_heads(local_query)  # [1,2240,64,64]
                 global_map = reshape_batch_dim_to_heads(global_query) # [1,64,64,2240]
-                anomal_map = segmentation_net(torch.cat([local_map,
-                                                         global_map], dim = 1))
+                anomal_map = segmentation_net(global_map)
                 trg_anomal_map = torch.zeros(1,1,64,64)
                 anomal_map_loss += loss_l2(anomal_map.float(),
-                                          trg_anomal_map.float().to(anomal_map.device)) # [1,1,64,64]
+                                           trg_anomal_map.float().to(anomal_map.device)) # [1,1,64,64]
 
 
             # -------------------------------------------------------------------------------------------------------- #
@@ -236,10 +235,9 @@ def main(args):
                 matching_loss += loss_l2(local_query.float()*nomal_position_vector,
                                         global_query.float()*nomal_position_vector) # [8, 64*64, 280]
                 # matching throug segmentation
-                local_map  = reshape_batch_dim_to_heads(local_query)  # [1,64,64,2240]
+                #local_map  = reshape_batch_dim_to_heads(local_query)  # [1,64,64,2240]
                 global_map = reshape_batch_dim_to_heads(global_query) # [1,64,64,2240]
-                anomal_map = segmentation_net(torch.cat([local_map,
-                                                         global_map], dim = 1))
+                anomal_map = segmentation_net(global_map)
                 trg_anomal_map = anomal_position_vector.reshape(r,r).unsqueeze(0).unsqueeze(0)
                 anomal_map_loss += loss_l2(anomal_map.float(),
                                           trg_anomal_map.float().to(anomal_map.device)) # [1,1,64,64]
@@ -274,10 +272,9 @@ def main(args):
                 matching_loss += loss_l2(local_query.float() * nomal_position_vector,
                                          global_query.float() * nomal_position_vector)  # [8, 64*64, 280]
                 # matching throug segmentation
-                local_map = reshape_batch_dim_to_heads(local_query)  # [1,64,64,2240]
+                #local_map = reshape_batch_dim_to_heads(local_query)  # [1,64,64,2240]
                 global_map = reshape_batch_dim_to_heads(global_query)  # [1,64,64,2240]
-                anomal_map = segmentation_net(torch.cat([local_map,
-                                                         global_map], dim=1))
+                anomal_map = segmentation_net(global_map)
                 trg_anomal_map = anomal_position_vector.reshape(r, r).unsqueeze(0).unsqueeze(0)
                 anomal_map_loss += loss_l2(anomal_map.float(),
                                            trg_anomal_map.float().to(anomal_map.device))  # [1,1,64,64]
