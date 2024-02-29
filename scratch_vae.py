@@ -57,7 +57,7 @@ def main(args):
     trainable_params = network.prepare_optimizer_params(args.text_encoder_lr,
                                                         args.unet_lr, args.learning_rate)
     trainable_params.append({"params": position_embedder.parameters(), "lr": args.learning_rate})
-    #trainable_params.append({"params": gquery_transformer.parameters(), "lr": args.learning_rate})
+    trainable_params.append({"params": scratch_vae.parameters(), "lr": args.learning_rate})
     optimizer_name, optimizer_args, optimizer = get_optimizer(args, trainable_params)
 
     print(f'\n step 6. lr')
@@ -76,7 +76,7 @@ def main(args):
 
     text_encoders = transform_models_if_DDP([text_encoder])
     unet, network = transform_models_if_DDP([unet, network])
-    scratch_vae = transform_models_if_DDP([scratch_vae])
+    #scratch_vae = transform_models_if_DDP([scratch_vae])
     if args.gradient_checkpointing:
         unet.train()
         position_embedder.train()
