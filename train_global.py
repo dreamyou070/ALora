@@ -50,10 +50,30 @@ def main(args):
     weight_dtype, save_dtype = prepare_dtype(args)
     l_text_encoder, l_vae, l_unet, l_network, l_position_embedder = call_model_package(args, weight_dtype, accelerator, True)
     g_text_encoder, g_vae, g_unet, g_network, g_position_embedder = call_model_package(args, weight_dtype, accelerator,False)
+    class UNetUpBlock(nn.Module):
+        def __init__(self, in_size, out_size):
+            super(UNetUpBlock, self).__init__()
 
-    gquery_transformer = GlobalQueryTransformer(hidden_dim=160,
-                                                num_feature_levels=3,
-                                                with_fea2d_pos=True)
+            self.up = nn.Sequential(nn.Upsample(mode='bilinear', scale_factor=2),
+                                    nn.Conv2d(in_size, out_size, kernel_size=1),
+                                    nn.Upsample(mode='bilinear', scale_factor=2),
+                                    nn.Conv2d(out_size, out_size, kernel_size=1),
+                                    nn.Upsample(mode='bilinear', scale_factor=2),
+                                    nn.Conv2d(out_size, out_size, kernel_size=1), )
+            # self.conv_block = UNetConvBlock(out_size, out_size, padding, batch_norm)
+            self.dim = out_size
+
+        def forward(self, x):
+            out = self.up(x)  # head, dim, res, res
+            out = out.permute(0, 2, 3, 1)  # head, res, res, dim
+            import einops
+            out = einops.rearrange(out, 'h a b d -> h (a b) d')
+            return out  # head, pix_num, dim
+    gquery_transformer = UNetUpBlock(in_size=160, out_size=280)
+
+    #gquery_transformer = GlobalQueryTransformer(hidden_dim=160,
+    #                                            num_feature_levels=3,
+    #                                            with_fea2d_pos=True)
     print(f'\n step 5. optimizer')
     args.max_train_steps = len(train_dataloader) * args.max_train_epochs
     trainable_params = g_network.prepare_optimizer_params(args.text_encoder_lr,
@@ -129,26 +149,6 @@ def main(args):
         # resized_query = resized_query.view(64 * 64,dim)  # #view(head_num, -1, dim).squeeze()  # 1, pix_num, dim
         return resized_query
 
-    class UNetUpBlock(nn.Module):
-        def __init__(self, in_size, out_size):
-            super(UNetUpBlock, self).__init__()
-
-            self.up = nn.Sequential(nn.Upsample(mode='bilinear', scale_factor=2),
-                                    nn.Conv2d(in_size, out_size, kernel_size=1),
-                                    nn.Upsample(mode='bilinear', scale_factor=2),
-                                    nn.Conv2d(out_size, out_size, kernel_size=1),
-                                    nn.Upsample(mode='bilinear', scale_factor=2),
-                                    nn.Conv2d(out_size, out_size, kernel_size=1), )
-            # self.conv_block = UNetConvBlock(out_size, out_size, padding, batch_norm)
-            self.dim = out_size
-
-        def forward(self, x):
-            out = self.up(x)  # head, dim, res, res
-            out = out.permute(0, 2, 3, 1)  # head, res, res, dim
-            import einops
-            out = einops.rearrange(out, 'h a b d -> h (a b) d')
-            return out  # head, pix_num, dim
-    gquery_transformer = UNetUpBlock(in_size=160, out_size=280)
 
 
     for epoch in range(args.start_epoch, args.max_train_epochs):
@@ -158,110 +158,40 @@ def main(args):
 
         for step, batch in enumerate(train_dataloader):
             device = accelerator.device
-            loss = torch.tensor(0.0, dtype=weight_dtype, device=accelerator.device)
             loss_dict = {}
-
             with torch.set_grad_enabled(True):
                 encoder_hidden_states = l_text_encoder(batch["input_ids"].to(device))["last_hidden_state"]
 
-            if args.do_anomal_sample:
-                with torch.no_grad():
-                    latents = l_vae.encode(batch["anomal_image"].to(dtype=weight_dtype)).latent_dist.sample() * args.vae_scale_factor
-                    anomal_position_vector = batch["anomal_mask"].squeeze().flatten()
-                    l_unet(latents, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list,noise_type=l_position_embedder,)
+            """ Train Only With Normal Data """
+            with torch.no_grad():
+                latents = l_vae.encode(batch["image"].to(dtype=weight_dtype)).latent_dist.sample() * args.vae_scale_factor
+                l_unet(latents, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list,noise_type=l_position_embedder,)
+                l_query_dict, l_key_dict = l_controller.query_dict, l_controller.key_dict
+                l_controller.reset()
+                l_query_list = []
+                for layer in args.trg_layer_list :
+                    if 'mid' not in layer :
+                        l_query_list.append(resize_query_features(l_query_dict[layer][0].squeeze()))
+                local_query = torch.cat(l_query_list, dim=-1)  # 8, 64*64, 280
 
-                    l_query_dict, l_key_dict = l_controller.query_dict, l_controller.key_dict
-                    l_controller.reset()
-                    l_query_list = []
-                    for layer in args.trg_layer_list :
-                        if 'mid' not in layer :
-                            l_query_list.append(resize_query_features(l_query_dict[layer][0].squeeze()))
-                    local_query = torch.cat(l_query_list, dim=-1)  # 8, 64*64, 280
-                    with torch.set_grad_enabled(True):
-                        g_unet(latents,0,encoder_hidden_states,trg_layer_list=args.trg_layer_list,
-                               noise_type=g_position_embedder)
-                    g_query_dict, g_key_dict = g_controller.query_dict, g_controller.key_dict
-                    g_controller.reset()
-                    g_query_list = []
-                    for layer in args.trg_layer_list :
-                        if 'mid' in layer :
-                            g_query = g_query_dict[layer][0].squeeze()
-                        elif 'up_blocks_3' in layer :
-                            global_key = g_key_dict[layer][0].squeeze() # head,
-                    global_query = gquery_transformer(g_query)
+            with torch.set_grad_enabled(True):
+                g_unet(latents,0,encoder_hidden_states,trg_layer_list=args.trg_layer_list,
+                       noise_type=g_position_embedder)
+            g_query_dict, g_key_dict = g_controller.query_dict, g_controller.key_dict
+            g_controller.reset()
+            for layer in args.trg_layer_list :
+                if 'mid' in layer :
+                    g_query = g_query_dict[layer][0].squeeze()
+                elif 'up_blocks_3' in layer :
+                    global_key = g_key_dict[layer][0].squeeze() # head,
+            global_query = gquery_transformer(g_query)
 
-                    # matching loss
-                    matching_loss = loss_l2(local_query.float(), global_query.float())
-                    print(f'matching loss : {matching_loss.shape}')
+            # matching loss
+            matching_loss = loss_l2(local_query.float(), global_query.float())
+            print(f'matching loss : {matching_loss.shape}')
 
-                    # global attn
-                    attention_scores = torch.baddbmm(
-                      torch.empty(global_query.shape[0], global_query.shape[1], global_key.shape[1], dtype=global_query.dtype, device=global_query.device),
-                      global_query, global_key.transpose(-1, -2),
-                      beta=0,)
-                    global_attn = attention_scores.softmax(dim=-1)[:,:,:2]
-                    normal_activator.collect_attention_scores(global_attn,
-                                                              anomal_position_vector,
-                                                              True)
-                    normal_activator.collect_anomal_map_loss(global_attn, #
-                                                             anomal_position_vector)
-
-            # --------------------------------------------------------------------------------------------------------- #
-            """
-            if args.do_background_masked_sample:
-                with torch.no_grad():
-                    latents = vae.encode(batch["bg_anomal_image"].to(
-                        dtype=weight_dtype)).latent_dist.sample() * args.vae_scale_factor
-                anomal_position_vector = batch["bg_anomal_mask"].squeeze().flatten()
-                with torch.set_grad_enabled(True):
-                    unet(latents, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list,
-                         noise_type=position_embedder, )
-                # check hooked hidden states
-                query_list = []
-                for i, block in enumerate(feature_blocks):
-                    out_feat = block.activations
-                    b, pix_num, dim = out_feat.shape
-                    res = int(pix_num ** 0.5)
-                    out_feat = out_feat.permute(0, 2, 1).view(b, dim, res, res)
-                    query_list.append(out_feat)
-                    block.activations = None
-                query_list = right_rotate(query_list, 1)
-                gquery, lquery = query_transformer(query_list)  # [batch,64,768], [batch,64*64,768]
-                g_attn = torch.baddbmm(torch.empty(gquery.shape[0], gquery.shape[1], encoder_hidden_states.shape[1],
-                                                   dtype=gquery.dtype,device=gquery.device),
-                                       gquery, encoder_hidden_states.transpose(-1, -2), beta=0)[:, :, 1]
-                l_attn = torch.baddbmm(torch.empty(lquery.shape[0], lquery.shape[1], encoder_hidden_states.shape[1],
-                                                   dtype=lquery.dtype,device=lquery.device),
-                                       lquery, encoder_hidden_states.transpose(-1, -2), beta=0)[:, :, :2]
-                normal_activator.collect_attention_scores(l_attn, anomal_position_vector)
-                normal_activator.collect_anomal_map_loss(l_attn, anomal_position_vector)
-            """
-            # [5] backprop
-            if args.do_attn_loss:
-                normal_cls_loss, normal_trigger_loss, anomal_cls_loss, anomal_trigger_loss = normal_activator.generate_attention_loss()
-                if type(anomal_cls_loss) == float:
-                    attn_loss = args.normal_weight * normal_trigger_loss.mean()
-                else:
-                    attn_loss = args.normal_weight * normal_cls_loss.mean() + args.anomal_weight * anomal_cls_loss.mean()
-                if args.do_cls_train:
-                    if type(anomal_trigger_loss) == float:
-                        attn_loss = args.normal_weight * normal_cls_loss.mean()
-                    else:
-                        attn_loss += args.normal_weight * normal_cls_loss.mean() + args.anomal_weight * anomal_cls_loss.mean()
-                loss += attn_loss
-                loss_dict['attn_loss'] = attn_loss.item()
-
-            if args.do_map_loss:
-                map_loss = normal_activator.generate_anomal_map_loss()
-                loss += map_loss
-                loss_dict['map_loss'] = map_loss.item()
-
-            if args.test_noise_predicting_task_loss:
-                noise_pred_loss = normal_activator.generate_noise_prediction_loss()
-                loss += noise_pred_loss
-                loss_dict['noise_pred_loss'] = noise_pred_loss.item()
-
-            loss = loss.to(weight_dtype)
+            # loss = loss.to(weight_dtype)
+            loss = matching_loss.mean()
             current_loss = loss.detach().item()
             if epoch == args.start_epoch:
                 loss_list.append(current_loss)
@@ -288,13 +218,13 @@ def main(args):
         accelerator.wait_for_everyone()
         if is_main_process:
             ckpt_name = get_epoch_ckpt_name(args, "." + args.save_model_as, epoch + 1)
-            save_model(args, ckpt_name, accelerator.unwrap_model(network), save_dtype)
-            if position_embedder is not None:
+            save_model(args, ckpt_name, accelerator.unwrap_model(g_network), save_dtype)
+            if g_position_embedder is not None:
                 position_embedder_base_save_dir = os.path.join(args.output_dir, 'position_embedder')
                 os.makedirs(position_embedder_base_save_dir, exist_ok=True)
                 p_save_dir = os.path.join(position_embedder_base_save_dir,
                                           f'position_embedder_{epoch + 1}.safetensors')
-                pe_model_save(accelerator.unwrap_model(position_embedder), save_dtype, p_save_dir)
+                pe_model_save(accelerator.unwrap_model(g_position_embedder), save_dtype, p_save_dir)
             # saving query transformer
             query_transformer_save_dir = os.path.join(args.output_dir, 'query_transformer')
             os.makedirs(query_transformer_save_dir, exist_ok = True)
