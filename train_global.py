@@ -147,8 +147,13 @@ def main(args):
                     l_unet(latents, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list,noise_type=l_position_embedder,)
                     l_query_dict, l_key_dict = l_controller.query_dict, l_controller.key_dict
                     l_controller.reset()
+
                     l_origin_query_list = [l_query_dict[layer][0].squeeze() for layer in args.trg_layer_list ]
+
                     global_query = gquery_transformer(l_origin_query_list) # 1,64, 1280
+                    _, global_query = global_query
+                    print(f'global_query : {global_query.shape}')
+
                 with torch.set_grad_enabled(True) :
                     model_kwargs = {}
                     model_kwargs['global_feature'] = global_query
@@ -160,12 +165,19 @@ def main(args):
                 # [1] query matching
                 for g_query, l_query in zip(g_origin_query_list, l_origin_query_list) :
                     query_matching_loss = loss_l2(g_query.float(), l_query.float())
+                    print(f'query matching loss = {query_matching_loss}')
                 # [2]
                 g_query_list, g_key_list = [], []
                 for layer in args.trg_layer_list:
                     g_query = g_query_dict[layer][0].squeeze()
                     g_query_list.append(resize_query_features(g_query))  # pix_num, dim
                     g_key_list.append(g_key_dict[layer][0])
+
+
+
+
+
+
                 # [1] local
                 global_query = torch.cat(g_query_list, dim=-1)  # pix_num, long_dim
                 global_key = torch.cat(g_key_list, dim=-1).squeeze()  # long_dim, 77

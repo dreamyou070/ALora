@@ -7,9 +7,8 @@ trigger_word='screw'
 layer_name='layer_3'
 sub_folder="up_16_32_64"
 file_name="test_3"
-
 anomal_source_path="../../../MyData/anomal_source"
-
+network_weights=""
 accelerate launch --config_file ../../../gpu_config/gpu_0_config \
  --main_process_port $port_number ../global_attention.py --log_with wandb \
  --output_dir "../../result/${bench_mark}/${obj_name}/data_check" \
