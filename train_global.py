@@ -173,6 +173,7 @@ def main(args):
         for step, batch in enumerate(train_dataloader):
             device = accelerator.device
             loss_dict = {}
+            matching_loss, anomal_map_loss = 0.0, 0.0
             with torch.set_grad_enabled(True):
                 encoder_hidden_states = l_text_encoder(batch["input_ids"].to(device))["last_hidden_state"]
             """ Train Only With Normal Data (normal feature matching, anomal feature unmatching..?) """
@@ -196,23 +197,22 @@ def main(args):
                         g_query = g_query_dict[layer][0].squeeze()
                 global_query = gquery_transformer(g_query) # g_query = 8, 64, 160 -> 8, 64*64, 280
                 # matching loss
-                matching_loss = loss_l2(local_query.float(), global_query.float()) # [8, 64*64, 280]
+                matching_loss += loss_l2(local_query.float(), global_query.float()) # [8, 64*64, 280]
                 # matching throug segmentation
-                """
                 local_map  = reshape_batch_dim_to_heads(local_query)  # [1,64,64,2240]
                 global_map = reshape_batch_dim_to_heads(global_query) # [1,64,64,2240]
                 anomal_map = segmentation_net(torch.cat([local_map,
                                                          global_map], dim = 1))
                 trg_anomal_map = torch.zeros(1,1,64,64)
-                anomal_map_loss = loss_l2(anomal_map.float(),
+                anomal_map_loss += loss_l2(anomal_map.float(),
                                           trg_anomal_map.float().to(anomal_map.device)) # [1,1,64,64]
-                """
+
 
             # -------------------------------------------------------------------------------------------------------- #
-            """
             if args.do_anormal_sample :
                 with torch.no_grad():
-                    latents = l_vae.encode(batch["image"].to(dtype=weight_dtype)).latent_dist.sample() * args.vae_scale_factor
+                    latents = l_vae.encode(batch["anomal_image"].to(dtype=weight_dtype)).latent_dist.sample() * args.vae_scale_factor
+                    anomal_position_vector = batch["anomal_mask"].squeeze().flatten() # 64*64
                     l_unet(latents, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list,noise_type=l_position_embedder,)
                     l_query_dict, l_key_dict = l_controller.query_dict, l_controller.key_dict
                     l_controller.reset()
@@ -229,17 +229,20 @@ def main(args):
                     if 'mid' in layer :
                         g_query = g_query_dict[layer][0].squeeze()
                 global_query = gquery_transformer(g_query) # g_query = 8, 64, 160 -> 8, 64*64, 280
+                h,p,d = global_query.shape
+                r = int(p ** 0.5)
+                nomal_position_vector = (1-anomal_position_vector).unsqueeze(0).unsqueeze(-1).repeat(h,1,d)
                 # matching loss
-                matching_loss = loss_l2(local_query.float(), global_query.float()) # [8, 64*64, 280]
+                matching_loss += loss_l2(local_query.float()*nomal_position_vector,
+                                        global_query.float()*nomal_position_vector) # [8, 64*64, 280]
                 # matching throug segmentation
                 local_map  = reshape_batch_dim_to_heads(local_query)  # [1,64,64,2240]
                 global_map = reshape_batch_dim_to_heads(global_query) # [1,64,64,2240]
                 anomal_map = segmentation_net(torch.cat([local_map,
                                                          global_map], dim = 1))
-                trg_anomal_map = torch.zeros(1,1,64,64)
-                anomal_map_loss = loss_l2(anomal_map.float(),
+                trg_anomal_map = anomal_position_vector.reshape(r,r).unsqueeze(0).unsqueeze(0)
+                anomal_map_loss += loss_l2(anomal_map.float(),
                                           trg_anomal_map.float().to(anomal_map.device)) # [1,1,64,64]
-            """
             loss = matching_loss.mean()  #+ anomal_map_loss.mean()
             loss = loss.to(weight_dtype)
             current_loss = loss.detach().item()
@@ -291,7 +294,17 @@ def main(args):
                     save_file(state_dict, save_dir)
                 else:
                     torch.save(state_dict, save_dir)
+
             qt_model_save(accelerator.unwrap_model(gquery_transformer), save_dtype, qt_save_dir)
+            # saving segmentaton model
+            segmentation_save_dir = os.path.join(args.output_dir, 'segmentation_model')
+            os.makedirs(segmentation_save_dir, exist_ok = True)
+            seg_save_dir = os.path.join(segmentation_save_dir, f'segmentation_{epoch + 1}.safetensors')
+            qt_model_save(accelerator.unwrap_model(segmentation_net),
+                          save_dtype,
+                          seg_save_dir)
+
+
     accelerator.end_training()
 
 if __name__ == "__main__":
