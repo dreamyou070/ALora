@@ -145,9 +145,13 @@ def main(args):
                     latents = l_vae.encode(batch["anomal_image"].to(dtype=weight_dtype)).latent_dist.sample() * args.vae_scale_factor
                     anomal_position_vector = batch["anomal_mask"].squeeze().flatten()
                     l_unet(latents, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list,noise_type=l_position_embedder,)
+
                     l_query_dict, l_key_dict = l_controller.query_dict, l_controller.key_dict
                     l_controller.reset()
                     l_origin_query_list = [l_query_dict[layer][0].squeeze() for layer in args.trg_layer_list]
+                    for layer in args.trg_layer_list :
+                        l_query = l_query_dict[layer][0].squeeze()
+                        print(f'l_query : {l_query.shape}')
                     global_query = gquery_transformer(l_origin_query_list) # 8,64, 160
                     def reshape_batch_dim_to_heads(tensor):
                         batch_size, seq_len, dim = tensor.shape
