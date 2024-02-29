@@ -51,14 +51,16 @@ def register_attention_control(unet: nn.Module,controller: AttentionStore):
 
         def forward(hidden_states, context=None, trg_layer_list=None, noise_type=None,**model_kwargs):
 
-            if 'global_feature' in model_kwargs and layer_name == 'mid_block_attentions_0_transformer_blocks_0_attn1':
-                hidden_states = model_kwargs['global_feature']
+            if type(noise_type) == list and len(noise_type) == 2 and layer_name == 'mid_block_attentions_0_transformer_blocks_0_attn1':
+                hidden_states = noise_type[1]
 
             is_cross_attention = False
             if context is not None:
                 is_cross_attention = True
 
             if layer_name == argument.position_embedding_layer :
+                if type(noise_type) == list :
+                    noise_type = noise_type[0]
                 hidden_states_pos = noise_type(hidden_states)
                 hidden_states = hidden_states_pos
 

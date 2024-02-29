@@ -157,14 +157,17 @@ def main(args):
                         tensor = tensor.reshape(batch_size // head_size, head_size, seq_len, dim)
                         tensor = tensor.permute(0, 2, 1, 3).reshape(batch_size // head_size, seq_len, dim * head_size)
                         return tensor
-                    global_query = reshape_batch_dim_to_heads(global_query)
-                    print(f'global_query (1,64,1280) : {global_query.shape}')
+                    global_query = reshape_batch_dim_to_heads(global_query) # 1, 64, 1280
 
                 with torch.set_grad_enabled(True) :
-                    model_kwargs = {}
-                    model_kwargs['global_feature'] = global_query
-                    g_unet(latents, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list,
-                           noise_type=g_position_embedder,**model_kwargs)
+                    #model_kwargs = {}
+                    #model_kwargs['global_feature'] = global_query
+                    g_unet(latents,
+                           0,
+                           encoder_hidden_states,
+                           trg_layer_list=args.trg_layer_list,
+                           noise_type=[g_position_embedder,global_query])
+
                 g_query_dict, g_key_dict = g_controller.query_dict, g_controller.key_dict
                 g_controller.reset()
                 g_origin_query_list = [g_query_dict[layer][0].squeeze() for layer in args.trg_layer_list]
