@@ -243,6 +243,44 @@ def main(args):
                 trg_anomal_map = anomal_position_vector.reshape(r,r).unsqueeze(0).unsqueeze(0)
                 anomal_map_loss += loss_l2(anomal_map.float(),
                                           trg_anomal_map.float().to(anomal_map.device)) # [1,1,64,64]
+            # -------------------------------------------------------------------------------------------------------- #
+            if args.do_background_masked_sample :
+                with torch.no_grad():
+                    latents = l_vae.encode(
+                        batch["bg_anomal_image"].to(dtype=weight_dtype)).latent_dist.sample() * args.vae_scale_factor
+                    anomal_position_vector = batch["bg_anomal_mask"].squeeze().flatten()  # 64*64
+                    l_unet(latents, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list,
+                           noise_type=l_position_embedder, )
+                    l_query_dict, l_key_dict = l_controller.query_dict, l_controller.key_dict
+                    l_controller.reset()
+                    l_query_list = []
+                    for layer in args.trg_layer_list:
+                        if 'mid' not in layer:
+                            l_query_list.append(resize_query_features(l_query_dict[layer][0].squeeze()))
+                    local_query = torch.cat(l_query_list, dim=-1)  # 8, 64*64, 280
+                with torch.set_grad_enabled(True):
+                    g_unet(latents, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list,
+                           noise_type=g_position_embedder)
+                g_query_dict, g_key_dict = g_controller.query_dict, g_controller.key_dict
+                g_controller.reset()
+                for layer in args.trg_layer_list:
+                    if 'mid' in layer:
+                        g_query = g_query_dict[layer][0].squeeze()
+                global_query = gquery_transformer(g_query)  # g_query = 8, 64, 160 -> 8, 64*64, 280
+                h, p, d = global_query.shape
+                r = int(p ** 0.5)
+                nomal_position_vector = (1 - anomal_position_vector).unsqueeze(0).unsqueeze(-1).repeat(h, 1, d)
+                # matching loss
+                matching_loss += loss_l2(local_query.float() * nomal_position_vector,
+                                         global_query.float() * nomal_position_vector)  # [8, 64*64, 280]
+                # matching throug segmentation
+                local_map = reshape_batch_dim_to_heads(local_query)  # [1,64,64,2240]
+                global_map = reshape_batch_dim_to_heads(global_query)  # [1,64,64,2240]
+                anomal_map = segmentation_net(torch.cat([local_map,
+                                                         global_map], dim=1))
+                trg_anomal_map = anomal_position_vector.reshape(r, r).unsqueeze(0).unsqueeze(0)
+                anomal_map_loss += loss_l2(anomal_map.float(),
+                                           trg_anomal_map.float().to(anomal_map.device))  # [1,1,64,64]
             loss = matching_loss.mean()  #+ anomal_map_loss.mean()
             loss = loss.to(weight_dtype)
             current_loss = loss.detach().item()
