@@ -175,25 +175,25 @@ def main(args):
                     query_matching_loss = loss_l2(g_query.float(), l_query.float())
                 # [2]
                 g_query_list, g_key_list = [], []
-                for layer in args.trg_layer_list:
-                    g_query = g_query_dict[layer][0].squeeze()
-                    g_query_list.append(resize_query_features(g_query))  # pix_num, dim
-                    g_key_list.append(g_key_dict[layer][0])
-
-
-
-
-
-
+                for layer in args.trg_layer_list :
+                    g_query = g_query_dict[layer][0].squeeze()          # head, pix_num, dim
+                    g_origin_query_list.append(g_query)
+                    g_query_list.append(resize_query_features(g_query)) # head, pix_num, dim
+                    g_key_list.append(g_key_dict[layer][0])             # head, pix_num, dim
+                    #attn_list.append(attn_dict[layer][0])
                 # [1] local
-                global_query = torch.cat(g_query_list, dim=-1)  # pix_num, long_dim
-                global_key = torch.cat(g_key_list, dim=-1).squeeze()  # long_dim, 77
-                global_attn = (global_query @ global_key.T).softmax(dim=-1)[:, :2]  #
+                global_query = torch.cat(g_query_list, dim=-1)       # head, pix_num, long_dim
+                global_key = torch.cat(g_key_list, dim=-1).squeeze() # head, 77, long_dim
+                attention_scores = torch.baddbmm(
+                  torch.empty(global_query.shape[0], global_query.shape[1], global_key.shape[1], dtype=global_query.dtype, device=global_query.device),
+                  global_query, global_key.transpose(-1, -2),
+                  beta=0,)
+                global_attn = attention_scores.softmax(dim=-1)[:,:,:2]
                 normal_activator.collect_attention_scores(global_attn,
-                                                          anomal_position_vector,True)
-                normal_activator.collect_anomal_map_loss(global_attn,anomal_position_vector)
-
-
+                                                          anomal_position_vector,
+                                                          True)
+                normal_activator.collect_anomal_map_loss(global_attn, #
+                                                         anomal_position_vector)
 
             # --------------------------------------------------------------------------------------------------------- #
             """
