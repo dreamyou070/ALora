@@ -5,7 +5,7 @@ bench_mark="MVTec"
 obj_name='transistor'
 trigger_word='transistor'
 layer_name='layer_4'
-sub_folder="up_16_32_64"
+sub_folder="mid_up_16_32_64"
 file_name="test_train_local_scaled_query_only_back_anomal"
 
 anomal_source_path="../../../MyData/anomal_source"
