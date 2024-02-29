@@ -9,7 +9,7 @@ sub_folder="up_16_32_64"
 file_name="train_global_mid"
 
 anomal_source_path="../../../MyData/anomal_source"
-network_weights="../../result/${bench_mark}/${obj_name}/${layer_name}/${sub_folder}/test_train_local_scaled_query/models/epoch-000002.safetensors" \
+network_weights="../../result/${bench_mark}/${obj_name}/${layer_name}/${sub_folder}/train_local_scaled_query/models/epoch-000010.safetensors" \
 
 accelerate launch --config_file ../../../gpu_config/gpu_0_config \
  --main_process_port $port_number ../train_global.py --log_with wandb \
