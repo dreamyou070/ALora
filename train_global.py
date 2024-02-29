@@ -118,16 +118,38 @@ def main(args):
 
     def resize_query_features(query):
 
-        #pix_num, dim = query.shape
+        # 8, 64, 160
         head_num, pix_num, dim = query.shape
-        res = int(pix_num ** 0.5) # 8
-        # query_map = query.view(res, res, dim).permute(2,0,1).contiguous().unsqueeze(0)           # 1, channel, res, res
+        res = int(pix_num ** 0.5)  # 8
+        # 8,160,8,8
         query_map = query.view(head_num, res, res, dim).permute(0, 3, 1, 2).contiguous()  # 1, channel, res, res
-        resized_query_map = nn.functional.interpolate(query_map, size=(64, 64), mode='bilinear') # 1, channel, 64,  64
-        resized_query = resized_query_map.permute(0, 2, 3, 1).contiguous().squeeze() # head, 64, 64, channel
-        resized_query = resized_query.view(head_num, 64*64, dim) # #view(head_num, -1, dim).squeeze()  # head, pix_num, dim
+        resized_query_map = nn.functional.interpolate(query_map, size=(64, 64), mode='bilinear') # head, 160, 64,  64
+        resized_query = resized_query_map.permute(0, 2, 3, 1).contiguous().squeeze() # head, 64, 64, 160
+        resized_query = resized_query.view(head_num, 64*64, dim) # #view(head_num, -1, dim).squeeze()  # head, pix_num, 160
         # resized_query = resized_query.view(64 * 64,dim)  # #view(head_num, -1, dim).squeeze()  # 1, pix_num, dim
         return resized_query
+
+    class UNetUpBlock(nn.Module):
+        def __init__(self, in_size, out_size):
+            super(UNetUpBlock, self).__init__()
+
+            self.up = nn.Sequential(nn.Upsample(mode='bilinear', scale_factor=2),
+                                    nn.Conv2d(in_size, out_size, kernel_size=1),
+                                    nn.Upsample(mode='bilinear', scale_factor=2),
+                                    nn.Conv2d(out_size, out_size, kernel_size=1),
+                                    nn.Upsample(mode='bilinear', scale_factor=2),
+                                    nn.Conv2d(out_size, out_size, kernel_size=1), )
+            # self.conv_block = UNetConvBlock(out_size, out_size, padding, batch_norm)
+            self.dim = out_size
+
+        def forward(self, x):
+            out = self.up(x)  # head, dim, res, res
+            out = out.permute(0, 2, 3, 1)  # head, res, res, dim
+            import einops
+            out = einops.rearrange(out, 'h a b d -> h (a b) d')
+            return out  # head, pix_num, dim
+    gquery_transformer = UNetUpBlock(in_size=160, out_size=280)
+
 
     for epoch in range(args.start_epoch, args.max_train_epochs):
 
@@ -150,50 +172,39 @@ def main(args):
 
                     l_query_dict, l_key_dict = l_controller.query_dict, l_controller.key_dict
                     l_controller.reset()
-                    l_origin_query_list = [l_query_dict[layer][0].squeeze() for layer in args.trg_layer_list]
+                    l_query_list = []
                     for layer in args.trg_layer_list :
-                        l_query = l_query_dict[layer][0].squeeze()
-                    global_query = gquery_transformer(l_origin_query_list) # 8,64, 160
-                    def reshape_batch_dim_to_heads(tensor):
-                        batch_size, seq_len, dim = tensor.shape
-                        head_size = 8
-                        tensor = tensor.reshape(batch_size // head_size, head_size, seq_len, dim)
-                        tensor = tensor.permute(0, 2, 1, 3).reshape(batch_size // head_size, seq_len, dim * head_size)
-                        return tensor
-                    global_query = reshape_batch_dim_to_heads(global_query) # 1, 64, 1280
-                with torch.set_grad_enabled(True) :
-                    g_unet(latents,
-                           0,
-                           encoder_hidden_states,
-                           trg_layer_list=args.trg_layer_list,
-                           noise_type=[g_position_embedder,global_query])
-                g_query_dict, g_key_dict = g_controller.query_dict, g_controller.key_dict
-                g_controller.reset()
-                g_origin_query_list = [g_query_dict[layer][0].squeeze() for layer in args.trg_layer_list]
-                # [1] query matching
-                for g_query, l_query in zip(g_origin_query_list, l_origin_query_list) :
-                    query_matching_loss = loss_l2(g_query.float(), l_query.float())
-                # [2]
-                g_query_list, g_key_list = [], []
-                for layer in args.trg_layer_list :
-                    g_query = g_query_dict[layer][0].squeeze()          # head, pix_num, dim
-                    g_origin_query_list.append(g_query)
-                    g_query_list.append(resize_query_features(g_query)) # head, pix_num, dim
-                    g_key_list.append(g_key_dict[layer][0])             # head, pix_num, dim
-                    #attn_list.append(attn_dict[layer][0])
-                # [1] local
-                global_query = torch.cat(g_query_list, dim=-1)       # head, pix_num, long_dim
-                global_key = torch.cat(g_key_list, dim=-1).squeeze() # head, 77, long_dim
-                attention_scores = torch.baddbmm(
-                  torch.empty(global_query.shape[0], global_query.shape[1], global_key.shape[1], dtype=global_query.dtype, device=global_query.device),
-                  global_query, global_key.transpose(-1, -2),
-                  beta=0,)
-                global_attn = attention_scores.softmax(dim=-1)[:,:,:2]
-                normal_activator.collect_attention_scores(global_attn,
-                                                          anomal_position_vector,
-                                                          True)
-                normal_activator.collect_anomal_map_loss(global_attn, #
-                                                         anomal_position_vector)
+                        if 'mid' not in layer :
+                            l_query_list.append(resize_query_features(l_query_dict[layer][0].squeeze()))
+                    local_query = torch.cat(l_query_list, dim=-1)  # 8, 64*64, 280
+                    with torch.set_grad_enabled(True):
+                        g_unet(latents,0,encoder_hidden_states,trg_layer_list=args.trg_layer_list,
+                               noise_type=g_position_embedder)
+                    g_query_dict, g_key_dict = g_controller.query_dict, g_controller.key_dict
+                    g_controller.reset()
+                    g_query_list = []
+                    for layer in args.trg_layer_list :
+                        if 'mid' in layer :
+                            g_query = g_query_dict[layer][0].squeeze()
+                        elif 'up_blocks_3' in layer :
+                            global_key = g_key_dict[layer][0].squeeze() # head,
+                    global_query = gquery_transformer(g_query)
+
+                    # matching loss
+                    matching_loss = loss_l2(local_query.float(), global_query.float())
+                    print(f'matching loss : {matching_loss.shape}')
+
+                    # global attn
+                    attention_scores = torch.baddbmm(
+                      torch.empty(global_query.shape[0], global_query.shape[1], global_key.shape[1], dtype=global_query.dtype, device=global_query.device),
+                      global_query, global_key.transpose(-1, -2),
+                      beta=0,)
+                    global_attn = attention_scores.softmax(dim=-1)[:,:,:2]
+                    normal_activator.collect_attention_scores(global_attn,
+                                                              anomal_position_vector,
+                                                              True)
+                    normal_activator.collect_anomal_map_loss(global_attn, #
+                                                             anomal_position_vector)
 
             # --------------------------------------------------------------------------------------------------------- #
             """

@@ -140,13 +140,15 @@ def main(args):
                 attn_list, origin_query_list, query_list, key_list = [], [], [], []
                 for layer in args.trg_layer_list :
                     query = query_dict[layer][0].squeeze()          # head, pix_num, dim
-                    origin_query_list.append(query)
+                    origin_query_list.append(query)                 # head, pix_num, dim
                     query_list.append(resize_query_features(query)) # head, pix_num, dim
                     key_list.append(key_dict[layer][0])             # head, pix_num, dim
                     #attn_list.append(attn_dict[layer][0])
                 # [1] local
                 local_query = torch.cat(query_list, dim=-1)       # head, pix_num, long_dim
                 local_key = torch.cat(key_list, dim=-1).squeeze() # head, 77, long_dim
+                # local_query = [8, 64*64, 280] = [64*64, 2240]
+
                 attention_scores = torch.baddbmm(
                   torch.empty(local_query.shape[0], local_query.shape[1], local_key.shape[1], dtype=query.dtype, device=query.device),
                   local_query, local_key.transpose(-1, -2),
