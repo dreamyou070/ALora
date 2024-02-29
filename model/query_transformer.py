@@ -417,10 +417,10 @@ class GlobalQueryTransformer(nn.Module):
 
         self.num_feature_levels = num_feature_levels
         self.patch_embeddings = nn.ModuleList()
-        base_channels = [1280, 1280, 640, 320]
+        base_channels = [160, 80, 40]
         for j in range(num_feature_levels) :
-            self.patch_embeddings.append(PatchEmbed(patch_size = 2 ** j,
-                                                    img_size = 8*(2 ** j),
+            self.patch_embeddings.append(PatchEmbed(patch_size = 2 ** (j+1),
+                                                    img_size = 8*(2 ** (j+1)),
                                                     in_chans=base_channels[j],
                                                     embed_dim = hidden_dim))
     def forward(self, x):
