@@ -194,18 +194,28 @@ def main(args):
                 g_controller.reset()
                 for layer in args.trg_layer_list :
                     if 'mid' in layer :
-                        g_query = g_query_dict[layer][0].squeeze()
+                        g_query = g_query_dict[layer][0].squeeze() # 8, 64, 160
+                        g_key = g_key_dict[layer][0].squeeze()     # 8, 77, 160
                 global_query = gquery_transformer(g_query) # g_query = 8, 64, 160 -> 8, 64*64, 280 (feature generating with only global context)
                 # matching loss
                 matching_loss += loss_l2(local_query.float(), global_query.float()) # [8, 64*64, 280]
                 # matching throug segmentation
+                attention_scores = torch.baddbmm(torch.empty(g_query.shape[0], g_query.shape[1], g_key.shape[1], dtype=g_query.dtype, device=g_query.device),
+                                   g_query, g_key.transpose(-1, -2), beta=0,) # [head, 64, 77]
+                global_attn = attention_scores.softmax(dim=-1)[:, :, 1:65] # [head, 64, 64]
+                head = global_attn.shape[0]
+                attn = [torch.diagonal(global_attn[i]) for i in range(head)]
+                global_anomal_map = torch.stack(attn, dim=0).mean(dim=0).view(8, 8).unsqueeze(0).unsqueeze(0)
+                global_anomal_map = nn.functional.interpolate(global_anomal_map, size=(64, 64), mode='bilinear').squeeze().flatten()
+                trg_anomal_map = torch.zeros(64*64).to(global_anomal_map.device)
                 #local_map  = reshape_batch_dim_to_heads(local_query)  # [1,2240,64,64]
-                global_map = reshape_batch_dim_to_heads(global_query) # [1,64,64,2240]
-                anomal_map = segmentation_net(global_map)
-                trg_anomal_map = torch.zeros(1,1,64,64)
-                anomal_map_loss += loss_l2(anomal_map.float(),
-                                           trg_anomal_map.float().to(anomal_map.device)) # [1,1,64,64]
-
+                #global_map = reshape_batch_dim_to_heads(global_query) # [1,64,64,2240]
+                #anomal_map = segmentation_net(global_map)
+                #trg_anomal_map = torch.zeros(1,1,64,64)
+                #anomal_map_loss += loss_l2(anomal_map.float(),
+                #                           trg_anomal_map.float().to(anomal_map.device)) # [1,1,64,64]
+                anomal_map_loss += loss_l2(global_anomal_map.float(),
+                                           trg_anomal_map.float())
 
             # -------------------------------------------------------------------------------------------------------- #
             if args.do_anomal_sample :
@@ -224,23 +234,33 @@ def main(args):
                     g_unet(latents,0,encoder_hidden_states,trg_layer_list=args.trg_layer_list, noise_type=g_position_embedder)
                 g_query_dict, g_key_dict = g_controller.query_dict, g_controller.key_dict
                 g_controller.reset()
-                for layer in args.trg_layer_list :
-                    if 'mid' in layer :
-                        g_query = g_query_dict[layer][0].squeeze()
-                global_query = gquery_transformer(g_query) # g_query = 8, 64, 160 -> 8, 64*64, 280
-                h,p,d = global_query.shape
-                r = int(p ** 0.5)
-                nomal_position_vector = (1-anomal_position_vector).unsqueeze(0).unsqueeze(-1).repeat(h,1,d)
+                for layer in args.trg_layer_list:
+                    if 'mid' in layer:
+                        g_query = g_query_dict[layer][0].squeeze()  # 8, 64, 160
+                        g_key = g_key_dict[layer][0].squeeze()  # 8, 77, 160
+                global_query = gquery_transformer(g_query)  # g_query = 8, 64, 160 -> 8, 64*64, 280 (feature generating with only global context)
                 # matching loss
-                matching_loss += loss_l2(local_query.float()*nomal_position_vector,
-                                        global_query.float()*nomal_position_vector) # [8, 64*64, 280]
+                matching_loss += loss_l2(local_query.float(), global_query.float())  # [8, 64*64, 280]
                 # matching throug segmentation
-                #local_map  = reshape_batch_dim_to_heads(local_query)  # [1,64,64,2240]
-                global_map = reshape_batch_dim_to_heads(global_query) # [1,64,64,2240]
-                anomal_map = segmentation_net(global_map)
-                trg_anomal_map = anomal_position_vector.reshape(r,r).unsqueeze(0).unsqueeze(0)
-                anomal_map_loss += loss_l2(anomal_map.float(),
-                                          trg_anomal_map.float().to(anomal_map.device)) # [1,1,64,64]
+                attention_scores = torch.baddbmm(
+                    torch.empty(g_query.shape[0], g_query.shape[1], g_key.shape[1], dtype=g_query.dtype,
+                                device=g_query.device),
+                    g_query, g_key.transpose(-1, -2), beta=0, )  # [head, 64, 77]
+                global_attn = attention_scores.softmax(dim=-1)[:, :, 1:65]  # [head, 64, 64]
+                head = global_attn.shape[0]
+                attn = [torch.diagonal(global_attn[i]) for i in range(head)]
+                global_anomal_map = torch.stack(attn, dim=0).mean(dim=0).view(8, 8).unsqueeze(0).unsqueeze(0)
+                global_anomal_map = nn.functional.interpolate(global_anomal_map, size=(64, 64),
+                                                              mode='bilinear').squeeze().flatten()
+                trg_anomal_map = anomal_position_vector
+                # local_map  = reshape_batch_dim_to_heads(local_query)  # [1,2240,64,64]
+                # global_map = reshape_batch_dim_to_heads(global_query) # [1,64,64,2240]
+                # anomal_map = segmentation_net(global_map)
+                # trg_anomal_map = torch.zeros(1,1,64,64)
+                # anomal_map_loss += loss_l2(anomal_map.float(),
+                #                           trg_anomal_map.float().to(anomal_map.device)) # [1,1,64,64]
+                anomal_map_loss += loss_l2(global_anomal_map.float(),
+                                           trg_anomal_map.float())
             # -------------------------------------------------------------------------------------------------------- #
             if args.do_background_masked_sample :
                 with torch.no_grad():
@@ -263,21 +283,31 @@ def main(args):
                 g_controller.reset()
                 for layer in args.trg_layer_list:
                     if 'mid' in layer:
-                        g_query = g_query_dict[layer][0].squeeze()
-                global_query = gquery_transformer(g_query)  # g_query = 8, 64, 160 -> 8, 64*64, 280
-                h, p, d = global_query.shape
-                r = int(p ** 0.5)
-                nomal_position_vector = (1 - anomal_position_vector).unsqueeze(0).unsqueeze(-1).repeat(h, 1, d)
+                        g_query = g_query_dict[layer][0].squeeze()  # 8, 64, 160
+                        g_key = g_key_dict[layer][0].squeeze()  # 8, 77, 160
+                global_query = gquery_transformer(
+                    g_query)  # g_query = 8, 64, 160 -> 8, 64*64, 280 (feature generating with only global context)
                 # matching loss
-                matching_loss += loss_l2(local_query.float() * nomal_position_vector,
-                                         global_query.float() * nomal_position_vector)  # [8, 64*64, 280]
+                matching_loss += loss_l2(local_query.float(), global_query.float())  # [8, 64*64, 280]
                 # matching throug segmentation
-                #local_map = reshape_batch_dim_to_heads(local_query)  # [1,64,64,2240]
-                global_map = reshape_batch_dim_to_heads(global_query)  # [1,64,64,2240]
-                anomal_map = segmentation_net(global_map)
-                trg_anomal_map = anomal_position_vector.reshape(r, r).unsqueeze(0).unsqueeze(0)
-                anomal_map_loss += loss_l2(anomal_map.float(),
-                                           trg_anomal_map.float().to(anomal_map.device))  # [1,1,64,64]
+                attention_scores = torch.baddbmm(
+                    torch.empty(g_query.shape[0], g_query.shape[1], g_key.shape[1], dtype=g_query.dtype,
+                                device=g_query.device),
+                    g_query, g_key.transpose(-1, -2), beta=0, )  # [head, 64, 77]
+                global_attn = attention_scores.softmax(dim=-1)[:, :, 1:65]  # [head, 64, 64]
+                head = global_attn.shape[0]
+                attn = [torch.diagonal(global_attn[i]) for i in range(head)]
+                global_anomal_map = torch.stack(attn, dim=0).mean(dim=0).view(8, 8).unsqueeze(0).unsqueeze(0)
+                global_anomal_map = nn.functional.interpolate(global_anomal_map, size=(64, 64),
+                                                              mode='bilinear').squeeze().flatten()
+                trg_anomal_map = anomal_position_vector
+                # local_map  = reshape_batch_dim_to_heads(local_query)  # [1,2240,64,64]
+                # global_map = reshape_batch_dim_to_heads(global_query) # [1,64,64,2240]
+                # anomal_map = segmentation_net(global_map)
+                # trg_anomal_map = torch.zeros(1,1,64,64)
+                # anomal_map_loss += loss_l2(anomal_map.float(),
+                #                           trg_anomal_map.float().to(anomal_map.device)) # [1,1,64,64]
+                anomal_map_loss += loss_l2(global_anomal_map.float(), trg_anomal_map.float())
             loss = matching_loss.mean()  #+ anomal_map_loss.mean()
             loss = loss.to(weight_dtype)
             current_loss = loss.detach().item()
