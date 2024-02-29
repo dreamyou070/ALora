@@ -18,9 +18,32 @@ from data.prepare_dataset import call_dataset
 from model import call_model_package
 from attention_store.normal_activator import passing_normalize_argument
 from data.mvtec import passing_mvtec_argument
-from model.query_transformer import GlobalQueryTransformer
+from model.global_local_segmentation import SegmentationSubNetwork
 from torch import nn
 
+
+def resize_query_features(query):
+    # 8, 64, 160
+    head_num, pix_num, dim = query.shape
+    res = int(pix_num ** 0.5)  # 8
+    # 8,160,8,8
+    query_map = query.view(head_num, res, res, dim).permute(0, 3, 1, 2).contiguous()  # 1, channel, res, res
+    resized_query_map = nn.functional.interpolate(query_map, size=(64, 64), mode='bilinear')  # head, 160, 64,  64
+    resized_query = resized_query_map.permute(0, 2, 3, 1).contiguous().squeeze()  # head, 64, 64, 160
+    resized_query = resized_query.view(head_num, 64 * 64,
+                                       dim)  # #view(head_num, -1, dim).squeeze()  # head, pix_num, 160
+    # resized_query = resized_query.view(64 * 64,dim)  # #view(head_num, -1, dim).squeeze()  # 1, pix_num, dim
+    return resized_query
+
+
+def reshape_batch_dim_to_heads(tensor):
+    batch_size, seq_len, dim = tensor.shape
+    head_size = 8
+    res = int(seq_len ** 0.5)
+    tensor = tensor.reshape(batch_size // head_size, head_size, seq_len, dim)
+    tensor = tensor.permute(0, 2, 1, 3).reshape(batch_size // head_size, seq_len, dim * head_size)
+    tensor = tensor.reshape(batch_size // head_size, res, res, dim * head_size)
+    return tensor
 
 def main(args):
 
@@ -30,15 +53,14 @@ def main(args):
     os.makedirs(output_dir, exist_ok=True)
     args.logging_dir = os.path.join(output_dir, 'log')
     os.makedirs(args.logging_dir, exist_ok=True)
-    logging_file = os.path.join(args.logging_dir, 'log.txt')
-
     record_save_dir = os.path.join(output_dir, 'record')
     os.makedirs(record_save_dir, exist_ok=True)
     with open(os.path.join(record_save_dir, 'config.json'), 'w') as f:
         json.dump(vars(args), f, indent=4)
 
     print(f'\n step 2. dataset and dataloader')
-    if args.seed is None: args.seed = random.randint(0, 2 ** 32)
+    if args.seed is None:
+        args.seed = random.randint(0, 2 ** 32)
     set_seed(args.seed)
     train_dataloader = call_dataset(args)
 
@@ -50,6 +72,7 @@ def main(args):
     weight_dtype, save_dtype = prepare_dtype(args)
     l_text_encoder, l_vae, l_unet, l_network, l_position_embedder = call_model_package(args, weight_dtype, accelerator, True)
     g_text_encoder, g_vae, g_unet, g_network, g_position_embedder = call_model_package(args, weight_dtype, accelerator,False)
+
     class UNetUpBlock(nn.Module):
         def __init__(self, in_size, out_size):
             super(UNetUpBlock, self).__init__()
@@ -69,17 +92,13 @@ def main(args):
             import einops
             out = einops.rearrange(out, 'h a b d -> h (a b) d')
             return out  # head, pix_num, dim
+
     gquery_transformer = UNetUpBlock(in_size=160, out_size=280)
-    from model.global_local_segmentation import SegmentationSubNetwork
     segmentation_net = SegmentationSubNetwork(in_channels=640, out_channels=1, base_channels=64)
 
-    #gquery_transformer = GlobalQueryTransformer(hidden_dim=160,
-    #                                            num_feature_levels=3,
-    #                                            with_fea2d_pos=True)
     print(f'\n step 5. optimizer')
     args.max_train_steps = len(train_dataloader) * args.max_train_epochs
-    trainable_params = g_network.prepare_optimizer_params(args.text_encoder_lr,
-                                                        args.unet_lr, args.learning_rate)
+    trainable_params = g_network.prepare_optimizer_params(args.text_encoder_lr, args.unet_lr, args.learning_rate)
     trainable_params.append({"params": g_position_embedder.parameters(), "lr": args.learning_rate})
     trainable_params.append({"params": gquery_transformer.parameters(), "lr": args.learning_rate})
     optimizer_name, optimizer_args, optimizer = get_optimizer(args, trainable_params)
@@ -93,7 +112,7 @@ def main(args):
     normal_activator = NormalActivator(loss_focal, loss_l2, args.use_focal_loss)
 
     print(f'\n step 8. model to device')
-    g_unet, g_text_encoder, g_network, optimizer, train_dataloader, lr_scheduler, g_position_embedder,query_transformer,segmentation_net = accelerator.prepare(
+    g_unet, g_text_encoder, g_network, optimizer, train_dataloader, lr_scheduler, g_position_embedder, gquery_transformer, segmentation_net = accelerator.prepare(
         g_unet, g_text_encoder, g_network, optimizer, train_dataloader, lr_scheduler, g_position_embedder, gquery_transformer,segmentation_net)
 
     g_text_encoders = transform_models_if_DDP([g_text_encoder])
@@ -137,32 +156,6 @@ def main(args):
                         disable=not accelerator.is_local_main_process, desc="steps")
     global_step = 0
     loss_list = []
-
-
-    def resize_query_features(query):
-
-        # 8, 64, 160
-        head_num, pix_num, dim = query.shape
-        res = int(pix_num ** 0.5)  # 8
-        # 8,160,8,8
-        query_map = query.view(head_num, res, res, dim).permute(0, 3, 1, 2).contiguous()  # 1, channel, res, res
-        resized_query_map = nn.functional.interpolate(query_map, size=(64, 64), mode='bilinear') # head, 160, 64,  64
-        resized_query = resized_query_map.permute(0, 2, 3, 1).contiguous().squeeze() # head, 64, 64, 160
-        resized_query = resized_query.view(head_num, 64*64, dim) # #view(head_num, -1, dim).squeeze()  # head, pix_num, 160
-        # resized_query = resized_query.view(64 * 64,dim)  # #view(head_num, -1, dim).squeeze()  # 1, pix_num, dim
-        return resized_query
-
-
-    def reshape_batch_dim_to_heads(tensor):
-        batch_size, seq_len, dim = tensor.shape
-        head_size = 8
-        res = int(seq_len ** 0.5)
-        tensor = tensor.reshape(batch_size // head_size, head_size, seq_len, dim)
-        tensor = tensor.permute(0, 2, 1, 3).reshape(batch_size // head_size, seq_len, dim * head_size)
-        tensor = tensor.reshape(batch_size // head_size, res, res, dim * head_size)
-        return tensor
-
-
 
     for epoch in range(args.start_epoch, args.max_train_epochs):
 
