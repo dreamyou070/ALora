@@ -2,15 +2,15 @@
 
 port_number=50000
 bench_mark="MVTec"
-obj_name='screw'
-trigger_word='screw'
-layer_name='layer_3'
-sub_folder="up_16_32_64"
-file_name="test_3"
+obj_name='transistor'
+trigger_word='transistor'
+layer_name='layer_4'
+sub_folder="mid_up_16_32_64"
+file_name="test_20240229"
 
 anomal_source_path="../../../MyData/anomal_source"
 
-accelerate launch --config_file ../../../gpu_config/gpu_0_1_2_3_4_5_config \
+accelerate launch --config_file ../../../gpu_config/gpu_0_config \
  --main_process_port $port_number ../data_check.py --log_with wandb \
  --output_dir "../../result/${bench_mark}/${obj_name}/data_check" \
  --train_unet --train_text_encoder --start_epoch 0 --max_train_epochs 30 \
@@ -24,8 +24,5 @@ accelerate launch --config_file ../../../gpu_config/gpu_0_1_2_3_4_5_config \
  --anomal_min_beta_scale 0.5 \
  --anomal_max_beta_scale 0.8 \
  --back_min_perlin_scale 0 \
- --back_max_perlin_scale 6 \
- --back_min_beta_scale 0.6 \
- --back_max_beta_scale 0.9 \
- --back_trg_beta 0 \
- --do_rot_augment
+ --back_max_perlin_scale 2 \
+ --back_trg_beta 0
