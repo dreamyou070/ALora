@@ -42,7 +42,7 @@ def reshape_batch_dim_to_heads(tensor):
     res = int(seq_len ** 0.5)
     tensor = tensor.reshape(batch_size // head_size, head_size, seq_len, dim)
     tensor = tensor.permute(0, 2, 1, 3).reshape(batch_size // head_size, seq_len, dim * head_size)
-    tensor = tensor.reshape(batch_size // head_size, res, res, dim * head_size)
+    tensor = tensor.reshape(batch_size // head_size, res, res, dim * head_size).permute(0,3,1,2)
     return tensor
 
 def main(args):
@@ -98,7 +98,9 @@ def main(args):
             return out  # head, pix_num, dim
 
     gquery_transformer = UNetUpBlock(in_size=160, out_size=280)
-    segmentation_net = SegmentationSubNetwork(in_channels=640, out_channels=1, base_channels=64)
+    segmentation_net = SegmentationSubNetwork(in_channels=4480,
+                                              out_channels=1,
+                                              base_channels=64)
 
     print(f'\n step 5. optimizer')
     args.max_train_steps = len(train_dataloader) * args.max_train_epochs
@@ -190,27 +192,20 @@ def main(args):
                 if 'mid' in layer :
                     g_query = g_query_dict[layer][0].squeeze()
             global_query = gquery_transformer(g_query) # g_query = 8, 64, 160 -> 8, 64*64, 280
-            print(f'global_query : {global_query.shape}')
+
             # matching loss
-            matching_loss = loss_l2(local_query.float(), global_query.float()) # matching loss anomal
-            print(f'matching_loss : {matching_loss}')
+            matching_loss = loss_l2(local_query.float(), global_query.float()) # [8, 64*64, 280]
             # matching throug segmentation
-            local_map  = reshape_batch_dim_to_heads(local_query)  # 8, 280, 64, 64
-            global_map = reshape_batch_dim_to_heads(global_query) # 8, 280, 64, 64
-            print(f'global_map : {global_map.shape}')
-
-
-
+            local_map  = reshape_batch_dim_to_heads(local_query)  # [1,64,64,2240]
+            global_map = reshape_batch_dim_to_heads(global_query) # [1,64,64,2240]
             anomal_map = segmentation_net(torch.cat([local_map,
                                                      global_map], dim = 1))
             trg_anomal_map = torch.ones(1,1,64,64)
-            anomal_map_loss = loss_l2(anomal_map.float(),trg_anomal_map.float())
+            anomal_map_loss = loss_l2(anomal_map.float(),
+                                      trg_anomal_map.float()) # [1,1,64,64]
 
-            print(f'matching loss : {matching_loss.shape}')
-            print(f'anomal_map_loss : {anomal_map_loss}')
-
-            # loss = loss.to(weight_dtype)
-            loss = matching_loss.mean()
+            loss = matching_loss.mean() + anomal_map_loss.mean()
+            loss = loss.to(weight_dtype)
             current_loss = loss.detach().item()
             if epoch == args.start_epoch:
                 loss_list.append(current_loss)
