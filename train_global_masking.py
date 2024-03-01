@@ -133,7 +133,7 @@ def main(args):
             # [1] call local query
             name = str(batch['image_name'][0])
             local_query_dir = os.path.join(parent, f'local_query/{name}.pt')
-            local_query = torch.loa(local_query_dir, map_location='cpu').to(device, dtype=weight_dtype)
+            local_query = torch.load(local_query_dir, map_location='cpu').to(device, dtype=weight_dtype)
 
             # ---------------------------------------------------------------------------------------------------------------- #
             if args.global_net_normal_training :
