@@ -76,6 +76,7 @@ def main(args):
 
     text_encoders = transform_models_if_DDP([text_encoder])
     unet, network = transform_models_if_DDP([unet, network])
+    position_embedder = transform_models_if_DDP([position_embedder])[0]
     if args.gradient_checkpointing:
         unet.train()
         position_embedder.train()

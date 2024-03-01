@@ -203,7 +203,7 @@ class Patch_MultiPositionalEmbedding(nn.Module):
             pe = nn.Parameter(torch.randn(1,max_len, d_model), requires_grad=True)
             self.positional_encodings[int(max_len ** 0.5)] = pe
 
-    def patch_embed(self, x: torch.Tensor, layer_name):
+    def patch_embed(self, x: torch.Tensor):
         x = self.vitpatchembedding(x)
         return x
 
