@@ -57,17 +57,15 @@ def main(args):
 
     print(f'\n step 4. model ')
     weight_dtype, save_dtype = prepare_dtype(args)
-    l_text_encoder, l_vae, l_unet, l_network, l_position_embedder = call_model_package(args, weight_dtype,
-                                                                                       accelerator, True)
-    g_text_encoder, g_vae, g_unet, g_network, g_position_embedder = call_model_package(args, weight_dtype,
-                                                                                       accelerator,False)
+    text_encoder, vae, unet, network, position_embedder = call_model_package(args, weight_dtype,accelerator, True)
+
     if args.train_vae :
-        scratch_vae = AutoencoderKL.from_config(g_vae.config)
+        scratch_vae = AutoencoderKL.from_config(vae.config)
 
     print(f'\n step 5. optimizer')
     args.max_train_steps = len(train_dataloader) * args.max_train_epochs
-    trainable_params = g_network.prepare_optimizer_params(args.text_encoder_lr, args.unet_lr, args.learning_rate)
-    trainable_params.append({"params": g_position_embedder.parameters(), "lr": args.learning_rate})
+    trainable_params = network.prepare_optimizer_params(args.text_encoder_lr, args.unet_lr, args.learning_rate)
+    trainable_params.append({"params": position_embedder.parameters(), "lr": args.learning_rate})
     if args.train_vae :
         trainable_params.append({"params": scratch_vae.parameters(),"lr": args.learning_rate})
     optimizer_name, optimizer_args, optimizer = get_optimizer(args, trainable_params)
@@ -79,55 +77,51 @@ def main(args):
     loss_l2 = torch.nn.modules.loss.MSELoss(reduction='none')
 
     print(f'\n step 8. model to device')
-    optimizer, train_dataloader, lr_scheduler, = accelerator.prepare(optimizer, train_dataloader, lr_scheduler)
-    g_unet, g_text_encoder, g_network = accelerator.prepare(g_unet,g_text_encoder, g_network,)
-    g_position_embedder = accelerator.prepare(g_position_embedder)
-    if args.train_vae :
-        scratch_vae = accelerator.prepare(scratch_vae)
+    if args.train_vae:
+        vae, unet, text_encoder, network, optimizer, train_dataloader, lr_scheduler = accelerator.prepare(vae, unet, text_encoder,
+                                                                                                          network, optimizer,
+                                                                                                          train_dataloader,
+                                                                                                          lr_scheduler)
+    else:
+        unet, text_encoder, network, optimizer, train_dataloader, lr_scheduler = accelerator.prepare(unet, text_encoder,
+                                                                                                     network, optimizer,
+                                                                                                     train_dataloader,
+                                                                                                     lr_scheduler)
 
-    g_text_encoders = transform_models_if_DDP([g_text_encoder])
-    g_unet, g_network = transform_models_if_DDP([g_unet, g_network])
-    g_position_embedder.to(accelerator.device)
-    if args.train_vae :
-        scratch_vae = transform_models_if_DDP([scratch_vae])[0]
+    text_encoders = transform_models_if_DDP([text_encoder])
+    unet, network = transform_models_if_DDP([unet, network])
+    if args.use_position_embedder:
+        position_embedder = transform_models_if_DDP([position_embedder])[0]
     if args.gradient_checkpointing:
-        g_unet.train()
-        g_position_embedder.train()
-        for t_enc in g_text_encoders:
+        unet.train()
+        position_embedder.train()
+        for t_enc in text_encoders:
             t_enc.train()
             if args.train_text_encoder:
                 t_enc.text_model.embeddings.requires_grad_(True)
         if not args.train_text_encoder:  # train U-Net only
-            g_unet.parameters().__next__().requires_grad_(True)
+            unet.parameters().__next__().requires_grad_(True)
     else:
-        g_unet.eval()
-        for t_enc in g_text_encoders:
+        unet.eval()
+        for t_enc in text_encoders:
             t_enc.eval()
     del t_enc
-    g_network.prepare_grad_etc(g_text_encoder, g_unet)
-    g_vae.to(accelerator.device, dtype=weight_dtype)
-
-    l_unet = l_unet.to(accelerator.device, dtype=weight_dtype)
-    l_unet.eval()
-    l_text_encoder = l_text_encoder.to(accelerator.device, dtype=weight_dtype)
-    l_text_encoder.eval()
-    l_vae = l_vae.to(accelerator.device, dtype=weight_dtype)
-    l_vae.eval()
-    l_network.to(weight_dtype)
-    l_position_embedder.to(accelerator.device, dtype=weight_dtype)
-    l_position_embedder.to(weight_dtype)
+    network.prepare_grad_etc(text_encoder, unet)
+    vae.to(accelerator.device, dtype=weight_dtype)
 
     print(f'\n step 9. registering saving tensor')
-    g_controller = AttentionStore()
-    register_attention_control(g_unet, g_controller)
-    l_controller = AttentionStore()
-    register_attention_control(l_unet, l_controller)
-    del g_vae
+    controller = AttentionStore()
+    register_attention_control(unet, controller)
 
     print(f'\n step 9. Training !')
-    progress_bar = tqdm(range(args.max_train_steps), smoothing=0, disable=not accelerator.is_local_main_process, desc="steps")
+    progress_bar = tqdm(range(args.max_train_steps), smoothing=0,
+                        disable=not accelerator.is_local_main_process, desc="steps")
     global_step = 0
     loss_list = []
+
+    parent, dir = os.path.split(args.network_weights)
+    parent, _ = os.path.split(parent)
+
     for epoch in range(args.start_epoch, args.max_train_epochs):
         epoch_loss_total = 0
         accelerator.print(f"\nepoch {epoch + 1}/{args.start_epoch + args.max_train_epochs}")
@@ -136,58 +130,47 @@ def main(args):
             loss_dict = {}
             matching_loss, anormality_loss = 0.0, 0.0
 
-            with torch.set_grad_enabled(True):
-                encoder_hidden_states = l_text_encoder(batch["input_ids"].to(device))["last_hidden_state"]
-
-            # ---------------------------------------------------------------------------------------------------------------- #
-            with torch.no_grad():
-                latents = l_vae.encode(batch["image"].to(dtype=weight_dtype)).latent_dist.sample() * args.vae_scale_factor
-                l_unet(latents, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list,noise_type=l_position_embedder,)
-                l_query_dict, l_key_dict = l_controller.query_dict, l_controller.key_dict
-                l_controller.reset()
-                l_query_list = []
-                for layer in args.trg_layer_list :
-                    if 'mid' not in layer :
-                        l_query_list.append(resize_query_features(l_query_dict[layer][0].squeeze())) # feature selecting
-                local_query = torch.cat(l_query_list, dim=-1)  # 8, 64*64, 280
+            # [1] call local query
+            name = str(batch['image_name'][0])
+            local_query_dir = os.path.join(parent, f'local_query/{name}.pt')
+            local_query = torch.loa(local_query_dir, map_location='cpu').to(device, dtype=weight_dtype)
 
             # ---------------------------------------------------------------------------------------------------------------- #
             if args.global_net_normal_training :
                 with torch.set_grad_enabled(True):
-                    g_encoder_hidden_states = g_text_encoder(batch["input_ids"].to(device))["last_hidden_state"]
+                    encoder_hidden_states = text_encoder(batch["input_ids"].to(device))["last_hidden_state"]
                 if args.train_vae :
                     latents = scratch_vae.encode(batch["image"].to(dtype=weight_dtype)).latent_dist.sample() * args.vae_scale_factor
-                g_unet(latents,0,g_encoder_hidden_states, trg_layer_list=args.trg_layer_list, noise_type=g_position_embedder)
-                g_query_dict, g_key_dict = g_controller.query_dict, g_controller.key_dict
-                g_controller.reset()
-                g_query_list = []
+                unet(latents,0,encoder_hidden_states, trg_layer_list=args.trg_layer_list, noise_type=position_embedder)
+                query_dict, key_dict = controller.query_dict, controller.key_dict
+                controller.reset()
+                query_list = []
                 for layer in args.trg_layer_list:
                     if 'mid' not in layer:
-                        g_query_list.append(resize_query_features(g_query_dict[layer][0].squeeze()))  # feature selecting
-                global_query = torch.cat(g_query_list, dim=-1)  # 8, 64*64, 280
+                        query_list.append(resize_query_features(query_dict[layer][0].squeeze()))  # feature selecting
+                global_query = torch.cat(query_list, dim=-1)  # 8, 64*64, 280
 
             # ---------------------------------------------------------------------------------------------------------------- #
             if args.train_vae :
                 latents = scratch_vae.encode(batch["bg_anomal_image"].to(dtype=weight_dtype)).latent_dist.sample() * args.vae_scale_factor
             else :
                 with torch.no_grad():
-                    latents = l_vae.encode(
-                        batch["bg_anomal_image"].to(dtype=weight_dtype)).latent_dist.sample() * args.vae_scale_factor
+                    latents = vae.encode(batch["bg_anomal_image"].to(dtype=weight_dtype)).latent_dist.sample() * args.vae_scale_factor
             anomal_position_vector = batch["bg_anomal_mask"].squeeze().flatten() # 64*64
             with torch.set_grad_enabled(True):
-                g_encoder_hidden_states = g_text_encoder(batch["input_ids"].to(device))["last_hidden_state"]
-                g_unet(latents,0,g_encoder_hidden_states,trg_layer_list=args.trg_layer_list, noise_type=g_position_embedder)
-            g_query_dict, g_key_dict = g_controller.query_dict, g_controller.key_dict
-            g_controller.reset()
-            g_query_list = []
+                encoder_hidden_states = text_encoder(batch["input_ids"].to(device))["last_hidden_state"]
+                unet(latents,0,encoder_hidden_states,trg_layer_list=args.trg_layer_list, noise_type=position_embedder)
+            query_dict, key_dict = controller.query_dict, controller.key_dict
+            controller.reset()
+            query_list = []
             for layer in args.trg_layer_list:
                 if 'mid' not in layer:
-                    g_query_list.append(resize_query_features(g_query_dict[layer][0].squeeze()))  # feature selecting
-            global_query_masked = torch.cat(g_query_list, dim=-1)  # 8, 64*64, 280
+                    query_list.append(resize_query_features(query_dict[layer][0].squeeze()))  # feature selecting
+            global_query_masked = torch.cat(query_list, dim=-1)  # 8, 64*64, 280
 
             if args.global_net_normal_training :
                 matching_loss += loss_l2(local_query.float(), global_query.float()) # [8, 64*64, 280]
-            #matching_loss += loss_l2(local_query.float(),global_query_masked.float())  # [8, 64*64, 280]
+            matching_loss += loss_l2(local_query.float(),global_query_masked.float())  # [8, 64*64, 280]
             """
             latent_diff = abs(local_query.float() - global_query_masked.float())
             latent_diff = latent_diff.mean(dim=0).mean(dim=-1)
@@ -225,13 +208,13 @@ def main(args):
         accelerator.wait_for_everyone()
         if is_main_process:
             ckpt_name = get_epoch_ckpt_name(args, "." + args.save_model_as, epoch + 1)
-            save_model(args, ckpt_name, accelerator.unwrap_model(g_network), save_dtype)
-            if g_position_embedder is not None:
+            save_model(args, ckpt_name, accelerator.unwrap_model(network), save_dtype)
+            if position_embedder is not None:
                 position_embedder_base_save_dir = os.path.join(args.output_dir, 'position_embedder')
                 os.makedirs(position_embedder_base_save_dir, exist_ok=True)
                 p_save_dir = os.path.join(position_embedder_base_save_dir,
                                           f'position_embedder_{epoch + 1}.safetensors')
-                pe_model_save(accelerator.unwrap_model(g_position_embedder), save_dtype, p_save_dir)
+                pe_model_save(accelerator.unwrap_model(position_embedder), save_dtype, p_save_dir)
     accelerator.end_training()
 
 if __name__ == "__main__":

@@ -30,37 +30,17 @@ def call_model_package(args, weight_dtype, accelerator, is_local ):
                              vae, text_encoder, unet, neuron_dropout=args.network_dropout, **net_kwargs, )
     network.apply_to(text_encoder, unet, True, True)
 
-    if is_local :
-        unet = unet.to(accelerator.device, dtype=weight_dtype)
-        unet.eval()
-        text_encoder = text_encoder.to(accelerator.device, dtype=weight_dtype)
-        text_encoder.eval()
-        vae = vae.to(accelerator.device, dtype=weight_dtype)
-        vae.eval()
-        if args.network_weights is not None :
-            info = network.load_weights(args.network_weights)
-        network.to(weight_dtype)
+    unet = unet.to(accelerator.device, dtype=weight_dtype)
+    unet.eval()
+    text_encoder = text_encoder.to(accelerator.device, dtype=weight_dtype)
+    text_encoder.eval()
+    vae = vae.to(accelerator.device, dtype=weight_dtype)
+    vae.eval()
+    if args.network_weights is not None :
+        info = network.load_weights(args.network_weights)
+    network.to(weight_dtype)
 
     # [3] PE
-    position_embedder = None
-    if is_local :
-        if args.local_use_position_embedder :
-            position_embedder = AllPositionalEmbedding()
-
-        if args.network_weights is not None and args.local_use_position_embedder :
-            models_folder, lora_file = os.path.split(args.network_weights)
-            base_folder = os.path.split(models_folder)[0]
-            lora_name, _ = os.path.splitext(lora_file)
-            lora_epoch = int(lora_name.split("-")[-1])
-            position_embedder_state_dict = load_file(os.path.join(base_folder, f"position_embedder/position_embedder_{lora_epoch}.safetensors"))
-            position_embedder.load_state_dict(position_embedder_state_dict)
-
-            position_embedder.to(accelerator.device, dtype=weight_dtype)
-            position_embedder.eval()
-            network.to(accelerator.device, dtype=weight_dtype)
-            network.eval()
-    else :
-        position_embedder = AllPositionalEmbedding()
+    position_embedder = AllPositionalEmbedding()
 
     return text_encoder, vae, unet, network, position_embedder
-
