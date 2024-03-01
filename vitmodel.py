@@ -48,8 +48,8 @@ def main() :
     print(f' step 4. extract feature')
     activations = []
     for h_layer in hooking_layers :
-        hooked_output = h_layer.activations
-        print(f'hooked output : {len(hooked_output)}')
+        hooked_output = h_layer.activations[0]
+        print(f'hooked output : {hooked_output.shape}')
         activations.append(hooked_output)
         h_layer.activations = None
 
