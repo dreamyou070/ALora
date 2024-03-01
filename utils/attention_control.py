@@ -55,7 +55,7 @@ def register_attention_control(unet: nn.Module,controller: AttentionStore):
             if context is not None:
                 is_cross_attention = True
 
-            patch_pe = argument.patch_positional_self_embedder
+            """ cross self rechecking necessary """
             if not argument.use_multi_position_embedder and not argument.all_positional_embedder and not argument.patch_positional_self_embedder :
                 if layer_name == argument.position_embedding_layer :
                     hidden_states_pos = noise_type(hidden_states)
@@ -68,7 +68,7 @@ def register_attention_control(unet: nn.Module,controller: AttentionStore):
                 if is_cross_attention :
                     hidden_states_pos = noise_type(hidden_states, layer_name)
                     hidden_states = hidden_states_pos
-            elif argument.patch_positional_self_embedder :
+            elif argument.patch_positional_self_embedder and is_cross_attention :
                 print(f'adding pe in layer = {layer_name}')
                 hidden_states_pos = noise_type(hidden_states, layer_name)
                 hidden_states = hidden_states_pos
