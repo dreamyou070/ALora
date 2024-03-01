@@ -77,6 +77,8 @@ def main(args):
                                  "lr": args.learning_rate})
     optimizer_name, optimizer_args, optimizer = get_optimizer(args, trainable_params)
 
+    print(f'g_position_embedder.parameters() : {g_position_embedder.parameters()}')
+
     print(f'\n step 6. lr')
     lr_scheduler = get_scheduler_fix(args, optimizer, accelerator.num_processes)
 
@@ -89,7 +91,7 @@ def main(args):
         scratch_vae, g_unet, g_text_encoder, g_network, optimizer, train_dataloader, lr_scheduler, g_position_embedder)
     else :
         g_unet, g_text_encoder, g_network, optimizer, train_dataloader, lr_scheduler, g_position_embedder = accelerator.prepare(
-            g_unet, g_text_encoder, g_network, optimizer, train_dataloader, lr_scheduler, g_position_embedder)
+        g_unet, g_text_encoder, g_network, optimizer, train_dataloader, lr_scheduler, g_position_embedder)
 
     g_text_encoders = transform_models_if_DDP([g_text_encoder])
     g_unet, g_network = transform_models_if_DDP([g_unet, g_network])

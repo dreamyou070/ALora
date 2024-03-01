@@ -15,7 +15,7 @@ anomal_source_path="../../../MyData/anomal_source"
 network_weights="../../result/${bench_mark}/${obj_name}/${layer_name}/${sub_folder}/local_all_crossattn_pe/models/epoch-000009.safetensors" \
 #--position_embedding_layer 'down_blocks_0_attentions_0_transformer_blocks_0_attn1' --d_dim 320 --latent_res 64 \
 
-accelerate launch --config_file ../../../gpu_config/gpu_0_1_2_3_4_5_config \
+accelerate launch --config_file ../../../gpu_config/gpu_0_config \
  --main_process_port $port_number ../train_global_masking.py --log_with wandb \
  --output_dir "../../result/${bench_mark}/${obj_name}/${layer_name}/${sub_folder}/${file_name}" \
  --train_unet --train_text_encoder --start_epoch 0 --max_train_epochs 30 \
