@@ -132,7 +132,7 @@ def main(args):
     register_attention_control(l_unet, l_controller)
 
     print(f'\n step 9. Training !')
-    progress_bar = tqdm(range(args.max_train_steps), smoothing=0,disable=not accelerator.is_local_main_process, desc="steps")
+    progress_bar = tqdm(range(args.max_train_steps), smoothing=0, disable=not accelerator.is_local_main_process, desc="steps")
     global_step = 0
     loss_list = []
     for epoch in range(args.start_epoch, args.max_train_epochs):
