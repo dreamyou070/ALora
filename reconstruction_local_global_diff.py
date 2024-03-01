@@ -17,6 +17,8 @@ from safetensors.torch import load_file
 from attention_store.normal_activator import passing_normalize_argument
 from torch import nn
 from model import call_model_package
+from model.pe import AllPositionalEmbedding, SinglePositionalEmbedding
+
 def resize_query_features(query):
     # pix_num, dim = query.shape
     head_num, pix_num, dim = query.shape
@@ -121,19 +123,23 @@ def main(args):
 
 
     print(f' (2.2) global model')
-    g_text_encoder, g_vae, g_unet, g_network, g_position_embedder = call_model_package(args, weight_dtype, accelerator, False)
+    g_text_encoder, g_vae, g_unet, _ = load_target_model(args, weight_dtype, accelerator, False)
     g_vae.requires_grad_(False)
     g_vae.to(accelerator.device, dtype=weight_dtype)
     g_unet.requires_grad_(False)
     g_unet.to(accelerator.device, dtype=weight_dtype)
     g_text_encoder.requires_grad_(False)
     g_text_encoder.to(accelerator.device, dtype=weight_dtype)
-
-    print(f'\n step 3. inference')
+    g_network = LoRANetwork(text_encoder=g_text_encoder,
+                          unet=g_unet,
+                          lora_dim=args.network_dim,
+                          alpha=args.network_alpha,
+                          module_class=LoRAInfModule)
     g_network.apply_to(g_text_encoder, g_unet, True, True)
     raw_state_dict = g_network.state_dict()
     raw_state_dict_orig = raw_state_dict.copy()
-
+    g_position_embedder = AllPositionalEmbedding()
+    
     print(f'\n step 3. call experiment network dirs')
     models = os.listdir(args.network_folder)
 
