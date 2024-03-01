@@ -122,6 +122,7 @@ def main(args):
     register_attention_control(g_unet, g_controller)
     l_controller = AttentionStore()
     register_attention_control(l_unet, l_controller)
+    del g_vae
 
     print(f'\n step 9. Training !')
     progress_bar = tqdm(range(args.max_train_steps), smoothing=0, disable=not accelerator.is_local_main_process, desc="steps")
@@ -183,11 +184,10 @@ def main(args):
                 if 'mid' not in layer:
                     g_query_list.append(resize_query_features(g_query_dict[layer][0].squeeze()))  # feature selecting
             global_query_masked = torch.cat(g_query_list, dim=-1)  # 8, 64*64, 280
-            
 
             if args.global_net_normal_training :
                 matching_loss += loss_l2(local_query.float(), global_query.float()) # [8, 64*64, 280]
-            matching_loss += loss_l2(local_query.float(),global_query_masked.float())  # [8, 64*64, 280]
+            #matching_loss += loss_l2(local_query.float(),global_query_masked.float())  # [8, 64*64, 280]
             """
             latent_diff = abs(local_query.float() - global_query_masked.float())
             latent_diff = latent_diff.mean(dim=0).mean(dim=-1)
