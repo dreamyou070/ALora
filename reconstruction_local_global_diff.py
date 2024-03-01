@@ -106,12 +106,19 @@ def main(args):
     print(f' (2.1) local model')
     # [1] call local model
     l_text_encoder, l_vae, l_unet, l_network, l_position_embedder = call_model_package(args, weight_dtype, accelerator, True)
+
     l_vae.requires_grad_(False)
     l_vae.to(accelerator.device, dtype=weight_dtype)
+
     l_unet.requires_grad_(False)
     l_unet.to(accelerator.device, dtype=weight_dtype)
+
     l_text_encoder.requires_grad_(False)
     l_text_encoder.to(accelerator.device, dtype=weight_dtype)
+
+    l_network.requires_grad_(False)
+    l_network.to(accelerator.device, dtype=weight_dtype)
+
     l_controller = AttentionStore()
     register_attention_control(l_unet, l_controller)
 
@@ -123,6 +130,8 @@ def main(args):
     g_unet.to(accelerator.device, dtype=weight_dtype)
     g_text_encoder.requires_grad_(False)
     g_text_encoder.to(accelerator.device, dtype=weight_dtype)
+    g_network.requires_grad_(False)
+    g_network.to(accelerator.device, dtype=weight_dtype)
     g_controller = AttentionStore()
     register_attention_control(g_unet, g_controller)
 
