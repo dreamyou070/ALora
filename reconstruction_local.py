@@ -13,7 +13,7 @@ from PIL import Image
 from utils.image_utils import load_image, image2latent
 import numpy as np
 from model.diffusion_model import load_target_model
-from model.pe import PositionalEmbedding, MultiPositionalEmbedding, AllPositionalEmbedding, Patch_MultiPositionalEmbedding
+from model.pe import PositionalEmbedding, MultiPositionalEmbedding, AllPositionalEmbedding, Patch_MultiPositionalEmbedding, AllSelfCrossPositionalEmbedding
 from safetensors.torch import load_file
 from attention_store.normal_activator import NormalActivator
 from attention_store.normal_activator import passing_normalize_argument
@@ -127,6 +127,9 @@ def main(args):
 
         elif args.patch_positional_self_embedder :
             position_embedder = Patch_MultiPositionalEmbedding()
+
+        elif args.all_self_cross_positional_embedder :
+            position_embedder = AllSelfCrossPositionalEmbedding()
 
     print(f'\n step 2. accelerator and device')
     vae.requires_grad_(False)
@@ -353,7 +356,7 @@ if __name__ == '__main__':
     parser.add_argument("--all_positional_embedder", action='store_true')
     parser.add_argument("--all_positional_self_cross_embedder", action='store_true')
     parser.add_argument("--patch_positional_self_embedder", action='store_true')
-
+    parser.add_argument("--all_self_cross_positional_embedder", action='store_true')
     args = parser.parse_args()
     passing_argument(args)
     unet_passing_argument(args)
