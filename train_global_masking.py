@@ -20,7 +20,7 @@ from attention_store.normal_activator import passing_normalize_argument
 from data.mvtec import passing_mvtec_argument
 from model.global_local_segmentation import SegmentationSubNetwork
 from torch import nn
-
+from diffusers import AutoencoderKL
 
 def resize_query_features(query):
     # 8, 64, 160
@@ -60,11 +60,8 @@ def main(args):
 
     print(f'\n step 4. model ')
     weight_dtype, save_dtype = prepare_dtype(args)
-    l_text_encoder, l_vae, l_unet, l_network, l_position_embedder = call_model_package(args, weight_dtype, accelerator, True)
     g_text_encoder, g_vae, g_unet, g_network, g_position_embedder = call_model_package(args, weight_dtype, accelerator,False)
-    """ is it really scratch ? """
     vae_config = g_vae.config
-    from diffusers import AutoencoderKL
     if args.train_vae :
         scratch_vae = AutoencoderKL.from_config(vae_config)
 
@@ -73,11 +70,8 @@ def main(args):
     trainable_params = g_network.prepare_optimizer_params(args.text_encoder_lr, args.unet_lr, args.learning_rate)
     trainable_params.append({"params": g_position_embedder.parameters(), "lr": args.learning_rate})
     if args.train_vae :
-        trainable_params.append({"params": scratch_vae.parameters(),
-                                 "lr": args.learning_rate})
+        trainable_params.append({"params": scratch_vae.parameters(),"lr": args.learning_rate})
     optimizer_name, optimizer_args, optimizer = get_optimizer(args, trainable_params)
-
-    print(f'g_position_embedder.parameters() : {g_position_embedder.parameters()}')
 
     print(f'\n step 6. lr')
     lr_scheduler = get_scheduler_fix(args, optimizer, accelerator.num_processes)
@@ -86,12 +80,12 @@ def main(args):
     loss_l2 = torch.nn.modules.loss.MSELoss(reduction='none')
 
     print(f'\n step 8. model to device')
+    optimizer, train_dataloader, lr_scheduler, = accelerator.prepare(optimizer, train_dataloader, lr_scheduler)
     if args.train_vae :
-        scratch_vae, g_unet, g_text_encoder, g_network, optimizer, train_dataloader, lr_scheduler, g_position_embedder = accelerator.prepare(
-        scratch_vae, g_unet, g_text_encoder, g_network, optimizer, train_dataloader, lr_scheduler, g_position_embedder)
+        scratch_vae, g_unet, g_text_encoder, g_network, g_position_embedder = accelerator.prepare(scratch_vae, g_unet, g_text_encoder, g_network, g_position_embedder)
     else :
-        g_unet, g_text_encoder, g_network, optimizer, train_dataloader, lr_scheduler, g_position_embedder = accelerator.prepare(
-        g_unet, g_text_encoder, g_network, optimizer, train_dataloader, lr_scheduler, g_position_embedder)
+        g_unet, g_text_encoder, g_network, g_position_embedder = accelerator.prepare(g_unet, g_text_encoder, g_network, g_position_embedder)
+
 
     g_text_encoders = transform_models_if_DDP([g_text_encoder])
     g_unet, g_network = transform_models_if_DDP([g_unet, g_network])
@@ -114,6 +108,8 @@ def main(args):
     g_network.prepare_grad_etc(g_text_encoder, g_unet)
     g_vae.to(accelerator.device, dtype=weight_dtype)
 
+
+    l_text_encoder, l_vae, l_unet, l_network, l_position_embedder = call_model_package(args, weight_dtype, accelerator,True)
     l_unet = l_unet.to(accelerator.device, dtype=weight_dtype)
     l_unet.eval()
     l_text_encoder = l_text_encoder.to(accelerator.device, dtype=weight_dtype)
