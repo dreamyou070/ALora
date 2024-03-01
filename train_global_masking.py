@@ -81,11 +81,10 @@ def main(args):
 
     print(f'\n step 8. model to device')
     optimizer, train_dataloader, lr_scheduler, = accelerator.prepare(optimizer, train_dataloader, lr_scheduler)
+    g_unet, g_text_encoder, g_network = accelerator.prepare(g_unet,g_text_encoder, g_network,)
+    g_position_embedder = accelerator.prepare(g_position_embedder)
     if args.train_vae :
-        scratch_vae, g_unet, g_text_encoder, g_network, g_position_embedder = accelerator.prepare(scratch_vae, g_unet, g_text_encoder, g_network, g_position_embedder)
-    else :
-        g_unet, g_text_encoder, g_network, g_position_embedder = accelerator.prepare(g_unet, g_text_encoder, g_network, g_position_embedder)
-
+        scratch_vae = accelerator.prepare(scratch_vae)
 
     g_text_encoders = transform_models_if_DDP([g_text_encoder])
     g_unet, g_network = transform_models_if_DDP([g_unet, g_network])
