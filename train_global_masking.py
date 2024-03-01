@@ -130,6 +130,7 @@ def main(args):
             with torch.set_grad_enabled(True):
                 """ global and local share text network """
                 encoder_hidden_states = l_text_encoder(batch["input_ids"].to(device))["last_hidden_state"]
+
             with torch.no_grad():
                 latents = l_vae.encode(batch["image"].to(dtype=weight_dtype)).latent_dist.sample() * args.vae_scale_factor
                 l_unet(latents, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list,noise_type=l_position_embedder,)
