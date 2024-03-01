@@ -48,16 +48,17 @@ def call_model_package(args, weight_dtype, accelerator, is_local ):
             position_embedder = Patch_MultiPositionalEmbedding()
 
     if args.network_weights is not None:
-        models_folder,  lora_file = os.path.split(args.network_weights)
-        base_folder = os.path.split(models_folder)[0]
-        lora_name, _ = os.path.splitext(lora_file)
-        lora_epoch = int(lora_name.split("-")[-1])
-        pe_name = f"position_embedder_{lora_epoch}.safetensors"
-        position_embedder_path = os.path.join(base_folder, f"position_embedder/{pe_name}")
-        position_embedder_state_dict = load_file(position_embedder_path)
-        position_embedder.load_state_dict(position_embedder_state_dict)
-        print(f'Position Embedding Loading Weights from {position_embedder_path}')
-        position_embedder.to(weight_dtype)
+        if is_local and args.local_use_position_embedder :
+            models_folder,  lora_file = os.path.split(args.network_weights)
+            base_folder = os.path.split(models_folder)[0]
+            lora_name, _ = os.path.splitext(lora_file)
+            lora_epoch = int(lora_name.split("-")[-1])
+            pe_name = f"position_embedder_{lora_epoch}.safetensors"
+            position_embedder_path = os.path.join(base_folder, f"position_embedder/{pe_name}")
+            position_embedder_state_dict = load_file(position_embedder_path)
+            position_embedder.load_state_dict(position_embedder_state_dict)
+            print(f'Position Embedding Loading Weights from {position_embedder_path}')
+            position_embedder.to(weight_dtype)
 
     """
     self_embeddings = None
