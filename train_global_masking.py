@@ -107,6 +107,16 @@ def main(args):
     g_network.prepare_grad_etc(g_text_encoder, g_unet)
     g_vae.to(accelerator.device, dtype=weight_dtype)
 
+    l_unet = l_unet.to(accelerator.device, dtype=weight_dtype)
+    l_unet.eval()
+    l_text_encoder = l_text_encoder.to(accelerator.device, dtype=weight_dtype)
+    l_text_encoder.eval()
+    l_vae = l_vae.to(accelerator.device, dtype=weight_dtype)
+    l_vae.eval()
+    l_network.to(weight_dtype)
+    l_position_embedder.to(accelerator.device, dtype=weight_dtype)
+    l_position_embedder.to(weight_dtype)
+
     print(f'\n step 9. registering saving tensor')
     g_controller = AttentionStore()
     register_attention_control(g_unet, g_controller)
