@@ -10,7 +10,7 @@ file_name="train_local_scaled_query_use_all_position_embedder_bigger_gaussian"
 
 #position_embedding_layer="down_blocks_0_attentions_0_transformer_blocks_0_attn1"
 #--d_dim 320 --use_position_embedder --position_embedding_layer ${position_embedding_layer} \
-accelerate launch --config_file ../../../gpu_config/gpu_0_1_2_3_4_5_config \
+accelerate launch --config_file ../../../gpu_config/gpu_0_config \
  --main_process_port $port_number ../reconstruction_local.py \
  --pretrained_model_name_or_path ../../../pretrained_stable_diffusion/stable-diffusion-v1-5/v1-5-pruned.safetensors \
  --network_dim 64 --network_alpha 4 --network_folder "../../result/${bench_mark}/${obj_name}/${layer_name}/${sub_folder}/${file_name}/models" \
