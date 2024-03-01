@@ -57,11 +57,14 @@ def main(args):
     text_encoder, vae, unet, _ = load_target_model(args, weight_dtype, accelerator)
 
     text_encoder.requires_grad_(False)
+    text_encoder.to(accelerator.device, dtype=weight_dtype)
+
     vae.requires_grad_(False)
-    vae.to(dtype=weight_dtype)
+    vae.to(accelerator.device, dtype=weight_dtype)
     vae.eval()
+
     unet.requires_grad_(False)
-    unet.to(dtype=weight_dtype)
+    unet.to(accelerator.device, dtype=weight_dtype)
 
     # [2] lora network
     net_kwargs = {}
