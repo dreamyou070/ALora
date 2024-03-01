@@ -1,15 +1,18 @@
 # !/bin/bash
 
+# scratch vae / trained vae
+# matching loss : only normal
+
 port_number=50006
 bench_mark="MVTec"
 obj_name='transistor'
 trigger_word='transistor'
 layer_name='layer_3'
 sub_folder="up_16_32_64"
-file_name="train_global_masking_only_matchingloss_text_encoder_separately"
+file_name="from_no_pe_local_global_train_vae"
 
 anomal_source_path="../../../MyData/anomal_source"
-network_weights="../../result/${bench_mark}/${obj_name}/${layer_name}/${sub_folder}/local_all_crossattn_pe/models/epoch-000009.safetensors" \
+network_weights="../../result/${bench_mark}/${obj_name}/${layer_name}/${sub_folder}/local_no_pe/models/epoch-000005safetensors" \
 #--position_embedding_layer 'down_blocks_0_attentions_0_transformer_blocks_0_attn1' --d_dim 320 --latent_res 64 \
 
 accelerate launch --config_file ../../../gpu_config/gpu_0_1_2_config \

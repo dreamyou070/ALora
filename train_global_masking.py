@@ -190,7 +190,6 @@ def main(args):
 
             if args.global_net_normal_training :
                 matching_loss += loss_l2(local_query.float(), global_query.float()) # [8, 64*64, 280]
-
             matching_loss += loss_l2(local_query.float(),global_query_masked.float())  # [8, 64*64, 280]
 
             """
