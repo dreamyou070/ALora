@@ -139,7 +139,7 @@ def main(args):
     raw_state_dict = g_network.state_dict()
     raw_state_dict_orig = raw_state_dict.copy()
     g_position_embedder = AllPositionalEmbedding()
-    
+
     print(f'\n step 3. call experiment network dirs')
     models = os.listdir(args.network_folder)
 

@@ -79,15 +79,16 @@ def main(args):
     network.to(accelerator.device, dtype=weight_dtype)
 
     # [3] PE
-    position_embedder = AllPositionalEmbedding()
-    models_folder, lora_file = os.path.split(args.network_weights)
-    base_folder = os.path.split(models_folder)[0]
-    lora_name, _ = os.path.splitext(lora_file)
-    lora_epoch = int(lora_name.split("-")[-1])
-    position_embedder_state_dict = load_file(os.path.join(base_folder, f"position_embedder/position_embedder_{lora_epoch}.safetensors"))
-    position_embedder.load_state_dict(position_embedder_state_dict)
-    position_embedder.to(accelerator.device, dtype=weight_dtype)
-    position_embedder.eval()
+    if args.use_position_embedder :
+        position_embedder = AllPositionalEmbedding()
+        models_folder, lora_file = os.path.split(args.network_weights)
+        base_folder = os.path.split(models_folder)[0]
+        lora_name, _ = os.path.splitext(lora_file)
+        lora_epoch = int(lora_name.split("-")[-1])
+        position_embedder_state_dict = load_file(os.path.join(base_folder, f"position_embedder/position_embedder_{lora_epoch}.safetensors"))
+        position_embedder.load_state_dict(position_embedder_state_dict)
+        position_embedder.to(accelerator.device, dtype=weight_dtype)
+        position_embedder.eval()
 
     print(f'\n step 9. registering saving tensor')
     controller = AttentionStore()
@@ -102,7 +103,10 @@ def main(args):
         with torch.no_grad():
             encoder_hidden_states = text_encoder(sample["input_ids"].to(device))["last_hidden_state"]
             latents = vae.encode(sample["image"].to(device)).latent_dist.sample() * args.vae_scale_factor
-            unet(latents, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list,noise_type=position_embedder,)
+            if args.use_position_embedder :
+                unet(latents, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list,noise_type=position_embedder,)
+            else :
+                unet(latents, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list,)
             query_dict, key_dict = controller.query_dict, controller.key_dict
             controller.reset()
             query_list = []
