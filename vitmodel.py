@@ -49,7 +49,7 @@ def main() :
     activations = []
     for h_layer in hooking_layers :
         hooked_output = h_layer.activations
-        print(f'hooked output : {hooked_output}')
+        print(f'hooked output : {len(hooked_output)}')
         activations.append(hooked_output)
         h_layer.activations = None
 
