@@ -64,7 +64,6 @@ def main(args):
     if args.train_vae :
         scratch_vae = AutoencoderKL.from_config(g_vae.config)
 
-
     print(f'\n step 5. optimizer')
     args.max_train_steps = len(train_dataloader) * args.max_train_epochs
     trainable_params = g_network.prepare_optimizer_params(args.text_encoder_lr, args.unet_lr, args.learning_rate)
@@ -176,13 +175,13 @@ def main(args):
                 if 'mid' not in layer:
                     g_query_list.append(resize_query_features(g_query_dict[layer][0].squeeze()))  # feature selecting
             global_query_masked = torch.cat(g_query_list, dim=-1)  # 8, 64*64, 280
-            """
+            
 
             if args.global_net_normal_training :
                 matching_loss += loss_l2(local_query.float(), global_query.float()) # [8, 64*64, 280]
             #matching_loss += loss_l2(local_query.float(),global_query_masked.float())  # [8, 64*64, 280]
 
-            """
+            
 
             latent_diff = abs(local_query.float() - global_query_masked.float())
             latent_diff = latent_diff.mean(dim=0).mean(dim=-1)
