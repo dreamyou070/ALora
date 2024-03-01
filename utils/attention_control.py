@@ -69,7 +69,7 @@ def register_attention_control(unet: nn.Module,controller: AttentionStore):
                     hidden_states_pos = noise_type(hidden_states, layer_name)
                     hidden_states = hidden_states_pos
             elif argument.all_self_cross_positional_embedder :
-                print(f'self and cross all positin embedding')
+                #print(f'self and cross all positin embedding')
                 hidden_states_pos = noise_type(hidden_states, layer_name)
                 hidden_states = hidden_states_pos
 

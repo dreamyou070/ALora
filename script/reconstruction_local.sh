@@ -6,9 +6,9 @@ obj_name='transistor'
 caption='transistor'
 layer_name='layer_3'
 sub_folder="up_16_32_64"
-file_name="train_local_scaled_query_use_all_cross_position_with_patchembed"
+file_name="local_all_crossattn_pe"
 
-#position_embedding_layer="down_blocks_0_attentions_0_transformer_blocks_0_attn1"
+# position_embedding_layer="down_blocks_0_attentions_0_transformer_blocks_0_attn1"
 #--d_dim 320 --use_position_embedder --position_embedding_layer ${position_embedding_layer} \
 accelerate launch --config_file ../../../gpu_config/gpu_0_config \
  --main_process_port $port_number ../reconstruction_local.py \
