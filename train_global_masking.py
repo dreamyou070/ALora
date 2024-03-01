@@ -217,6 +217,12 @@ def main(args):
                 p_save_dir = os.path.join(position_embedder_base_save_dir,
                                           f'position_embedder_{epoch + 1}.safetensors')
                 pe_model_save(accelerator.unwrap_model(position_embedder), save_dtype, p_save_dir)
+            if args.train_vae :
+                vae_base_save_dir = os.path.join(args.output_dir, 'vae')
+                os.makedirs(vae_base_save_dir, exist_ok=True)
+                pe_model_save(accelerator.unwrap_model(scratch_vae), save_dtype,
+                              os.path.join(vae_base_save_dir, f'vae_{epoch + 1}.safetensors'))
+
     accelerator.end_training()
 
 if __name__ == "__main__":
