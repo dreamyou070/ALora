@@ -73,7 +73,8 @@ def main(args):
     trainable_params = g_network.prepare_optimizer_params(args.text_encoder_lr, args.unet_lr, args.learning_rate)
     trainable_params.append({"params": g_position_embedder.parameters(), "lr": args.learning_rate})
     if args.train_vae :
-        trainable_params.append({"params": scratch_vae.parameters(), "lr": args.learning_rate})
+        trainable_params.append({"params": scratch_vae.parameters(),
+                                 "lr": args.learning_rate})
     optimizer_name, optimizer_args, optimizer = get_optimizer(args, trainable_params)
 
     print(f'\n step 6. lr')
