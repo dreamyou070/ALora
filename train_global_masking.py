@@ -64,6 +64,7 @@ def main(args):
     if args.train_vae :
         scratch_vae = AutoencoderKL.from_config(g_vae.config)
 
+
     print(f'\n step 5. optimizer')
     args.max_train_steps = len(train_dataloader) * args.max_train_epochs
     trainable_params = g_network.prepare_optimizer_params(args.text_encoder_lr, args.unet_lr, args.learning_rate)
@@ -87,6 +88,7 @@ def main(args):
 
     g_text_encoders = transform_models_if_DDP([g_text_encoder])
     g_unet, g_network = transform_models_if_DDP([g_unet, g_network])
+    g_position_embedder.to(accelerator.device)
     if args.train_vae :
         scratch_vae = transform_models_if_DDP([scratch_vae])[0]
     if args.gradient_checkpointing:
@@ -142,7 +144,6 @@ def main(args):
 
             # ---------------------------------------------------------------------------------------------------------------- #
             # global full image feature
-            print(f'g_position_embedder device = {g_position_embedder.device}')
             if args.global_net_normal_training :
                 with torch.set_grad_enabled(True):
                     g_encoder_hidden_states = g_text_encoder(batch["input_ids"].to(device))["last_hidden_state"]
