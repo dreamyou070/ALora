@@ -148,11 +148,14 @@ def main(args):
                 unet(latents,0,encoder_hidden_states, trg_layer_list=args.trg_layer_list, noise_type=position_embedder)
                 query_dict, key_dict = controller.query_dict, controller.key_dict
                 controller.reset()
-                query_list = []
+                query_list, mid_query_list = [], []
                 for layer in args.trg_layer_list:
-                    if 'mid' not in layer:
+                    if 'mid' in layer:
+                        mid_query_list.append(query_dict[layer][0].squeeze())  # 8, 64, 1280/8
+                    else :
                         query_list.append(resize_query_features(query_dict[layer][0].squeeze()))  # feature selecting
                 global_query = torch.cat(query_list, dim=-1)  # 8, 64*64, 280
+                global_mid_query = torch.cat(mid_query_list, dim = -1)
 
             # ---------------------------------------------------------------------------------------------------------------- #
             if args.train_vae :
@@ -166,15 +169,17 @@ def main(args):
                 unet(latents,0,encoder_hidden_states,trg_layer_list=args.trg_layer_list, noise_type=position_embedder)
             query_dict, key_dict = controller.query_dict, controller.key_dict
             controller.reset()
-            query_list = []
+            query_list, mid_query_list = [], []
             for layer in args.trg_layer_list:
-                if 'mid' not in layer:
+                if 'mid' in layer:
+                    mid_query_list.append(query_dict[layer][0].squeeze())  # 8, 64, 1280/8
+                else:
                     query_list.append(resize_query_features(query_dict[layer][0].squeeze()))  # feature selecting
             global_query_masked = torch.cat(query_list, dim=-1)  # 8, 64*64, 280
+            global_mid_query_masked = torch.cat(mid_query_list, dim=-1)
 
-            if args.global_net_normal_training :
-                matching_loss += loss_l2(local_query.float(), global_query.float()) # [8, 64*64, 280]
-            matching_loss += loss_l2(local_query.float(),global_query_masked.float())  # [8, 64*64, 280]
+            matching_loss += loss_l2(local_query.float(), global_query.float()).mean() # [8, 64*64, 280]
+            matching_loss += loss_l2(global_mid_query.float(),global_mid_query_masked.float()).mean()  # [8, 64*64, 280]
             """
             latent_diff = abs(local_query.float() - global_query_masked.float())
             latent_diff = latent_diff.mean(dim=0).mean(dim=-1)

@@ -2,16 +2,16 @@
 # scratch vae / trained vae
 # matching loss : only normal
 
-port_number=50003
+port_number=50005
 bench_mark="MVTec"
 obj_name='transistor'
 trigger_word='transistor'
 layer_name='layer_3'
 sub_folder="up_16_32_64"
-file_name="from_no_pe_local_global_from_pretrained_vae"
+file_name="from_trained_pe_local_global_from_pretrained_vae_global_matching"
 
 anomal_source_path="../../../MyData/anomal_source"
-network_weights="../../result/${bench_mark}/${obj_name}/${layer_name}/${sub_folder}/local_no_pe/models/epoch-000016.safetensors" \
+network_weights="../../result/${bench_mark}/${obj_name}/${layer_name}/${sub_folder}/local_all_crossattn_pe/models/epoch-000009.safetensors" \
 
 accelerate launch --config_file ../../../gpu_config/gpu_0_1_2_3_4_5_config \
  --main_process_port $port_number ../train_global_masking.py --log_with wandb \
