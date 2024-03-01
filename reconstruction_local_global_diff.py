@@ -218,8 +218,8 @@ def main(args):
                                         resize_query_features(l_query_dict[layer][0].squeeze()))  # feature selecting
                             local_query = torch.cat(l_query_list, dim=-1)  # 8, 64*64, 280
                             # (4) extract global features
-                            with torch.set_grad_enabled(True):
-                                g_unet(latent, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list,noise_type=g_position_embedder)
+
+                            g_unet(latent, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list,noise_type=g_position_embedder)
                             g_query_dict, g_key_dict = g_controller.query_dict, g_controller.key_dict
                             g_controller.reset()
                             g_query_list = []
