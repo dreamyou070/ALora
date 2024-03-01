@@ -80,7 +80,7 @@ class MVTecDRAEMTrainDataset(Dataset):
                  anomaly_source_path,
                  resize_shape=None,
                  tokenizer=None,
-                 caption: str = None,
+                 caption : str = None,
                  use_perlin: bool = False,
                  anomal_only_on_object : bool = True,
                  anomal_training : bool = False,
