@@ -11,5 +11,5 @@ inputs = processor(images=image, return_tensors="pt").data['pixel_values'] # bat
 print(f'input pixel values : {inputs.shape}')
 
 vitmodel = ViTModel.from_pretrained(vit_dir)
-output = vitmodel(inputs)
+output = vitmodel(inputs).last_hidden_state
 print(f'output : {output.shape}')
