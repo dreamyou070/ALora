@@ -62,26 +62,38 @@ def main(args):
     weight_dtype, save_dtype = prepare_dtype(args)
     l_text_encoder, l_vae, l_unet, l_network, l_position_embedder = call_model_package(args, weight_dtype, accelerator, True)
     g_text_encoder, g_vae, g_unet, g_network, g_position_embedder = call_model_package(args, weight_dtype, accelerator,False)
+    """ is it really scratch ? """
+    vae_config = g_vae.config
+    from diffusers import AutoencoderKL
+    if args.train_vae :
+        scratch_vae = AutoencoderKL.from_config(vae_config)
 
     print(f'\n step 5. optimizer')
     args.max_train_steps = len(train_dataloader) * args.max_train_epochs
     trainable_params = g_network.prepare_optimizer_params(args.text_encoder_lr, args.unet_lr, args.learning_rate)
     trainable_params.append({"params": g_position_embedder.parameters(), "lr": args.learning_rate})
+    if args.train_vae :
+        trainable_params.append({"params": scratch_vae.parameters(), "lr": args.learning_rate})
     optimizer_name, optimizer_args, optimizer = get_optimizer(args, trainable_params)
 
     print(f'\n step 6. lr')
     lr_scheduler = get_scheduler_fix(args, optimizer, accelerator.num_processes)
 
     print(f'\n step 7. loss function')
-    loss_focal = FocalLoss()
     loss_l2 = torch.nn.modules.loss.MSELoss(reduction='none')
 
     print(f'\n step 8. model to device')
-    g_unet, g_text_encoder, g_network, optimizer, train_dataloader, lr_scheduler, g_position_embedder = accelerator.prepare(
-        g_unet, g_text_encoder, g_network, optimizer, train_dataloader, lr_scheduler, g_position_embedder)
+    if args.train_vae :
+        scratch_vae, g_unet, g_text_encoder, g_network, optimizer, train_dataloader, lr_scheduler, g_position_embedder = accelerator.prepare(
+        scratch_vae, g_unet, g_text_encoder, g_network, optimizer, train_dataloader, lr_scheduler, g_position_embedder)
+    else :
+        g_unet, g_text_encoder, g_network, optimizer, train_dataloader, lr_scheduler, g_position_embedder = accelerator.prepare(
+            g_unet, g_text_encoder, g_network, optimizer, train_dataloader, lr_scheduler, g_position_embedder)
 
     g_text_encoders = transform_models_if_DDP([g_text_encoder])
     g_unet, g_network = transform_models_if_DDP([g_unet, g_network])
+    if args.train_vae :
+        scratch_vae = transform_models_if_DDP([scratch_vae])[0]
     if args.gradient_checkpointing:
         g_unet.train()
         g_position_embedder.train()
@@ -147,6 +159,8 @@ def main(args):
             if args.global_net_normal_training :
                 with torch.set_grad_enabled(True):
                     g_encoder_hidden_states = g_text_encoder(batch["input_ids"].to(device))["last_hidden_state"]
+                    if args.train_vae :
+                        latents = scratch_vae.encode(batch["image"].to(dtype=weight_dtype)).latent_dist.sample() * args.vae_scale_factor
                     g_unet(latents,0,g_encoder_hidden_states,trg_layer_list=args.trg_layer_list, noise_type=g_position_embedder)
                 g_query_dict, g_key_dict = g_controller.query_dict, g_controller.key_dict
                 g_controller.reset()
@@ -160,6 +174,8 @@ def main(args):
             # global full image feature
             with torch.no_grad():
                 latents = l_vae.encode(batch["bg_anomal_image"].to(dtype=weight_dtype)).latent_dist.sample() * args.vae_scale_factor
+            if args.train_vae :
+                latents = scratch_vae.encode(batch["bg_anomal_image"].to(dtype=weight_dtype)).latent_dist.sample() * args.vae_scale_factor
             anomal_position_vector = batch["bg_anomal_mask"].squeeze().flatten() # 64*64
             with torch.set_grad_enabled(True):
                 g_encoder_hidden_states = g_text_encoder(batch["input_ids"].to(device))["last_hidden_state"]
@@ -350,6 +366,7 @@ if __name__ == "__main__":
     parser.add_argument("--patch_positional_self_embedder", action='store_true')
     parser.add_argument("--use_multi_position_embedder", action='store_true')
     parser.add_argument("--global_net_normal_training", action='store_true')
+    parser.add_argument("--train_vae", action='store_true')
     # -----------------------------------------------------------------------------------------------------------------
     args = parser.parse_args()
     unet_passing_argument(args)
