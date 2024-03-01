@@ -68,12 +68,6 @@ def main(args):
     normal_activator = NormalActivator(loss_focal, loss_l2, args.use_focal_loss)
 
     print(f'\n step 8. model to device')
-    positional_encodings = position_embedder.positional_encodings
-    for layer_name in positional_encodings.keys() :
-        param = positional_encodings[layer_name]
-        print(f'{layer_name} = {param}')
-
-
     #unet, text_encoder, network, optimizer, train_dataloader, lr_scheduler, position_embedder,query_transformer = accelerator.prepare(
     #    unet, text_encoder, network, optimizer, train_dataloader, lr_scheduler, position_embedder, gquery_transformer)
     unet, text_encoder, network, optimizer, train_dataloader, lr_scheduler, position_embedder = accelerator.prepare(unet,
