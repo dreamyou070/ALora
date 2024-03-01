@@ -3,9 +3,7 @@ from tqdm import tqdm
 from accelerate.utils import set_seed
 import torch
 import os
-from model.query_transformer import QueryTransformer
 from attention_store import AttentionStore
-from attention_store.normal_activator import NormalActivator
 from model.diffusion_model import transform_models_if_DDP
 from model.unet import unet_passing_argument
 from utils import get_epoch_ckpt_name, save_model, prepare_dtype, arg_as_list
@@ -18,7 +16,6 @@ from data.prepare_dataset import call_dataset
 from model import call_model_package
 from attention_store.normal_activator import passing_normalize_argument
 from data.mvtec import passing_mvtec_argument
-from model.global_local_segmentation import SegmentationSubNetwork
 from torch import nn
 from diffusers import AutoencoderKL
 
