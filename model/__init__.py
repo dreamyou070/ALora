@@ -71,3 +71,4 @@ def call_model_package(args, weight_dtype, accelerator, is_local ):
         position_embedder = SinglePositionalEmbedding()
 
     return text_encoder, vae, unet, network, position_embedder
+

@@ -68,11 +68,26 @@ def main(args):
                            'up_blocks_3_attentions_1_transformer_blocks_0_attn2': (64, 320),
                            'up_blocks_3_attentions_2_transformer_blocks_0_attn2': (64, 320), }
 
-
     for layer_name, net in unet.named_children():
-        if net.__class__.__name__ == 'CrossAttention' and layer_name in layer_names_res_dim.keys() :
-
+        if net.__class__.__name__ == 'CrossAttention' and layer_name in layer_names_res_dim.keys():
             print(f'layer_name = {layer_name}')
+    """
+    class PENetwork(torch.nn.Module):
+
+        def __init__(self, unet, ) -> None:
+
+            super().__init__()
+
+            
+
+            self.unet_pe = create_modules(True, None, unet, target_modules)
+            skipped = skipped_te + skipped_un
+
+            for name, module in unet.named_modules():
+                def forward(x)
+                    x = x + pe
+                    x = module(x)
+    """
 
 
 if __name__ == "__main__":
@@ -178,6 +193,7 @@ if __name__ == "__main__":
     # [3]
     parser.add_argument("--do_map_loss", action='store_true')
     parser.add_argument("--use_focal_loss", action='store_true')
+    parser.add_argument("--local_use_position_embedder", action='store_true')
     # [4]
     parser.add_argument("--test_noise_predicting_task_loss", action='store_true')
     parser.add_argument("--dist_loss_with_max", action='store_true')

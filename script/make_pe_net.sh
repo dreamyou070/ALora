@@ -23,4 +23,4 @@ accelerate launch --config_file ../../../gpu_config/gpu_0_config \
  --data_path "../../../MyData/anomaly_detection/${bench_mark}" \
  --network_weights ${network_weights} \
  --trigger_word "${trigger_word}" \
- --obj_name "${obj_name}" --anomal_only_on_object \
+ --obj_name "${obj_name}" --anomal_only_on_object
