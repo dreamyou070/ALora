@@ -100,9 +100,6 @@ def main(args):
             return out  # head, pix_num, dim
 
     gquery_transformer = UNetUpBlock(in_size=160, out_size=280)
-    segmentation_net = SegmentationSubNetwork(in_channels=2240,
-                                              out_channels=1,
-                                              base_channels=64)
 
     print(f'\n step 5. optimizer')
     args.max_train_steps = len(train_dataloader) * args.max_train_epochs
@@ -120,8 +117,8 @@ def main(args):
     normal_activator = NormalActivator(loss_focal, loss_l2, args.use_focal_loss)
 
     print(f'\n step 8. model to device')
-    g_unet, g_text_encoder, g_network, optimizer, train_dataloader, lr_scheduler, g_position_embedder, gquery_transformer, segmentation_net = accelerator.prepare(
-        g_unet, g_text_encoder, g_network, optimizer, train_dataloader, lr_scheduler, g_position_embedder, gquery_transformer,segmentation_net)
+    g_unet, g_text_encoder, g_network, optimizer, train_dataloader, lr_scheduler, g_position_embedder, gquery_transformer = accelerator.prepare(
+        g_unet, g_text_encoder, g_network, optimizer, train_dataloader, lr_scheduler, g_position_embedder, gquery_transformer)
 
     g_text_encoders = transform_models_if_DDP([g_text_encoder])
     g_unet, g_network = transform_models_if_DDP([g_unet, g_network])
@@ -186,7 +183,7 @@ def main(args):
                     l_query_list = []
                     for layer in args.trg_layer_list :
                         if 'mid' not in layer :
-                            l_query_list.append(resize_query_features(l_query_dict[layer][0].squeeze()))
+                            l_query_list.append(resize_query_features(l_query_dict[layer][0].squeeze())) # feature selecting
                     local_query = torch.cat(l_query_list, dim=-1)  # 8, 64*64, 280
                 with torch.set_grad_enabled(True):
                     g_unet(latents,0,encoder_hidden_states,trg_layer_list=args.trg_layer_list, noise_type=g_position_embedder)
@@ -194,10 +191,10 @@ def main(args):
                 g_controller.reset()
                 for layer in args.trg_layer_list :
                     if 'mid' in layer :
-                        g_query = g_query_dict[layer][0].squeeze() # 8, 64, 160
+                        g_query = g_query_dict[layer][0].squeeze() # 8, 64, 160 (most global features)
                         g_key = g_key_dict[layer][0].squeeze()     # 8, 77, 160
                 global_query = gquery_transformer(g_query) # g_query = 8, 64, 160 -> 8, 64*64, 280 (feature generating with only global context)
-                # matching loss
+                # matching loss (why matching?)
                 matching_loss += loss_l2(local_query.float(), global_query.float()) # [8, 64*64, 280]
                 # matching throug segmentation
                 attention_scores = torch.baddbmm(torch.empty(g_query.shape[0], g_query.shape[1], g_key.shape[1], dtype=g_query.dtype, device=g_query.device),
