@@ -31,16 +31,17 @@ def call_model_package(args, weight_dtype, accelerator, is_local ):
     network.to(weight_dtype)
 
     # [3] PE
-    position_embedder = PositionalEmbedding(max_len=args.latent_res * args.latent_res,
-                                            d_model=args.d_dim)
-    if args.use_multi_position_embedder :
-        position_embedder = MultiPositionalEmbedding()
-    if args.all_positional_embedder :
-        position_embedder = AllPositionalEmbedding()
-    if args.all_self_cross_positional_embedder :
-        position_embedder = AllSelfCrossPositionalEmbedding()
-    if args.patch_positional_self_embedder :
-        position_embedder = Patch_MultiPositionalEmbedding()
+    position_embedder = None
+    if args.use_position_embedder :
+        position_embedder = PositionalEmbedding(max_len=args.latent_res * args.latent_res,d_model=args.d_dim)
+        if args.use_multi_position_embedder :
+            position_embedder = MultiPositionalEmbedding()
+        if args.all_positional_embedder :
+            position_embedder = AllPositionalEmbedding()
+        if args.all_self_cross_positional_embedder :
+            position_embedder = AllSelfCrossPositionalEmbedding()
+        if args.patch_positional_self_embedder :
+            position_embedder = Patch_MultiPositionalEmbedding()
 
 
 

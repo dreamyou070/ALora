@@ -18,6 +18,7 @@ from data.prepare_dataset import call_dataset
 from model import call_model_package
 from attention_store.normal_activator import passing_normalize_argument
 from data.mvtec import passing_mvtec_argument
+from torch import nn
 
 def main(args):
     print(f'\n step 1. setting')
@@ -46,17 +47,13 @@ def main(args):
     weight_dtype, save_dtype = prepare_dtype(args)
     text_encoder, vae, unet, network, position_embedder = call_model_package(args, weight_dtype, accelerator, True)
 
-    from model.query_transformer import GlobalQueryTransformer
-    from torch import nn
-    #gquery_transformer = GlobalQueryTransformer(hidden_dim=768,
-    #                                            num_feature_levels=4,
-    #                                            with_fea2d_pos=True)
+
     print(f'\n step 5. optimizer')
     args.max_train_steps = len(train_dataloader) * args.max_train_epochs
     trainable_params = network.prepare_optimizer_params(args.text_encoder_lr,
                                                         args.unet_lr, args.learning_rate)
-    trainable_params.append({"params": position_embedder.parameters(), "lr": args.learning_rate})
-    #trainable_params.append({"params": gquery_transformer.parameters(), "lr": args.learning_rate})
+    if args.use_position_embedder :
+        trainable_params.append({"params": position_embedder.parameters(), "lr": args.learning_rate})
     optimizer_name, optimizer_args, optimizer = get_optimizer(args, trainable_params)
 
     print(f'\n step 6. lr')
@@ -70,12 +67,17 @@ def main(args):
     print(f'\n step 8. model to device')
     #unet, text_encoder, network, optimizer, train_dataloader, lr_scheduler, position_embedder,query_transformer = accelerator.prepare(
     #    unet, text_encoder, network, optimizer, train_dataloader, lr_scheduler, position_embedder, gquery_transformer)
-    unet, text_encoder, network, optimizer, train_dataloader, lr_scheduler, position_embedder = accelerator.prepare(unet,
-          text_encoder, network, optimizer, train_dataloader, lr_scheduler, position_embedder)
+    if args.use_position_embedder:
+        unet, text_encoder, network, optimizer, train_dataloader, lr_scheduler, position_embedder = accelerator.prepare(unet,
+              text_encoder, network, optimizer, train_dataloader, lr_scheduler, position_embedder)
+    else :
+        unet, text_encoder, network, optimizer, train_dataloader, lr_scheduler = accelerator.prepare(unet,text_encoder,
+                                                                    network, optimizer, train_dataloader, lr_scheduler)
 
     text_encoders = transform_models_if_DDP([text_encoder])
     unet, network = transform_models_if_DDP([unet, network])
-    position_embedder = transform_models_if_DDP([position_embedder])[0]
+    if args.use_position_embedder:
+        position_embedder = transform_models_if_DDP([position_embedder])[0]
     if args.gradient_checkpointing:
         unet.train()
         position_embedder.train()
@@ -140,7 +142,10 @@ def main(args):
 
                 anomal_position_vector = batch["anomal_mask"].squeeze().flatten()
                 with torch.set_grad_enabled(True):
-                    unet(latents, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list,noise_type=position_embedder,)
+                    if args.use_position_embedder :
+                        unet(latents, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list,noise_type=position_embedder,)
+                    else :
+                        unet(latents, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list,)
                 query_dict, key_dict, attn_dict = controller.query_dict, controller.key_dict, controller.attn_dict
                 controller.reset()
                 attn_list, origin_query_list, query_list, key_list = [], [], [], []
@@ -163,10 +168,7 @@ def main(args):
                 normal_activator.collect_attention_scores(local_attn,
                                                           anomal_position_vector,
                                                           True)
-                normal_activator.collect_anomal_map_loss(local_attn, #
-                                                         anomal_position_vector)
-                # [2] glocal
-                #global_query = gquery_transformer(origin_query_list)
+                normal_activator.collect_anomal_map_loss(local_attn, anomal_position_vector)
 
             if args.do_background_masked_sample:
                 if args.patch_positional_self_embedder:
@@ -176,7 +178,10 @@ def main(args):
                         latents = vae.encode(batch["bg_anomal_image"].to(dtype=weight_dtype)).latent_dist.sample() * args.vae_scale_factor
                 anomal_position_vector = batch["bg_anomal_mask"].squeeze().flatten()
                 with torch.set_grad_enabled(True):
-                    unet(latents, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list,noise_type=position_embedder,)
+                    if args.use_position_embedder :
+                        unet(latents, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list,noise_type=position_embedder,)
+                    else :
+                        unet(latents, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list,)
                 query_dict, key_dict, attn_dict = controller.query_dict, controller.key_dict, controller.attn_dict
                 controller.reset()
                 attn_list, origin_query_list, query_list, key_list = [], [], [], []
@@ -404,6 +409,7 @@ if __name__ == "__main__":
     parser.add_argument("--all_positional_embedder", action='store_true')
     parser.add_argument("--all_self_cross_positional_embedder", action='store_true')
     parser.add_argument("--patch_positional_self_embedder", action='store_true')
+    parser.add_argument("--use_position_embedder", action='store_true')
 
     # -----------------------------------------------------------------------------------------------------------------
     args = parser.parse_args()

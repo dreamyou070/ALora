@@ -56,26 +56,27 @@ def register_attention_control(unet: nn.Module,controller: AttentionStore):
                 is_cross_attention = True
 
             """ cross self rechecking necessary """
-            if not argument.use_multi_position_embedder and not argument.all_positional_embedder and not argument.patch_positional_self_embedder and not argument.all_self_cross_positional_embedder :
-                if layer_name == argument.position_embedding_layer :
-                    hidden_states_pos = noise_type(hidden_states)
-                    hidden_states = hidden_states_pos
-            elif argument.use_multi_position_embedder :
-                if layer_name in argument.trg_layer_list :
-                    hidden_states_pos = noise_type(hidden_states)
-                    hidden_states = hidden_states_pos
-            elif argument.all_positional_embedder :
-                if is_cross_attention :
+            if argument.use_position_embedder :
+                if not argument.use_multi_position_embedder and not argument.all_positional_embedder and not argument.patch_positional_self_embedder and not argument.all_self_cross_positional_embedder :
+                    if layer_name == argument.position_embedding_layer :
+                        hidden_states_pos = noise_type(hidden_states)
+                        hidden_states = hidden_states_pos
+                elif argument.use_multi_position_embedder :
+                    if layer_name in argument.trg_layer_list :
+                        hidden_states_pos = noise_type(hidden_states)
+                        hidden_states = hidden_states_pos
+                elif argument.all_positional_embedder :
+                    if is_cross_attention :
+                        hidden_states_pos = noise_type(hidden_states, layer_name)
+                        hidden_states = hidden_states_pos
+                elif argument.all_self_cross_positional_embedder :
+                    #print(f'self and cross all positin embedding')
                     hidden_states_pos = noise_type(hidden_states, layer_name)
                     hidden_states = hidden_states_pos
-            elif argument.all_self_cross_positional_embedder :
-                #print(f'self and cross all positin embedding')
-                hidden_states_pos = noise_type(hidden_states, layer_name)
-                hidden_states = hidden_states_pos
 
-            elif argument.patch_positional_self_embedder and is_cross_attention :
-                hidden_states_pos = noise_type(hidden_states, layer_name)
-                hidden_states = hidden_states_pos
+                elif argument.patch_positional_self_embedder and is_cross_attention :
+                    hidden_states_pos = noise_type(hidden_states, layer_name)
+                    hidden_states = hidden_states_pos
 
             query = self.to_q(hidden_states)
             context = context if context is not None else hidden_states
