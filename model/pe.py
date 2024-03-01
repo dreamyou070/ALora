@@ -108,13 +108,14 @@ class AllPositionalEmbedding(nn.Module):
 
 class AllSelfCrossPositionalEmbedding(nn.Module):
 
-    def __init__(self,
-                 max_lens: int = [64*64,32*32,16*16],
-                 d_models: int = [320,640,1280]):
+    def __init__(self,):
+
         super().__init__()
+
         self.positional_encodings = {}
+
         for layer_name in layer_names_self_cross_res_dim.keys():
-            res,dim = layer_names_res_dim[layer_name]
+            res, dim = layer_names_self_cross_res_dim[layer_name]
             d_model = res*res
             pe = nn.Parameter(torch.randn(1,d_model, dim), requires_grad=True)
             self.positional_encodings[layer_name] = pe
