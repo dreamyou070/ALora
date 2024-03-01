@@ -8,7 +8,7 @@ layer_name='layer_3'
 sub_folder="up_16_32_64"
 file_name="train_global_masking_only_matchingloss"
 
-anomal_source_path="../../../MyData/anomal_source"
+anomal_source_path="../../../MyData/anomal_source_text_encoder_separately"
 network_weights="../../result/${bench_mark}/${obj_name}/${layer_name}/${sub_folder}/local_all_crossattn_pe/models/epoch-000009.safetensors" \
 #--position_embedding_layer 'down_blocks_0_attentions_0_transformer_blocks_0_attn1' --d_dim 320 --latent_res 64 \
 
@@ -31,7 +31,7 @@ accelerate launch --config_file ../../../gpu_config/gpu_0_1_2_3_4_5_config \
  --back_min_beta_scale 0.6 \
  --back_max_beta_scale 0.9 \
  --back_trg_beta 0 \
- --do_anomal_sample --do_object_detection --do_background_masked_sample \
+ --do_anomal_sample --do_object_detection --do_background_masked_sample --global_net_normal_training \
  --all_positional_embedder \
  --trg_layer_list "['mid_block_attentions_0_transformer_blocks_0_attn2',
                     'up_blocks_1_attentions_2_transformer_blocks_0_attn2',
