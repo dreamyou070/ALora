@@ -136,14 +136,14 @@ def main(args):
     g_text_encoder.to(accelerator.device, dtype=weight_dtype)
 
     print(f'\n step 3. inference')
-    #g_network = LoRANetwork(text_encoder=g_text_encoder,
-    #                      unet=g_unet,
-    #                      lora_dim=args.network_dim,
-    #                      alpha=args.network_alpha,
-    #                      module_class=LoRAInfModule)
-    #g_network.apply_to(g_text_encoder, g_unet, True, True)
-    #raw_state_dict = g_network.state_dict()
-    #raw_state_dict_orig = raw_state_dict.copy()
+    g_network = LoRANetwork(text_encoder=g_text_encoder,
+                          unet=g_unet,
+                          lora_dim=args.network_dim,
+                          alpha=args.network_alpha,
+                          module_class=LoRAInfModule)
+    g_network.apply_to(g_text_encoder, g_unet, True, True)
+    raw_state_dict = g_network.state_dict()
+    raw_state_dict_orig = raw_state_dict.copy()
 
     print(f'\n step 3. call experiment network dirs')
     models = os.listdir(args.network_folder)
@@ -161,11 +161,11 @@ def main(args):
         g_position_embedder.to(accelerator.device, dtype=weight_dtype)
 
         # [3.3] load network
-        #anomal_detecting_state_dict = load_file(network_model_dir)
-        #for k in anomal_detecting_state_dict.keys():
-        #    raw_state_dict[k] = anomal_detecting_state_dict[k]
-        #g_network.load_state_dict(raw_state_dict)
-        #g_network.to(accelerator.device, dtype=weight_dtype)
+        anomal_detecting_state_dict = load_file(network_model_dir)
+        for k in anomal_detecting_state_dict.keys():
+            raw_state_dict[k] = anomal_detecting_state_dict[k].to(dtype=weight_dtype)
+        g_network.load_state_dict(raw_state_dict)
+        g_network.to(accelerator.device, dtype=weight_dtype)
 
         # [3.4] files
         parent, _ = os.path.split(args.network_folder)
