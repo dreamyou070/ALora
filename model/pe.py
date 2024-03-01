@@ -60,7 +60,6 @@ class AllPositionalEmbedding(nn.Module):
             self.positional_encodings[layer_name] = SinglePositionalEmbedding(max_len = res*res, d_model = dim)
 
     def forward(self, x: torch.Tensor, layer_name):
-
         position_embedder = self.positional_encodings[layer_name]
         output = position_embedder(x)
         return output
