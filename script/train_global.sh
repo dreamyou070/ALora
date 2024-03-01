@@ -6,7 +6,7 @@ obj_name='transistor'
 trigger_word='transistor'
 layer_name='layer_3'
 sub_folder="up_16_32_64"
-file_name="train_global_masking"
+file_name="train_global_masking_only_matchingloss"
 
 anomal_source_path="../../../MyData/anomal_source"
 network_weights="../../result/${bench_mark}/${obj_name}/${layer_name}/${sub_folder}/local_all_crossattn_pe/models/epoch-000009.safetensors" \

@@ -143,15 +143,16 @@ def main(args):
 
             # ---------------------------------------------------------------------------------------------------------------- #
             # global full image feature
-            with torch.set_grad_enabled(True):
-                g_unet(latents,0,encoder_hidden_states,trg_layer_list=args.trg_layer_list, noise_type=g_position_embedder)
-            g_query_dict, g_key_dict = g_controller.query_dict, g_controller.key_dict
-            g_controller.reset()
-            g_query_list = []
-            for layer in args.trg_layer_list:
-                if 'mid' not in layer:
-                    g_query_list.append(resize_query_features(g_query_dict[layer][0].squeeze()))  # feature selecting
-            global_query = torch.cat(g_query_list, dim=-1)  # 8, 64*64, 280
+            if args.global_net_normal_training :
+                with torch.set_grad_enabled(True):
+                    g_unet(latents,0,encoder_hidden_states,trg_layer_list=args.trg_layer_list, noise_type=g_position_embedder)
+                g_query_dict, g_key_dict = g_controller.query_dict, g_controller.key_dict
+                g_controller.reset()
+                g_query_list = []
+                for layer in args.trg_layer_list:
+                    if 'mid' not in layer:
+                        g_query_list.append(resize_query_features(g_query_dict[layer][0].squeeze()))  # feature selecting
+                global_query = torch.cat(g_query_list, dim=-1)  # 8, 64*64, 280
 
             # ---------------------------------------------------------------------------------------------------------------- #
             # global full image feature
@@ -168,8 +169,12 @@ def main(args):
                     g_query_list.append(resize_query_features(g_query_dict[layer][0].squeeze()))  # feature selecting
             global_query_masked = torch.cat(g_query_list, dim=-1)  # 8, 64*64, 280
 
-            matching_loss += loss_l2(local_query.float(), global_query.float()) # [8, 64*64, 280]
-            matching_loss += loss_l2(global_query.float(),global_query_masked.float())  # [8, 64*64, 280]
+            if args.global_net_normal_training :
+                matching_loss += loss_l2(local_query.float(), global_query.float()) # [8, 64*64, 280]
+
+            matching_loss += loss_l2(local_query.float(),global_query_masked.float())  # [8, 64*64, 280]
+
+            """
 
             latent_diff = abs(local_query.float() - global_query_masked.float())
             latent_diff = latent_diff.mean(dim=0).mean(dim=-1)
@@ -177,9 +182,10 @@ def main(args):
             anormality = 1 - (latent_diff / latent_diff.max())
             anormality_loss += loss_l2(anormality.float(),
                                        anomal_position_vector.float())
-
+            """
             # -------------------------------------------------------------------------------------------------------- #
-            loss = matching_loss.mean() + anormality_loss.mean()
+            #loss = matching_loss.mean() + anormality_loss.mean()
+            loss = matching_loss.mean()
             loss = loss.to(weight_dtype)
             current_loss = loss.detach().item()
             if epoch == args.start_epoch:
