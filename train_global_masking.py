@@ -123,8 +123,9 @@ def main(args):
             device = accelerator.device
             loss_dict = {}
             matching_loss, anormality_loss = 0.0, 0.0
+            """
             with torch.set_grad_enabled(True):
-                """ global and local share text network """
+                # global and local share text network 
                 encoder_hidden_states = l_text_encoder(batch["input_ids"].to(device))["last_hidden_state"]
             with torch.no_grad():
                 latents = l_vae.encode(batch["image"].to(dtype=weight_dtype)).latent_dist.sample() * args.vae_scale_factor
@@ -137,6 +138,7 @@ def main(args):
                         l_query_list.append(resize_query_features(l_query_dict[layer][0].squeeze())) # feature selecting
                 local_query = torch.cat(l_query_list, dim=-1)  # 8, 64*64, 280
             print(f'local query finish')
+            """
 
             # ---------------------------------------------------------------------------------------------------------------- #
             # global full image feature
@@ -153,7 +155,7 @@ def main(args):
                     if 'mid' not in layer:
                         g_query_list.append(resize_query_features(g_query_dict[layer][0].squeeze()))  # feature selecting
                 global_query = torch.cat(g_query_list, dim=-1)  # 8, 64*64, 280
-
+            print(f'global net finish')
             # ---------------------------------------------------------------------------------------------------------------- #
             """
             # global full image feature
