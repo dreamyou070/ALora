@@ -145,7 +145,7 @@ class MVTecDRAEMTrainDataset(Dataset):
         pil = Image.fromarray(np_img)
     def get_img_name(self, img_path):
         rgb_folder, name = os.path.split(img_path)
-        net_name, ext = os.path.splittext(name)
+        net_name, ext = os.path.splitext(name)
         #class_folder, rgb = os.path.split(rgb_folder)
         #return name, class_folder
         return net_name
