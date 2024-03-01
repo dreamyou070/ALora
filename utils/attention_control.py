@@ -67,7 +67,8 @@ def register_attention_control(unet: nn.Module,controller: AttentionStore):
                 if is_cross_attention :
                     hidden_states_pos = noise_type(hidden_states, layer_name)
                     hidden_states = hidden_states_pos
-            elif argument.all_positional_self_cross_embedder :
+            elif argument.patch_positional_self_embedder :
+                print(f'adding pe in layer = {layer_name}')
                 hidden_states_pos = noise_type(hidden_states, layer_name)
                 hidden_states = hidden_states_pos
 
