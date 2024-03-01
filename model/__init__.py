@@ -40,18 +40,6 @@ def call_model_package(args, weight_dtype, accelerator, is_local ):
     if is_local :
         if args.local_use_position_embedder :
             position_embedder = AllPositionalEmbedding()
-    else :
-        position_embedder = PositionalEmbedding(max_len=args.latent_res * args.latent_res,d_model=args.d_dim)
-        if args.use_multi_position_embedder :
-            position_embedder = MultiPositionalEmbedding()
-        if args.all_positional_embedder :
-            position_embedder = AllPositionalEmbedding()
-        if args.all_self_cross_positional_embedder :
-            position_embedder = AllSelfCrossPositionalEmbedding()
-        if args.patch_positional_self_embedder :
-            position_embedder = Patch_MultiPositionalEmbedding()
-
-    if is_local :
         if args.network_weights is not None and args.local_use_position_embedder :
             models_folder,  lora_file = os.path.split(args.network_weights)
             base_folder = os.path.split(models_folder)[0]
@@ -63,5 +51,17 @@ def call_model_package(args, weight_dtype, accelerator, is_local ):
             position_embedder.load_state_dict(position_embedder_state_dict)
             print(f'Position Embedding Loading Weights from {position_embedder_path}')
             position_embedder.to(weight_dtype)
+
+    else :
+        position_embedder = PositionalEmbedding(max_len=args.latent_res * args.latent_res,d_model=args.d_dim)
+        if args.use_multi_position_embedder :
+            position_embedder = MultiPositionalEmbedding()
+        if args.all_positional_embedder :
+            position_embedder = AllPositionalEmbedding()
+        if args.all_self_cross_positional_embedder :
+            position_embedder = AllSelfCrossPositionalEmbedding()
+        if args.patch_positional_self_embedder :
+            position_embedder = Patch_MultiPositionalEmbedding()
+
 
     return text_encoder, vae, unet, network, position_embedder
