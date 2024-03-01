@@ -59,9 +59,8 @@ def main(args):
     weight_dtype, save_dtype = prepare_dtype(args)
     l_text_encoder, l_vae, l_unet, l_network, l_position_embedder = call_model_package(args, weight_dtype, accelerator, True)
     g_text_encoder, g_vae, g_unet, g_network, g_position_embedder = call_model_package(args, weight_dtype, accelerator,False)
-    vae_config = g_vae.config
     if args.train_vae :
-        scratch_vae = AutoencoderKL.from_config(vae_config)
+        scratch_vae = AutoencoderKL.from_config(g_vae.config)
 
     print(f'\n step 5. optimizer')
     args.max_train_steps = len(train_dataloader) * args.max_train_epochs

@@ -1,5 +1,5 @@
 from model.lora import create_network
-from model.pe import AllPositionalEmbedding
+from model.pe import AllPositionalEmbedding, SinglePositionalEmbedding
 from model.diffusion_model import load_target_model
 import os
 from safetensors.torch import load_file
@@ -67,6 +67,7 @@ def call_model_package(args, weight_dtype, accelerator, is_local ):
         network.eval()
 
     else :
-        position_embedder = AllPositionalEmbedding()
+        #position_embedder = AllPositionalEmbedding()
+        position_embedder = SinglePositionalEmbedding()
 
     return text_encoder, vae, unet, network, position_embedder
