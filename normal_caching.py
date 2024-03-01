@@ -91,7 +91,7 @@ def main(args):
     register_attention_control(unet, controller)
 
     local_query_dir = os.path.join(args.output_dir, 'local_query')
-    os.makedirs(local_query_dir, exists_ok=True)
+    os.makedirs(local_query_dir, exist_ok=True)
 
     print(f'\n step 9. generate local query')
     for sample in train_dataloader :
