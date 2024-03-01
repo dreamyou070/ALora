@@ -117,6 +117,8 @@ def main(args):
     l_network.to(accelerator.device, dtype=weight_dtype)
     l_controller = AttentionStore()
     register_attention_control(l_unet, l_controller)
+    l_position_embedder.requires_grad_(False)
+    l_position_embedder.to(accelerator.device, dtype=weight_dtype)
 
     print(f' (2.2) global model')
     g_text_encoder, g_vae, g_unet, g_network, g_position_embedder = call_model_package(args, weight_dtype, accelerator, False)
@@ -219,7 +221,10 @@ def main(args):
                             local_query = torch.cat(l_query_list, dim=-1)  # 8, 64*64, 280
                             # (4) extract global features
 
-                            g_unet(latent, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list,noise_type=g_position_embedder)
+                            g_unet(latent,
+                                   0,
+                                   encoder_hidden_states,
+                                   trg_layer_list=args.trg_layer_list,noise_type=g_position_embedder)
                             g_query_dict, g_key_dict = g_controller.query_dict, g_controller.key_dict
                             g_controller.reset()
                             g_query_list = []
