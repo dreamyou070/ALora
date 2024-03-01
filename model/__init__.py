@@ -32,8 +32,9 @@ def call_model_package(args, weight_dtype, accelerator, is_local ):
 
     # [3] PE
     position_embedder = None
-    if is_local and args.local_use_position_embedder :
-        position_embedder = AllPositionalEmbedding()
+    if is_local :
+        if args.local_use_position_embedder :
+            position_embedder = AllPositionalEmbedding()
     else :
         position_embedder = PositionalEmbedding(max_len=args.latent_res * args.latent_res,d_model=args.d_dim)
         if args.use_multi_position_embedder :
