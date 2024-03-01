@@ -35,16 +35,6 @@ def resize_query_features(query):
     # resized_query = resized_query.view(64 * 64,dim)  # #view(head_num, -1, dim).squeeze()  # 1, pix_num, dim
     return resized_query
 
-
-def reshape_batch_dim_to_heads(tensor):
-    batch_size, seq_len, dim = tensor.shape
-    head_size = 8
-    res = int(seq_len ** 0.5)
-    tensor = tensor.reshape(batch_size // head_size, head_size, seq_len, dim)
-    tensor = tensor.permute(0, 2, 1, 3).reshape(batch_size // head_size, seq_len, dim * head_size)
-    tensor = tensor.reshape(batch_size // head_size, res, res, dim * head_size).permute(0,3,1,2)
-    return tensor
-
 def main(args):
 
     print(f'\n step 1. setting')
@@ -72,42 +62,11 @@ def main(args):
     weight_dtype, save_dtype = prepare_dtype(args)
     l_text_encoder, l_vae, l_unet, l_network, l_position_embedder = call_model_package(args, weight_dtype, accelerator, True)
     g_text_encoder, g_vae, g_unet, g_network, g_position_embedder = call_model_package(args, weight_dtype, accelerator,False)
-    from diffusers import AutoencoderKL
-    scratch_vae = AutoencoderKL.from_config(g_vae.config)
-
-    class UNetUpBlock(nn.Module):
-        def __init__(self, in_size, out_size):
-            super(UNetUpBlock, self).__init__()
-
-            self.up = nn.Sequential(nn.Upsample(mode='bilinear', scale_factor=2),
-                                    nn.Conv2d(in_size, out_size, kernel_size=1),
-                                    nn.ReLU(inplace=True),
-                                    nn.Upsample(mode='bilinear', scale_factor=2),
-                                    nn.Conv2d(out_size, out_size, kernel_size=1),
-                                    nn.ReLU(inplace=True),
-                                    nn.Upsample(mode='bilinear', scale_factor=2),
-                                    nn.Conv2d(out_size, out_size, kernel_size=1), )
-            # self.conv_block = UNetConvBlock(out_size, out_size, padding, batch_norm)
-            self.dim = out_size
-
-        def forward(self, x):
-            #
-            h, pix_num, d = x.shape
-            res = int(pix_num ** 0.5)
-            x = x.reshape(h, res, res, d).permute(0,3,1,2)
-            out = self.up(x)  # head, dim, res, res
-            out = out.permute(0, 2, 3, 1)  # head, res, res, dim
-            import einops
-            out = einops.rearrange(out, 'h a b d -> h (a b) d')
-            return out  # head, pix_num, dim
-
-    gquery_transformer = UNetUpBlock(in_size=160, out_size=280)
 
     print(f'\n step 5. optimizer')
     args.max_train_steps = len(train_dataloader) * args.max_train_epochs
     trainable_params = g_network.prepare_optimizer_params(args.text_encoder_lr, args.unet_lr, args.learning_rate)
     trainable_params.append({"params": g_position_embedder.parameters(), "lr": args.learning_rate})
-    trainable_params.append({"params": gquery_transformer.parameters(), "lr": args.learning_rate})
     optimizer_name, optimizer_args, optimizer = get_optimizer(args, trainable_params)
 
     print(f'\n step 6. lr')
@@ -116,15 +75,13 @@ def main(args):
     print(f'\n step 7. loss function')
     loss_focal = FocalLoss()
     loss_l2 = torch.nn.modules.loss.MSELoss(reduction='none')
-    normal_activator = NormalActivator(loss_focal, loss_l2, args.use_focal_loss)
 
     print(f'\n step 8. model to device')
-    g_unet, g_text_encoder, g_network, optimizer, train_dataloader, lr_scheduler, g_position_embedder, gquery_transformer, scratch_vae = accelerator.prepare(
-        g_unet, g_text_encoder, g_network, optimizer, train_dataloader, lr_scheduler, g_position_embedder, gquery_transformer, scratch_vae)
+    g_unet, g_text_encoder, g_network, optimizer, train_dataloader, lr_scheduler, g_position_embedder = accelerator.prepare(
+        g_unet, g_text_encoder, g_network, optimizer, train_dataloader, lr_scheduler, g_position_embedder)
 
     g_text_encoders = transform_models_if_DDP([g_text_encoder])
     g_unet, g_network = transform_models_if_DDP([g_unet, g_network])
-    scratch_vae = transform_models_if_DDP([scratch_vae])[0]
     if args.gradient_checkpointing:
         g_unet.train()
         g_position_embedder.train()
@@ -160,162 +117,70 @@ def main(args):
     register_attention_control(l_unet, l_controller)
 
     print(f'\n step 9. Training !')
-    progress_bar = tqdm(range(args.max_train_steps), smoothing=0,
-                        disable=not accelerator.is_local_main_process, desc="steps")
+    progress_bar = tqdm(range(args.max_train_steps), smoothing=0,disable=not accelerator.is_local_main_process, desc="steps")
     global_step = 0
     loss_list = []
-
     for epoch in range(args.start_epoch, args.max_train_epochs):
-
         epoch_loss_total = 0
         accelerator.print(f"\nepoch {epoch + 1}/{args.start_epoch + args.max_train_epochs}")
-
         for step, batch in enumerate(train_dataloader):
             device = accelerator.device
             loss_dict = {}
-            matching_loss, anomal_map_loss = 0.0, 0.0
+            matching_loss, anormality_loss = 0.0, 0.0
             with torch.set_grad_enabled(True):
                 encoder_hidden_states = l_text_encoder(batch["input_ids"].to(device))["last_hidden_state"]
-            """ Train Only With Normal Data (normal feature matching, anomal feature unmatching..?) """
-            if args.do_normal_sample :
-                with torch.no_grad():
-                    latents = l_vae.encode(batch["image"].to(dtype=weight_dtype)).latent_dist.sample() * args.vae_scale_factor
-                    l_unet(latents, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list,noise_type=l_position_embedder,)
-                    l_query_dict, l_key_dict = l_controller.query_dict, l_controller.key_dict
-                    l_controller.reset()
-                    l_query_list = []
-                    for layer in args.trg_layer_list :
-                        if 'mid' not in layer :
-                            l_query_list.append(resize_query_features(l_query_dict[layer][0].squeeze())) # feature selecting
-                    local_query = torch.cat(l_query_list, dim=-1)  # 8, 64*64, 280
-
-                latents = scratch_vae.encode(batch["image"].to(dtype=weight_dtype)).latent_dist.sample() * args.vae_scale_factor
-                with torch.set_grad_enabled(True):
-                    g_unet(latents,0,encoder_hidden_states,trg_layer_list=args.trg_layer_list, noise_type=g_position_embedder)
-                g_query_dict, g_key_dict = g_controller.query_dict, g_controller.key_dict
-                g_controller.reset()
-                g_query_list = []
+            with torch.no_grad():
+                latents = l_vae.encode(batch["image"].to(dtype=weight_dtype)).latent_dist.sample() * args.vae_scale_factor
+                l_unet(latents, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list,noise_type=l_position_embedder,)
+                l_query_dict, l_key_dict = l_controller.query_dict, l_controller.key_dict
+                l_controller.reset()
+                l_query_list = []
                 for layer in args.trg_layer_list :
                     if 'mid' not in layer :
-                        g_query_list.append(
-                            resize_query_features(l_query_dict[layer][0].squeeze()))  # feature selecting
-                        #g_query = g_query_dict[layer][0].squeeze() # 8, 64, 160 (most global features)
-                        #g_key = g_key_dict[layer][0].squeeze()     # 8, 77, 160
-                global_query = torch.cat(g_query_list, dim=-1)  # 8, 64*64, 280
-                # matching loss (why matching?)
-                matching_loss += loss_l2(local_query.float(), global_query.float()) # [8, 64*64, 280]
-                """
-                # matching throug segmentation
-                attention_scores = torch.baddbmm(torch.empty(g_query.shape[0], g_query.shape[1], g_key.shape[1], dtype=g_query.dtype, device=g_query.device),
-                                   g_query, g_key.transpose(-1, -2), beta=0,) # [head, 64, 77]
-                global_attn = attention_scores.softmax(dim=-1)[:, :, 1:65] # [head, 64, 64]
-                head = global_attn.shape[0]
-                attn = [torch.diagonal(global_attn[i]) for i in range(head)]
-                global_anomal_map = torch.stack(attn, dim=0).mean(dim=0).view(8, 8).unsqueeze(0).unsqueeze(0)
-                global_anomal_map = nn.functional.interpolate(global_anomal_map, size=(64, 64), mode='bilinear').squeeze().flatten()
-                trg_anomal_map = torch.zeros(64*64).to(global_anomal_map.device)
-                """
-                #local_map  = reshape_batch_dim_to_heads(local_query)  # [1,2240,64,64]
-                #global_map = reshape_batch_dim_to_heads(global_query) # [1,64,64,2240]
-                #anomal_map = segmentation_net(global_map)
-                #trg_anomal_map = torch.zeros(1,1,64,64)
-                #anomal_map_loss += loss_l2(anomal_map.float(),
-                #                           trg_anomal_map.float().to(anomal_map.device)) # [1,1,64,64]
-                anomal_map_loss += loss_l2(global_anomal_map.float(),
-                                           trg_anomal_map.float())
+                        l_query_list.append(resize_query_features(l_query_dict[layer][0].squeeze())) # feature selecting
+                local_query = torch.cat(l_query_list, dim=-1)  # 8, 64*64, 280
+
+            # ---------------------------------------------------------------------------------------------------------------- #
+            # global full image feature
+            with torch.no_grad():
+                latents = l_vae.encode(batch["image"].to(dtype=weight_dtype)).latent_dist.sample() * args.vae_scale_factor
+            with torch.set_grad_enabled(True):
+                g_unet(latents,0,encoder_hidden_states,trg_layer_list=args.trg_layer_list, noise_type=g_position_embedder)
+            g_query_dict, g_key_dict = g_controller.query_dict, g_controller.key_dict
+            g_controller.reset()
+            g_query_list = []
+            for layer in args.trg_layer_list:
+                if 'mid' not in layer:
+                    g_query_list.append(resize_query_features(g_query_dict[layer][0].squeeze()))  # feature selecting
+            global_query = torch.cat(g_query_list, dim=-1)  # 8, 64*64, 280
+
+            # ---------------------------------------------------------------------------------------------------------------- #
+            # global full image feature
+            with torch.no_grad():
+                latents = l_vae.encode(batch["bg_anomal_image"].to(dtype=weight_dtype)).latent_dist.sample() * args.vae_scale_factor
+            anomal_position_vector = batch["bg_anomal_mask"].squeeze().flatten() # 64*64
+            with torch.set_grad_enabled(True):
+                g_unet(latents,0,encoder_hidden_states,trg_layer_list=args.trg_layer_list, noise_type=g_position_embedder)
+            g_query_dict, g_key_dict = g_controller.query_dict, g_controller.key_dict
+            g_controller.reset()
+            g_query_list = []
+            for layer in args.trg_layer_list:
+                if 'mid' not in layer:
+                    g_query_list.append(resize_query_features(g_query_dict[layer][0].squeeze()))  # feature selecting
+            global_query_masked = torch.cat(g_query_list, dim=-1)  # 8, 64*64, 280
+
+            matching_loss += loss_l2(local_query.float(), global_query.float()) # [8, 64*64, 280]
+            matching_loss += loss_l2(global_query.float(),global_query_masked.float())  # [8, 64*64, 280]
+
+            latent_diff = abs(local_query.float() - global_query_masked.float()).mean()
+            latent_diff = latent_diff.mean(dim=0).mean(dim=-1)
+            latent_diff = (latent_diff.max() + 0.0001) - latent_diff
+            anormality = 1 - (latent_diff / latent_diff.max())
+            anormality_loss += loss_l2(anormality.float(),
+                                       anomal_position_vector.float())
 
             # -------------------------------------------------------------------------------------------------------- #
-            if args.do_anomal_sample :
-                with torch.no_grad():
-                    latents = l_vae.encode(batch["anomal_image"].to(dtype=weight_dtype)).latent_dist.sample() * args.vae_scale_factor
-                    anomal_position_vector = batch["anomal_mask"].squeeze().flatten() # 64*64
-                    l_unet(latents, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list,noise_type=l_position_embedder,)
-                    l_query_dict, l_key_dict = l_controller.query_dict, l_controller.key_dict
-                    l_controller.reset()
-                    l_query_list = []
-                    for layer in args.trg_layer_list :
-                        if 'mid' not in layer :
-                            l_query_list.append(resize_query_features(l_query_dict[layer][0].squeeze()))
-                    local_query = torch.cat(l_query_list, dim=-1)  # 8, 64*64, 280
-                with torch.set_grad_enabled(True):
-                    g_unet(latents,0,encoder_hidden_states,trg_layer_list=args.trg_layer_list, noise_type=g_position_embedder)
-                g_query_dict, g_key_dict = g_controller.query_dict, g_controller.key_dict
-                g_controller.reset()
-                for layer in args.trg_layer_list:
-                    if 'mid' in layer:
-                        g_query = g_query_dict[layer][0].squeeze()  # 8, 64, 160
-                        g_key = g_key_dict[layer][0].squeeze()  # 8, 77, 160
-                global_query = gquery_transformer(g_query)  # g_query = 8, 64, 160 -> 8, 64*64, 280 (feature generating with only global context)
-                # matching loss
-                matching_loss += loss_l2(local_query.float(), global_query.float())  # [8, 64*64, 280]
-                # matching throug segmentation
-                attention_scores = torch.baddbmm(
-                    torch.empty(g_query.shape[0], g_query.shape[1], g_key.shape[1], dtype=g_query.dtype,
-                                device=g_query.device),
-                    g_query, g_key.transpose(-1, -2), beta=0, )  # [head, 64, 77]
-                global_attn = attention_scores.softmax(dim=-1)[:, :, 1:65]  # [head, 64, 64]
-                head = global_attn.shape[0]
-                attn = [torch.diagonal(global_attn[i]) for i in range(head)]
-                global_anomal_map = torch.stack(attn, dim=0).mean(dim=0).view(8, 8).unsqueeze(0).unsqueeze(0)
-                global_anomal_map = nn.functional.interpolate(global_anomal_map, size=(64, 64),
-                                                              mode='bilinear').squeeze().flatten()
-                trg_anomal_map = anomal_position_vector
-                # local_map  = reshape_batch_dim_to_heads(local_query)  # [1,2240,64,64]
-                # global_map = reshape_batch_dim_to_heads(global_query) # [1,64,64,2240]
-                # anomal_map = segmentation_net(global_map)
-                # trg_anomal_map = torch.zeros(1,1,64,64)
-                # anomal_map_loss += loss_l2(anomal_map.float(),
-                #                           trg_anomal_map.float().to(anomal_map.device)) # [1,1,64,64]
-                anomal_map_loss += loss_l2(global_anomal_map.float(),
-                                           trg_anomal_map.float())
-            # -------------------------------------------------------------------------------------------------------- #
-            if args.do_background_masked_sample :
-                with torch.no_grad():
-                    latents = l_vae.encode(
-                        batch["bg_anomal_image"].to(dtype=weight_dtype)).latent_dist.sample() * args.vae_scale_factor
-                    anomal_position_vector = batch["bg_anomal_mask"].squeeze().flatten()  # 64*64
-                    l_unet(latents, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list,
-                           noise_type=l_position_embedder, )
-                    l_query_dict, l_key_dict = l_controller.query_dict, l_controller.key_dict
-                    l_controller.reset()
-                    l_query_list = []
-                    for layer in args.trg_layer_list:
-                        if 'mid' not in layer:
-                            l_query_list.append(resize_query_features(l_query_dict[layer][0].squeeze()))
-                    local_query = torch.cat(l_query_list, dim=-1)  # 8, 64*64, 280
-                with torch.set_grad_enabled(True):
-                    g_unet(latents, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list,
-                           noise_type=g_position_embedder)
-                g_query_dict, g_key_dict = g_controller.query_dict, g_controller.key_dict
-                g_controller.reset()
-                for layer in args.trg_layer_list:
-                    if 'mid' in layer:
-                        g_query = g_query_dict[layer][0].squeeze()  # 8, 64, 160
-                        g_key = g_key_dict[layer][0].squeeze()  # 8, 77, 160
-                global_query = gquery_transformer(
-                    g_query)  # g_query = 8, 64, 160 -> 8, 64*64, 280 (feature generating with only global context)
-                # matching loss
-                matching_loss += loss_l2(local_query.float(), global_query.float())  # [8, 64*64, 280]
-                # matching throug segmentation
-                attention_scores = torch.baddbmm(
-                    torch.empty(g_query.shape[0], g_query.shape[1], g_key.shape[1], dtype=g_query.dtype,
-                                device=g_query.device),
-                    g_query, g_key.transpose(-1, -2), beta=0, )  # [head, 64, 77]
-                global_attn = attention_scores.softmax(dim=-1)[:, :, 1:65]  # [head, 64, 64]
-                head = global_attn.shape[0]
-                attn = [torch.diagonal(global_attn[i]) for i in range(head)]
-                global_anomal_map = torch.stack(attn, dim=0).mean(dim=0).view(8, 8).unsqueeze(0).unsqueeze(0)
-                global_anomal_map = nn.functional.interpolate(global_anomal_map, size=(64, 64),
-                                                              mode='bilinear').squeeze().flatten()
-                trg_anomal_map = anomal_position_vector
-                # local_map  = reshape_batch_dim_to_heads(local_query)  # [1,2240,64,64]
-                # global_map = reshape_batch_dim_to_heads(global_query) # [1,64,64,2240]
-                # anomal_map = segmentation_net(global_map)
-                # trg_anomal_map = torch.zeros(1,1,64,64)
-                # anomal_map_loss += loss_l2(anomal_map.float(),
-                #                           trg_anomal_map.float().to(anomal_map.device)) # [1,1,64,64]
-                anomal_map_loss += loss_l2(global_anomal_map.float(), trg_anomal_map.float())
-            loss = matching_loss.mean()  #+ anomal_map_loss.mean()
+            loss = matching_loss.mean() + anormality_loss.mean()
             loss = loss.to(weight_dtype)
             current_loss = loss.detach().item()
             if epoch == args.start_epoch:
@@ -335,7 +200,6 @@ def main(args):
                 global_step += 1
             if is_main_process:
                 progress_bar.set_postfix(**loss_dict)
-            normal_activator.reset()
             if global_step >= args.max_train_steps:
                 break
         # ----------------------------------------------------------------------------------------------------------- #
@@ -350,33 +214,6 @@ def main(args):
                 p_save_dir = os.path.join(position_embedder_base_save_dir,
                                           f'position_embedder_{epoch + 1}.safetensors')
                 pe_model_save(accelerator.unwrap_model(g_position_embedder), save_dtype, p_save_dir)
-            # saving query transformer
-            query_transformer_save_dir = os.path.join(args.output_dir, 'query_transformer')
-            os.makedirs(query_transformer_save_dir, exist_ok = True)
-            qt_save_dir = os.path.join(query_transformer_save_dir,f'query_transformer_{epoch + 1}.safetensors')
-            def qt_model_save(model, save_dtype, save_dir):
-                state_dict = model.state_dict()
-                for key in list(state_dict.keys()):
-                    v = state_dict[key]
-                    v = v.detach().clone().to("cpu").to(save_dtype)
-                    state_dict[key] = v
-                _, file = os.path.split(save_dir)
-                if os.path.splitext(file)[1] == ".safetensors":
-                    from safetensors.torch import save_file
-                    save_file(state_dict, save_dir)
-                else:
-                    torch.save(state_dict, save_dir)
-
-            qt_model_save(accelerator.unwrap_model(gquery_transformer), save_dtype, qt_save_dir)
-            # saving segmentaton model
-            segmentation_save_dir = os.path.join(args.output_dir, 'segmentation_model')
-            os.makedirs(segmentation_save_dir, exist_ok = True)
-            seg_save_dir = os.path.join(segmentation_save_dir, f'segmentation_{epoch + 1}.safetensors')
-            qt_model_save(accelerator.unwrap_model(segmentation_net),
-                          save_dtype,
-                          seg_save_dir)
-
-
     accelerator.end_training()
 
 if __name__ == "__main__":

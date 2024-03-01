@@ -4,9 +4,14 @@ import torch.nn as nn
 import torch
 import collections.abc
 
+print(latent_diff)
 
+#latent_diff = latent_diff / latent_diff.max() # only anomal = 1
+#print(latent_diff) # [64*64]
+
+"""
 def save_tensors(module: nn.Module, features, name: str):
-    """ Process and save activations in the module. """
+     Process and save activations in the module. 
     if type(features) in [list, tuple]:
         features = [f.detach().float() if f is not None else None
                     for f in features]
@@ -45,6 +50,9 @@ def main() :
     inputs = processor(images=image, return_tensors="pt").data['pixel_values'] # batch, channel(=3), H(=224), W(=224)
     output = vitmodel(inputs).last_hidden_state # [1batch, 1 + 196 (=14*14), 768 dim]
 
+    extracted_features = torch.randn(8,64*64, 280)
+
+
     print(f' step 4. extract feature')
     activations = []
     for h_layer in hooking_layers :
@@ -55,3 +63,4 @@ def main() :
 
 if __name__ == '__main__' :
     main()
+"""
