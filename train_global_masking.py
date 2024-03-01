@@ -141,6 +141,8 @@ def main(args):
                     encoder_hidden_states = text_encoder(batch["input_ids"].to(device))["last_hidden_state"]
                 if args.train_vae :
                     latents = scratch_vae.encode(batch["image"].to(dtype=weight_dtype)).latent_dist.sample() * args.vae_scale_factor
+                else :
+                    latents = vae.encode(batch["image"].to(dtype=weight_dtype)).latent_dist.sample() * args.vae_scale_factor
                 unet(latents,0,encoder_hidden_states, trg_layer_list=args.trg_layer_list, noise_type=position_embedder)
                 query_dict, key_dict = controller.query_dict, controller.key_dict
                 controller.reset()
