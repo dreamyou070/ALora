@@ -7,5 +7,5 @@ model = ViTForImageClassification.from_pretrained(vit_dir)
 
 img_dir = r'/home/dreamyou070/MyData/anomal_source/dtd_images/banded/banded_0002.jpg'
 image = Image.open(img_dir).convert('RGB')
-inputs = processor(images=image, return_tensors="pt")
-print(f'inputs : {inputs.shape}')
+inputs = processor(images=image, return_tensors="pt").data['pixel_values']
+print(f'input pixel values : {inputs}')
