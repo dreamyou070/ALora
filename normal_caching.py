@@ -61,7 +61,7 @@ def main(args):
 
     vae.requires_grad_(False)
     vae.to(accelerator.device, dtype=weight_dtype)
-    vae.eval()
+    #vae.eval()
 
     unet.requires_grad_(False)
     unet.to(accelerator.device, dtype=weight_dtype)
@@ -101,7 +101,7 @@ def main(args):
         device = accelerator.device
         with torch.no_grad():
             encoder_hidden_states = text_encoder(sample["input_ids"].to(device))["last_hidden_state"]
-            latents = vae.encode(sample["image"].to(dtype=weight_dtype)).latent_dist.sample() * args.vae_scale_factor
+            latents = vae.encode(sample["image"].to(device)).latent_dist.sample() * args.vae_scale_factor
             unet(latents, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list,noise_type=position_embedder,)
             query_dict, key_dict = controller.query_dict, controller.key_dict
             controller.reset()
