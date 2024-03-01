@@ -6,10 +6,7 @@ obj_name='transistor'
 caption='transistor'
 layer_name='layer_3'
 sub_folder="up_16_32_64"
-file_name="train_global_masking_only_matchingloss_text_encoder_separately"
-
-
-position_embedding_layer="down_blocks_0_attentions_0_transformer_blocks_0_attn1"
+file_name="from_trained_pe_local_global_from_pretrained_vae"
 
 accelerate launch --config_file ../../../gpu_config/gpu_0_config \
  --main_process_port $port_number ../reconstruction_local_global_diff.py \
@@ -22,5 +19,7 @@ accelerate launch --config_file ../../../gpu_config/gpu_0_config \
  --trg_layer_list "['up_blocks_1_attentions_2_transformer_blocks_0_attn2',
                     'up_blocks_2_attentions_2_transformer_blocks_0_attn2',
                     'up_blocks_3_attentions_2_transformer_blocks_0_attn2',]" \
- --d_dim 320 --use_position_embedder --all_positional_embedder \
+ --local_pretrained_network_dir "../../result/${bench_mark}/${obj_name}/${layer_name}/${sub_folder}/local_all_crossattn_pe/models/epoch-000009.safetensors" \
+ --local_position_embedder_dir "../../result/${bench_mark}/${obj_name}/${layer_name}/${sub_folder}/local_all_crossattn_pe/position_embedder/position_embedder_9.safetensors" \
+ --all_positional_embedder \
  --threds [0.5]

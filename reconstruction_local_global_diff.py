@@ -106,7 +106,6 @@ def main(args):
     print(f' (2.1) local model')
     # [1] call local model
     l_text_encoder, l_vae, l_unet, l_network, l_position_embedder = call_model_package(args, weight_dtype, accelerator, True)
-
     l_vae.requires_grad_(False)
     l_vae.to(accelerator.device, dtype=weight_dtype)
     l_unet.requires_grad_(False)
@@ -119,15 +118,13 @@ def main(args):
     register_attention_control(l_unet, l_controller)
     l_position_embedder.requires_grad_(False)
     l_position_embedder.to(accelerator.device, dtype=weight_dtype)
+    # [1] local pretrained network
+    l_network.load_state_dict(load_file(args.local_pretrained_network_dir))
+    l_position_embedder.load_state_dict(load_file(args.local_position_embedder_dir))
+
 
     print(f' (2.2) global model')
-    g_text_encoder, g_vae, g_unet, _ = load_target_model(args, weight_dtype, accelerator)
-    if args.use_position_embedder:
-        g_position_embedder = PositionalEmbedding(max_len=args.latent_res * args.latent_res, d_model=args.d_dim)
-        if args.use_multi_position_embedder : g_position_embedder = MultiPositionalEmbedding()
-        elif args.all_positional_embedder : g_position_embedder = AllPositionalEmbedding()
-        elif args.patch_positional_self_embedder : g_position_embedder = Patch_MultiPositionalEmbedding()
-        elif args.all_self_cross_positional_embedder : g_position_embedder = AllSelfCrossPositionalEmbedding()
+    g_text_encoder, g_vae, g_unet, g_network, g_position_embedder = load_target_model(args, weight_dtype, accelerator)
     g_vae.requires_grad_(False)
     g_vae.to(accelerator.device, dtype=weight_dtype)
     g_unet.requires_grad_(False)
@@ -136,11 +133,6 @@ def main(args):
     g_text_encoder.to(accelerator.device, dtype=weight_dtype)
 
     print(f'\n step 3. inference')
-    g_network = LoRANetwork(text_encoder=g_text_encoder,
-                          unet=g_unet,
-                          lora_dim=args.network_dim,
-                          alpha=args.network_alpha,
-                          module_class=LoRAInfModule)
     g_network.apply_to(g_text_encoder, g_unet, True, True)
     raw_state_dict = g_network.state_dict()
     raw_state_dict_orig = raw_state_dict.copy()
@@ -311,7 +303,6 @@ if __name__ == '__main__':
     parser.add_argument("--do_normalized_score", action='store_true')
     parser.add_argument("--d_dim", default=320, type=int)
     parser.add_argument("--thred", default=0.5, type=float)
-    parser.add_argument("--image_classification_layer", type=str)
     parser.add_argument("--use_focal_loss", action='store_true')
     parser.add_argument("--gen_batchwise_attn", action='store_true')
 
@@ -319,7 +310,8 @@ if __name__ == '__main__':
     parser.add_argument("--all_self_cross_positional_embedder", action='store_true')
     parser.add_argument("--patch_positional_self_embedder", action='store_true')
     parser.add_argument("--use_multi_position_embedder", action='store_true')
-
+    parser.add_argument("--local_pretrained_network_dir", type=str)
+    parser.add_argument("--local_position_embedder_dir", type=str)
     args = parser.parse_args()
     passing_argument(args)
     unet_passing_argument(args)
