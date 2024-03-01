@@ -6,7 +6,7 @@ obj_name='transistor'
 caption='transistor'
 layer_name='layer_3'
 sub_folder="up_16_32_64"
-file_name="train_global_masking"
+file_name="train_global_masking_only_matchingloss_text_encoder_separately"
 
 
 position_embedding_layer="down_blocks_0_attentions_0_transformer_blocks_0_attn1"
