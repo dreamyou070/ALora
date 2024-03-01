@@ -338,6 +338,7 @@ if __name__ == '__main__':
     parser.add_argument("--use_multi_position_embedder", action='store_true')
 
     parser.add_argument("--object_crop", action='store_true')
+
     args = parser.parse_args()
 
 
