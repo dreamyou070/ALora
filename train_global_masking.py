@@ -92,6 +92,8 @@ def main(args):
     unet, network = transform_models_if_DDP([unet, network])
     if args.use_position_embedder:
         position_embedder = transform_models_if_DDP([position_embedder])[0]
+    if args.train_vae :
+        scratch_vae = transform_models_if_DDP([scratch_vae])[0]
     if args.gradient_checkpointing:
         unet.train()
         position_embedder.train()
