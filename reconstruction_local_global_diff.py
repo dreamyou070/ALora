@@ -121,7 +121,7 @@ def main(args):
 
 
     print(f' (2.2) global model')
-    g_text_encoder, g_vae, g_unet, g_network, g_position_embedder = call_model_package(args, weight_dtype, accelerator)
+    g_text_encoder, g_vae, g_unet, g_network, g_position_embedder = call_model_package(args, weight_dtype, accelerator, False)
     g_vae.requires_grad_(False)
     g_vae.to(accelerator.device, dtype=weight_dtype)
     g_unet.requires_grad_(False)
