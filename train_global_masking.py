@@ -128,6 +128,7 @@ def main(args):
             loss_dict = {}
             matching_loss, anormality_loss = 0.0, 0.0
             with torch.set_grad_enabled(True):
+                """ global and local share text network """
                 encoder_hidden_states = l_text_encoder(batch["input_ids"].to(device))["last_hidden_state"]
             with torch.no_grad():
                 latents = l_vae.encode(batch["image"].to(dtype=weight_dtype)).latent_dist.sample() * args.vae_scale_factor
@@ -142,8 +143,6 @@ def main(args):
 
             # ---------------------------------------------------------------------------------------------------------------- #
             # global full image feature
-            with torch.no_grad():
-                latents = l_vae.encode(batch["image"].to(dtype=weight_dtype)).latent_dist.sample() * args.vae_scale_factor
             with torch.set_grad_enabled(True):
                 g_unet(latents,0,encoder_hidden_states,trg_layer_list=args.trg_layer_list, noise_type=g_position_embedder)
             g_query_dict, g_key_dict = g_controller.query_dict, g_controller.key_dict
