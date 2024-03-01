@@ -255,7 +255,7 @@ if __name__ == '__main__':
     parser.add_argument('--network_dim', type=int, default=64)
     parser.add_argument('--network_alpha', type=float, default=4)
     parser.add_argument('--network_folder', type=str)
-    parser.add_argument("--network_weights", type=str, default=None,help="pretrained local network weight")
+    parser.add_argument("--network_weights", type=str, default=None,)
 
     parser.add_argument("--lowram", action="store_true", )
     # step 4. dataset and dataloader

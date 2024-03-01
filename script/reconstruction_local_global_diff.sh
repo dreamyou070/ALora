@@ -7,7 +7,7 @@ caption='transistor'
 layer_name='layer_3'
 sub_folder="up_16_32_64"
 file_name="train_global_masking"
-network_weights="../../result/${bench_mark}/${obj_name}/${layer_name}/${sub_folder}/local_all_crossattn_pe/models/epoch-000009.safetensors" \
+
 
 position_embedding_layer="down_blocks_0_attentions_0_transformer_blocks_0_attn1"
 
@@ -18,7 +18,7 @@ accelerate launch --config_file ../../../gpu_config/gpu_0_config \
  --data_path "../../../MyData/anomaly_detection/${bench_mark}/${obj_name}/test" \
  --obj_name "${obj_name}" --prompt "${caption}" \
  --latent_res 64 \
- --network_weights ${network_weights} \
+ --network_weights "../../result/${bench_mark}/${obj_name}/${layer_name}/${sub_folder}/local_all_crossattn_pe/models/epoch-000009.safetensors" \
  --trg_layer_list "['up_blocks_1_attentions_2_transformer_blocks_0_attn2',
                     'up_blocks_2_attentions_2_transformer_blocks_0_attn2',
                     'up_blocks_3_attentions_2_transformer_blocks_0_attn2',]" \
