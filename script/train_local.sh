@@ -6,7 +6,7 @@ obj_name='transistor'
 trigger_word='transistor'
 layer_name='layer_3'
 sub_folder="up_16_32_64"
-file_name="train_local_scaled_query_use_all_cross_position_with_patchembed"
+file_name="train_local_scaled_query_use_all_self_cross_position"
 
 anomal_source_path="../../../MyData/anomal_source"
 # --position_embedding_layer 'down_blocks_0_attentions_0_transformer_blocks_0_attn1' --d_dim 320 --latent_res 64 \
@@ -32,4 +32,4 @@ accelerate launch --config_file ../../../gpu_config/gpu_0_1_2_3_4_5_config \
                     'up_blocks_2_attentions_2_transformer_blocks_0_attn2',
                     'up_blocks_3_attentions_2_transformer_blocks_0_attn2',]" \
  --do_attn_loss --attn_loss_weight 1.0 --do_cls_train --normal_weight 1 \
- --patch_positional_self_embedder
+ --all_self_cross_positional_embedder
