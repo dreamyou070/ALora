@@ -131,8 +131,13 @@ def main(args):
                 encoder_hidden_states = text_encoder(batch["input_ids"].to(device))["last_hidden_state"]
 
             if args.do_anomal_sample:
-                with torch.no_grad():
-                    latents = vae.encode(batch["anomal_image"].to(dtype=weight_dtype)).latent_dist.sample() * args.vae_scale_factor
+
+                if args.patch_positional_self_embedder:
+                    latents = position_embedder.patch_embed(batch["anomal_image"].to(dtype=weight_dtype))
+                else :
+                    with torch.no_grad():
+                        latents = vae.encode(batch["anomal_image"].to(dtype=weight_dtype)).latent_dist.sample() * args.vae_scale_factor
+
                 anomal_position_vector = batch["anomal_mask"].squeeze().flatten()
                 with torch.set_grad_enabled(True):
                     unet(latents, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list,noise_type=position_embedder,)
@@ -164,8 +169,11 @@ def main(args):
                 #global_query = gquery_transformer(origin_query_list)
 
             if args.do_background_masked_sample:
-                with torch.no_grad():
-                    latents = vae.encode(batch["bg_anomal_image"].to(dtype=weight_dtype)).latent_dist.sample() * args.vae_scale_factor
+                if args.patch_positional_self_embedder:
+                    latents = position_embedder.patch_embed(batch["bg_anomal_image"].to(dtype=weight_dtype))
+                else :
+                    with torch.no_grad():
+                        latents = vae.encode(batch["bg_anomal_image"].to(dtype=weight_dtype)).latent_dist.sample() * args.vae_scale_factor
                 anomal_position_vector = batch["bg_anomal_mask"].squeeze().flatten()
                 with torch.set_grad_enabled(True):
                     unet(latents, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list,noise_type=position_embedder,)
@@ -394,7 +402,7 @@ if __name__ == "__main__":
     parser.add_argument("--back_trg_beta", type=float)
     parser.add_argument("--on_desktop", action='store_true')
     parser.add_argument("--all_positional_embedder", action='store_true')
-    parser.add_argument("--all_positional_self_cross_embedder", action='store_true')
+    parser.add_argument("--patch_positional_self_embedder", action='store_true')
     # -----------------------------------------------------------------------------------------------------------------
     args = parser.parse_args()
     unet_passing_argument(args)
@@ -402,3 +410,4 @@ if __name__ == "__main__":
     passing_normalize_argument(args)
     passing_mvtec_argument(args)
     main(args)
+

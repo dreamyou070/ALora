@@ -1,5 +1,5 @@
 from model.lora import create_network
-from model.pe import PositionalEmbedding, MultiPositionalEmbedding, AllPositionalEmbedding, AllPositionalEmbeddingSelfCross
+from model.pe import PositionalEmbedding, MultiPositionalEmbedding, AllPositionalEmbedding, Patch_MultiPositionalEmbedding
 from model.diffusion_model import load_target_model
 import os
 from safetensors.torch import load_file
@@ -37,8 +37,8 @@ def call_model_package(args, weight_dtype, accelerator, is_local ):
         position_embedder = MultiPositionalEmbedding()
     if args.all_positional_embedder :
         position_embedder = AllPositionalEmbedding()
-    if args.all_positional_self_cross_embedder :
-        position_embedder = AllPositionalEmbeddingSelfCross()
+    if args.patch_positional_self_embedder :
+        position_embedder = Patch_MultiPositionalEmbedding()
 
 
 
