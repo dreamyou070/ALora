@@ -32,10 +32,8 @@ def call_model_package(args, weight_dtype, accelerator, is_local ):
 
     # [3] PE
     position_embedder = None
-    if is_local :
-        if args.local_use_position_embedder :
-            position_embedder = AllPositionalEmbedding()
-            #position_embedder = PositionalEmbedding(max_len=args.latent_res * args.latent_res, d_model=args.d_dim)
+    if is_local and args.local_use_position_embedder :
+        position_embedder = AllPositionalEmbedding()
     else :
         position_embedder = PositionalEmbedding(max_len=args.latent_res * args.latent_res,d_model=args.d_dim)
         if args.use_multi_position_embedder :
@@ -47,8 +45,8 @@ def call_model_package(args, weight_dtype, accelerator, is_local ):
         if args.patch_positional_self_embedder :
             position_embedder = Patch_MultiPositionalEmbedding()
 
-    if args.network_weights is not None:
-        if is_local and args.local_use_position_embedder :
+    if is_local :
+        if args.network_weights is not None and args.local_use_position_embedder :
             models_folder,  lora_file = os.path.split(args.network_weights)
             base_folder = os.path.split(models_folder)[0]
             lora_name, _ = os.path.splitext(lora_file)
@@ -59,6 +57,5 @@ def call_model_package(args, weight_dtype, accelerator, is_local ):
             position_embedder.load_state_dict(position_embedder_state_dict)
             print(f'Position Embedding Loading Weights from {position_embedder_path}')
             position_embedder.to(weight_dtype)
-
 
     return text_encoder, vae, unet, network, position_embedder

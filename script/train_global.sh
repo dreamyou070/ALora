@@ -35,7 +35,9 @@ accelerate launch --config_file ../../../gpu_config/gpu_0_1_2_3_4_5_config \
  --back_max_beta_scale 0.9 \
  --back_trg_beta 0 \
  --do_anomal_sample --do_object_detection --do_background_masked_sample --global_net_normal_training \
- --local_use_position_embedder --all_positional_embedder --use_position_embedder \
+ --local_use_position_embedder \
+ --all_positional_embedder \
+ --use_position_embedder \
  --trg_layer_list "['mid_block_attentions_0_transformer_blocks_0_attn2',
                     'up_blocks_1_attentions_2_transformer_blocks_0_attn2',
                     'up_blocks_2_attentions_2_transformer_blocks_0_attn2',
