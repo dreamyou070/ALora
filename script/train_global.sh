@@ -12,7 +12,7 @@ sub_folder="up_16_32_64"
 file_name="from_no_pe_local_global_from_pretrained_vae"
 
 anomal_source_path="../../../MyData/anomal_source"
-network_weights="../../result/${bench_mark}/${obj_name}/${layer_name}/${sub_folder}/local_no_pe/models/epoch-000005safetensors" \
+network_weights="../../result/${bench_mark}/${obj_name}/${layer_name}/${sub_folder}/local_no_pe/models/epoch-000005.safetensors" \
 #--position_embedding_layer 'down_blocks_0_attentions_0_transformer_blocks_0_attn1' --d_dim 320 --latent_res 64 \
 
 accelerate launch --config_file ../../../gpu_config/gpu_0_1_2_3_4_5_config \
