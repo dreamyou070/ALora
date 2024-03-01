@@ -221,8 +221,18 @@ def main(args):
                     trg_h, trg_w = input_img.size
                     if accelerator.is_main_process:
                         with torch.no_grad():
-                            img = np.array(input_img.resize((512, 512)))
-                            latent = image2latent(img, vae, weight_dtype)
+                            img = np.array(input_img.resize((512, 512))) # [512,512,3]
+                            #latent = image2latent(img, vae, weight_dtype)
+                            image = torch.from_numpy(img).float() / 127.5 - 1
+                            image = image.permute(2, 0, 1).unsqueeze(0).to(vae.device, weight_dtype).unsqueeze(0)
+                            print(f'image : {image.shape}')
+                            #latents = vae.encode(image)['latent_dist'].mean
+                            #latent = latents * 0.18215
+                            with torch.no_grad():
+                                if args.patch_positional_self_embedder:
+                                    latent = position_embedder.patch_embed(image.to(dtype=weight_dtype))
+                                else:
+                                    latent = vae.encode(image.to(dtype=weight_dtype)).latent_dist.sample() * 0.18215
                             cls_map_pil, normal_map_pil, anomaly_map_pil = inference(latent,
                                                                                      tokenizer, text_encoder, unet,
                                                                                      controller, normal_activator,
@@ -244,6 +254,7 @@ def main(args):
                     Image.open(rgb_img_dir).convert('RGB').save(os.path.join(save_base_folder, rgb_img))
             # ---------------------------------------------------------------------------------------------------------
             # [2] train path
+            """
             if not args.object_crop:
                 train_img_folder = os.path.join(parent, 'train')
 
@@ -289,6 +300,7 @@ def main(args):
                             anomaly_map_pil.save( os.path.join(save_base_folder, f'{name}_anomal.png'))
                             anomaly_map_pil.save(os.path.join(answer_anomal_folder, f'{name}.tiff'))
                         Image.open(rgb_img_dir).convert('RGB').save(os.path.join(save_base_folder, rgb_img))
+            """
         print(f'Model To Original')
         for k in raw_state_dict_orig.keys():
             raw_state_dict[k] = raw_state_dict_orig[k]
