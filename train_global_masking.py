@@ -78,7 +78,7 @@ def main(args):
 
     print(f'\n step 8. model to device')
     if args.train_vae:
-        vae, unet, text_encoder, network, optimizer, train_dataloader, lr_scheduler = accelerator.prepare(vae, unet, text_encoder,
+        scratch_vae, unet, text_encoder, network, optimizer, train_dataloader, lr_scheduler = accelerator.prepare(scratch_vae, unet, text_encoder,
                                                                                                           network, optimizer,
                                                                                                           train_dataloader,
                                                                                                           lr_scheduler)
