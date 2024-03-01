@@ -41,7 +41,10 @@ def inference(latent,
     input_ids, attention_mask = get_input_ids(tokenizer, args.prompt)
     encoder_hidden_states = text_encoder(input_ids.to(text_encoder.device))["last_hidden_state"]
     # [2] unet
-    unet(latent, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list, noise_type=position_embedder, )
+    if args.use_position_embedder:
+        unet(latent, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list, noise_type=position_embedder, )
+    else :
+        unet(latent, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list)
     query_dict, key_dict, attn_dict = controller.query_dict, controller.key_dict, controller.attn_dict
     controller.reset()
     attn_list, origin_query_list, query_list, key_list = [], [], [], []
@@ -78,28 +81,6 @@ def inference(latent,
     return cls_map_pil, normal_map_pil, anomaly_map_pil
 
 
-def generate_object_point(object_mask_pil):
-    object_mask_np = np.array(object_mask_pil)
-    h, w = object_mask_np.shape
-    h_indexs, w_indexs = [], []
-    for h_i in range(h):
-        for w_i in range(w):
-            if object_mask_np[h_i, w_i] > 0:
-                h_indexs.append(h_i)
-                w_indexs.append(w_i)
-
-    h_start, h_end = min(h_indexs), max(h_indexs)
-    w_start, w_end = min(w_indexs), max(w_indexs)
-
-    h_pad = 0.02 * h
-    w_pad = 0.02 * w
-    h_start = h_start - h_pad if h_start - h_pad > 0 else 0
-    h_end = h_end + h_pad if h_end + h_pad < h else h
-    w_start = w_start - w_pad if w_start - w_pad > 0 else 0
-    w_end = w_end + w_pad if w_end + w_pad < w else w
-    h_start, h_end, w_start, w_end = int(h_start), int(h_end), int(w_start), int(w_end)
-
-    return h_start, h_end, w_start, w_end
 
 def main(args):
 
@@ -115,10 +96,10 @@ def main(args):
     text_encoder, vae, unet, _ = load_target_model(args, weight_dtype,
                                                    accelerator)
 
+    position_embedder = None
     if args.use_position_embedder:
         position_embedder = PositionalEmbedding(max_len=args.latent_res * args.latent_res,
                                                 d_model=args.d_dim)
-
         if args.use_multi_position_embedder :
             position_embedder = MultiPositionalEmbedding()
 
@@ -159,12 +140,13 @@ def main(args):
         lora_epoch = int(lora_name.split('-')[-1])
 
         # [1] loead pe
-        parent = os.path.split(args.network_folder)[0]
-        pe_base_dir = os.path.join(parent, f'position_embedder')
-        pretrained_pe_dir = os.path.join(pe_base_dir, f'position_embedder_{lora_epoch}.safetensors')
-        position_embedder_state_dict = load_file(pretrained_pe_dir)
-        position_embedder.load_state_dict(position_embedder_state_dict)
-        position_embedder.to(accelerator.device, dtype=weight_dtype)
+        if args.use_position_embedder:
+            parent = os.path.split(args.network_folder)[0]
+            pe_base_dir = os.path.join(parent, f'position_embedder')
+            pretrained_pe_dir = os.path.join(pe_base_dir, f'position_embedder_{lora_epoch}.safetensors')
+            position_embedder_state_dict = load_file(pretrained_pe_dir)
+            position_embedder.load_state_dict(position_embedder_state_dict)
+            position_embedder.to(accelerator.device, dtype=weight_dtype)
 
         # [2] load network
         anomal_detecting_state_dict = load_file(network_model_dir)

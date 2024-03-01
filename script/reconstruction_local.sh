@@ -6,10 +6,12 @@ obj_name='transistor'
 caption='transistor'
 layer_name='layer_3'
 sub_folder="up_16_32_64"
-file_name="train_local_scaled_query_use_all_self_cross_position"
+file_name="local_no_pe"
 
 # position_embedding_layer="down_blocks_0_attentions_0_transformer_blocks_0_attn1"
 #--d_dim 320 --use_position_embedder --position_embedding_layer ${position_embedding_layer} \
+#--use_position_embedder --all_self_cross_positional_embedder \
+
 accelerate launch --config_file ../../../gpu_config/gpu_0_config \
  --main_process_port $port_number ../reconstruction_local.py \
  --pretrained_model_name_or_path ../../../pretrained_stable_diffusion/stable-diffusion-v1-5/v1-5-pruned.safetensors \
@@ -20,5 +22,4 @@ accelerate launch --config_file ../../../gpu_config/gpu_0_config \
  --trg_layer_list "['up_blocks_1_attentions_2_transformer_blocks_0_attn2',
                     'up_blocks_2_attentions_2_transformer_blocks_0_attn2',
                     'up_blocks_3_attentions_2_transformer_blocks_0_attn2',]" \
- --use_position_embedder --all_self_cross_positional_embedder \
  --threds [0.5]
