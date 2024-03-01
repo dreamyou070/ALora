@@ -302,6 +302,8 @@ if __name__ == "__main__":
     parser.add_argument("--gradient_checkpointing", action="store_true", help="enable gradient checkpointing")
     parser.add_argument("--dataset_ex", action='store_true')
     parser.add_argument("--gen_batchwise_attn", action='store_true')
+
+
     # [0]
     parser.add_argument("--do_object_detection", action='store_true')
     parser.add_argument("--do_normal_sample", action='store_true')
@@ -344,6 +346,7 @@ if __name__ == "__main__":
     parser.add_argument("--all_self_cross_positional_embedder", action='store_true')
     parser.add_argument("--patch_positional_self_embedder", action='store_true')
     parser.add_argument("--use_multi_position_embedder", action='store_true')
+    parser.add_argument("--global_net_normal_training", action='store_true')
     # -----------------------------------------------------------------------------------------------------------------
     args = parser.parse_args()
     unet_passing_argument(args)
