@@ -64,6 +64,10 @@ def main(args):
     vae_config = g_vae.config
     if args.train_vae :
         scratch_vae = AutoencoderKL.from_config(vae_config)
+    g_position_embedder.train()
+    print(f'g_position_embedder : {g_position_embedder}')
+    print(f'g_position_embedder : {g_position_embedder.parameter()}')
+    print(f'type of g_position_embedder = {type(g_position_embedder)}')
 
     print(f'\n step 5. optimizer')
     args.max_train_steps = len(train_dataloader) * args.max_train_epochs
@@ -106,7 +110,6 @@ def main(args):
     del t_enc
     g_network.prepare_grad_etc(g_text_encoder, g_unet)
     g_vae.to(accelerator.device, dtype=weight_dtype)
-
 
     l_text_encoder, l_vae, l_unet, l_network, l_position_embedder = call_model_package(args, weight_dtype, accelerator,True)
     l_unet = l_unet.to(accelerator.device, dtype=weight_dtype)
