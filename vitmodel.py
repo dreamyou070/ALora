@@ -12,3 +12,4 @@ print(f'input pixel values : {inputs.shape}')
 
 vitmodel = ViTModel.from_pretrained(vit_dir)
 output = vitmodel(inputs)
+print(f'output : {output.shape}')
