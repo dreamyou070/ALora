@@ -62,9 +62,7 @@ def main(args):
     vae_config = g_vae.config
     if args.train_vae :
         scratch_vae = AutoencoderKL.from_config(vae_config)
-        
-    from model.pe import AllPositionalEmbedding
-    g_position_embedder = AllPositionalEmbedding()
+    g_position_embedder = transform_models_if_DDP([g_position_embedder])[0]
 
     print(f'\n step 5. optimizer')
     args.max_train_steps = len(train_dataloader) * args.max_train_epochs
