@@ -121,21 +121,29 @@ def main(args):
     l_position_embedder.to(accelerator.device, dtype=weight_dtype)
 
     print(f' (2.2) global model')
-    g_text_encoder, g_vae, g_unet, g_network, g_position_embedder = call_model_package(args, weight_dtype, accelerator, False)
+    g_text_encoder, g_vae, g_unet, _ = load_target_model(args, weight_dtype, accelerator)
+    if args.use_position_embedder:
+        g_position_embedder = PositionalEmbedding(max_len=args.latent_res * args.latent_res, d_model=args.d_dim)
+        if args.use_multi_position_embedder : g_position_embedder = MultiPositionalEmbedding()
+        elif args.all_positional_embedder : g_position_embedder = AllPositionalEmbedding()
+        elif args.patch_positional_self_embedder : g_position_embedder = Patch_MultiPositionalEmbedding()
+        elif args.all_self_cross_positional_embedder : g_position_embedder = AllSelfCrossPositionalEmbedding()
     g_vae.requires_grad_(False)
     g_vae.to(accelerator.device, dtype=weight_dtype)
     g_unet.requires_grad_(False)
     g_unet.to(accelerator.device, dtype=weight_dtype)
     g_text_encoder.requires_grad_(False)
     g_text_encoder.to(accelerator.device, dtype=weight_dtype)
-    g_network = LoRANetwork(text_encoder=g_text_encoder,
-                          unet=g_unet,
-                          lora_dim=args.network_dim,
-                          alpha=args.network_alpha,
-                          module_class=LoRAInfModule)
-    g_network.apply_to(g_text_encoder, g_unet, True, True)
-    raw_state_dict = g_network.state_dict()
-    raw_state_dict_orig = raw_state_dict.copy()
+
+    print(f'\n step 3. inference')
+    #g_network = LoRANetwork(text_encoder=g_text_encoder,
+    #                      unet=g_unet,
+    #                      lora_dim=args.network_dim,
+    #                      alpha=args.network_alpha,
+    #                      module_class=LoRAInfModule)
+    #g_network.apply_to(g_text_encoder, g_unet, True, True)
+    #raw_state_dict = g_network.state_dict()
+    #raw_state_dict_orig = raw_state_dict.copy()
 
     print(f'\n step 3. call experiment network dirs')
     models = os.listdir(args.network_folder)
@@ -148,15 +156,16 @@ def main(args):
 
         # [3.2] global pe
         pe_base_dir = os.path.join(os.path.split(args.network_folder)[0], f'position_embedder')
-        g_position_embedder.load_state_dict(load_file(os.path.join(pe_base_dir, f'position_embedder_{lora_epoch}.safetensors')))
+        g_position_embedder.load_state_dict(load_file(os.path.join(pe_base_dir,
+                                                                   f'position_embedder_{lora_epoch}.safetensors')))
         g_position_embedder.to(accelerator.device, dtype=weight_dtype)
 
         # [3.3] load network
-        anomal_detecting_state_dict = load_file(network_model_dir)
-        for k in anomal_detecting_state_dict.keys():
-            raw_state_dict[k] = anomal_detecting_state_dict[k]
-        g_network.load_state_dict(raw_state_dict)
-        g_network.to(accelerator.device, dtype=weight_dtype)
+        #anomal_detecting_state_dict = load_file(network_model_dir)
+        #for k in anomal_detecting_state_dict.keys():
+        #    raw_state_dict[k] = anomal_detecting_state_dict[k]
+        #g_network.load_state_dict(raw_state_dict)
+        #g_network.to(accelerator.device, dtype=weight_dtype)
 
         # [3.4] files
         parent, _ = os.path.split(args.network_folder)
@@ -195,12 +204,9 @@ def main(args):
                 for rgb_img in rgb_imgs:
                     name, ext = os.path.splitext(rgb_img)
                     rgb_img_dir = os.path.join(rgb_folder, rgb_img)
-                    pil_img = Image.open(rgb_img_dir).convert('RGB')
-                    org_h, org_w = pil_img.size
-
+                    input_img = Image.open(rgb_img_dir).convert('RGB')
+                    org_h, org_w = input_img.size
                     # [1] read object mask
-                    input_img = pil_img
-                    trg_h, trg_w = input_img.size
                     if accelerator.is_main_process:
                         with torch.no_grad():
                             img = np.array(input_img.resize((512, 512)))
