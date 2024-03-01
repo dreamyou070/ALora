@@ -13,7 +13,7 @@ from PIL import Image
 from utils.image_utils import load_image, image2latent
 import numpy as np
 from model.diffusion_model import load_target_model
-from model.pe import PositionalEmbedding, MultiPositionalEmbedding, AllPositionalEmbedding
+from model.pe import PositionalEmbedding, MultiPositionalEmbedding, AllPositionalEmbedding, Patch_MultiPositionalEmbedding
 from safetensors.torch import load_file
 from attention_store.normal_activator import NormalActivator
 from attention_store.normal_activator import passing_normalize_argument
@@ -125,6 +125,9 @@ def main(args):
         elif args.all_positional_embedder :
             position_embedder = AllPositionalEmbedding()
 
+        elif args.patch_positional_self_embedder :
+            position_embedder = Patch_MultiPositionalEmbedding()
+
     print(f'\n step 2. accelerator and device')
     vae.requires_grad_(False)
     vae.to(accelerator.device, dtype=weight_dtype)
@@ -224,10 +227,7 @@ def main(args):
                             img = np.array(input_img.resize((512, 512))) # [512,512,3]
                             #latent = image2latent(img, vae, weight_dtype)
                             image = torch.from_numpy(img).float() / 127.5 - 1
-                            image = image.permute(2, 0, 1).unsqueeze(0).to(vae.device, weight_dtype).unsqueeze(0)
-                            print(f'image : {image.shape}')
-                            #latents = vae.encode(image)['latent_dist'].mean
-                            #latent = latents * 0.18215
+                            image = image.permute(2, 0, 1).unsqueeze(0).to(vae.device, weight_dtype) # [1,3,512,512]
                             with torch.no_grad():
                                 if args.patch_positional_self_embedder:
                                     latent = position_embedder.patch_embed(image.to(dtype=weight_dtype))
@@ -352,6 +352,8 @@ if __name__ == '__main__':
     parser.add_argument("--use_multi_position_embedder", action='store_true')
     parser.add_argument("--all_positional_embedder", action='store_true')
     parser.add_argument("--all_positional_self_cross_embedder", action='store_true')
+    parser.add_argument("--patch_positional_self_embedder", action='store_true')
+
     args = parser.parse_args()
     passing_argument(args)
     unet_passing_argument(args)
