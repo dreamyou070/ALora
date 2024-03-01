@@ -142,12 +142,13 @@ def main(args):
 
             # ---------------------------------------------------------------------------------------------------------------- #
             # global full image feature
+            print(f'g_position_embedder device = {g_position_embedder.device}')
             if args.global_net_normal_training :
                 with torch.set_grad_enabled(True):
                     g_encoder_hidden_states = g_text_encoder(batch["input_ids"].to(device))["last_hidden_state"]
                     if args.train_vae :
                         latents = scratch_vae.encode(batch["image"].to(dtype=weight_dtype)).latent_dist.sample() * args.vae_scale_factor
-                    g_unet(latents,0,g_encoder_hidden_states,trg_layer_list=args.trg_layer_list, noise_type=g_position_embedder)
+                    g_unet(latents,0,g_encoder_hidden_states, trg_layer_list=args.trg_layer_list, noise_type=g_position_embedder)
                 g_query_dict, g_key_dict = g_controller.query_dict, g_controller.key_dict
                 g_controller.reset()
                 g_query_list = []
