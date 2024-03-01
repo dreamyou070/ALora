@@ -13,12 +13,9 @@ from PIL import Image
 from utils.image_utils import load_image, image2latent
 import numpy as np
 from model.diffusion_model import load_target_model
-from model.pe import PositionalEmbedding
 from safetensors.torch import load_file
-from attention_store.normal_activator import NormalActivator
 from attention_store.normal_activator import passing_normalize_argument
 from torch import nn
-from model.pe import PositionalEmbedding, MultiPositionalEmbedding, AllPositionalEmbedding, Patch_MultiPositionalEmbedding, AllSelfCrossPositionalEmbedding
 from model import call_model_package
 def resize_query_features(query):
     # pix_num, dim = query.shape
