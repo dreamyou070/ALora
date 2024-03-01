@@ -4,10 +4,17 @@ import torch.nn as nn
 import torch
 import collections.abc
 
-print(latent_diff)
+local_query = torch.randn(8, 64*64, 280)
+global_query_masked = torch.randn(8, 64*64, 280)
 
-#latent_diff = latent_diff / latent_diff.max() # only anomal = 1
-#print(latent_diff) # [64*64]
+latent_diff = abs(local_query.float() - global_query_masked.float())
+latent_diff = latent_diff.mean(dim=0).mean(dim=-1)
+latent_diff = (latent_diff.max() + 0.0001) - latent_diff
+anormality = 1 - (latent_diff / latent_diff.max())
+print(f'anomality = {anormality.shape}')
+#anormality_loss += loss_l2(anormality.float(),
+#                           anomal_position_vector.float())
+
 
 """
 def save_tensors(module: nn.Module, features, name: str):

@@ -172,7 +172,7 @@ def main(args):
             matching_loss += loss_l2(local_query.float(), global_query.float()) # [8, 64*64, 280]
             matching_loss += loss_l2(global_query.float(),global_query_masked.float())  # [8, 64*64, 280]
 
-            latent_diff = abs(local_query.float() - global_query_masked.float()).mean()
+            latent_diff = abs(local_query.float() - global_query_masked.float())
             latent_diff = latent_diff.mean(dim=0).mean(dim=-1)
             latent_diff = (latent_diff.max() + 0.0001) - latent_diff
             anormality = 1 - (latent_diff / latent_diff.max())
