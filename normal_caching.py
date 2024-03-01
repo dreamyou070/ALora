@@ -111,7 +111,7 @@ def main(args):
                     query_list.append(resize_query_features(query_dict[layer][0].squeeze())) # feature selecting
             local_query = torch.cat(query_list, dim=-1)  # 8, 64*64, 280
             # [2] caching
-            name = sample['image_name']
+            name = str(sample['image_name'][0])
             local_query = local_query.detach().cpu()
             torch.save(local_query, os.path.join(local_query_dir, f'{name}.pt'))
 
