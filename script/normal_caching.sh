@@ -16,9 +16,7 @@ accelerate launch --config_file ../../../gpu_config/gpu_0_config \
  --output_dir "../../result/${bench_mark}/${obj_name}/${layer_name}/${sub_folder}/local_all_crossattn_pe" \
  --network_weights="../../result/${bench_mark}/${obj_name}/${layer_name}/${sub_folder}/local_all_crossattn_pe/models/epoch-000009.safetensors" \
  --data_path "../../../MyData/anomaly_detection/${bench_mark}" \
- --obj_name "${obj_name}" --prompt "${caption}" \
- --latent_res 64 \
  --trg_layer_list "['up_blocks_1_attentions_2_transformer_blocks_0_attn2',
                     'up_blocks_2_attentions_2_transformer_blocks_0_attn2',
                     'up_blocks_3_attentions_2_transformer_blocks_0_attn2',]" \
- --d_dim 320 --use_position_embedder --all_positional_embedder
+ --all_positional_embedder
