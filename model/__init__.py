@@ -43,8 +43,6 @@ def call_model_package(args, weight_dtype, accelerator, is_local ):
         if args.patch_positional_self_embedder :
             position_embedder = Patch_MultiPositionalEmbedding()
 
-
-
     if args.network_weights is not None:
         models_folder,  lora_file = os.path.split(args.network_weights)
         base_folder = os.path.split(models_folder)[0]
@@ -55,7 +53,7 @@ def call_model_package(args, weight_dtype, accelerator, is_local ):
         position_embedder_state_dict = load_file(position_embedder_path)
         position_embedder.load_state_dict(position_embedder_state_dict)
         print(f'Position Embedding Loading Weights from {position_embedder_path}')
-    position_embedder.to(weight_dtype)
+        position_embedder.to(weight_dtype)
 
     """
     self_embeddings = None
