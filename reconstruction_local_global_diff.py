@@ -221,10 +221,11 @@ def main(args):
                             local_query = torch.cat(l_query_list, dim=-1)  # 8, 64*64, 280
                             # (4) extract global features
 
-                            g_unet(latent,
+                            g_unet(latent.to(dtype=weight_dtype),
                                    0,
-                                   encoder_hidden_states,
-                                   trg_layer_list=args.trg_layer_list,noise_type=g_position_embedder)
+                                   encoder_hidden_states.to(dtype=weight_dtype),
+                                   trg_layer_list=args.trg_layer_list,
+                                   noise_type=g_position_embedder)
                             g_query_dict, g_key_dict = g_controller.query_dict, g_controller.key_dict
                             g_controller.reset()
                             g_query_list = []
