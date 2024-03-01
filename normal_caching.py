@@ -249,7 +249,6 @@ if __name__ == "__main__":
     parser.add_argument("--train_vae", action='store_true')
     parser.add_argument("--local_use_position_embedder", action='store_true')
     parser.add_argument("--use_position_embedder", action='store_true')
-
     # -----------------------------------------------------------------------------------------------------------------
     args = parser.parse_args()
     unet_passing_argument(args)
