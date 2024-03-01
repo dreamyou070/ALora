@@ -18,7 +18,7 @@ from safetensors.torch import load_file
 from attention_store.normal_activator import NormalActivator
 from attention_store.normal_activator import passing_normalize_argument
 from torch import nn
-from model.global_local_segmentation import SegmentationSubNetwork
+from model.pe import PositionalEmbedding, MultiPositionalEmbedding, AllPositionalEmbedding, Patch_MultiPositionalEmbedding, AllSelfCrossPositionalEmbedding
 
 def resize_query_features(query):
     # pix_num, dim = query.shape
@@ -34,62 +34,36 @@ def resize_query_features(query):
     return resized_query
 
 
-def inference(latent,
-              tokenizer, text_encoder, unet, controller, normal_activator, position_embedder,
-              args, org_h, org_w, thred):
+def inference(latent, tokenizer, text_encoder, unet, controller, normal_activator, position_embedder,
+              args, org_h, org_w, thred, query_transformer):
     # [1] text
     input_ids, attention_mask = get_input_ids(tokenizer, args.prompt)
     encoder_hidden_states = text_encoder(input_ids.to(text_encoder.device))["last_hidden_state"]
     # [2] unet
-    unet(latent, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list,noise_type=position_embedder)
+    unet(latent, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list, noise_type=position_embedder)
     query_dict, key_dict = controller.query_dict, controller.key_dict
     controller.reset()
     for layer in args.trg_layer_list:
         if 'mid' in layer:
-            g_query = query_dict[layer][0].squeeze()  # 8, 64, 160
-            g_key = key_dict[layer][0].squeeze()  # 8, 77, 160
-    attention_scores = torch.baddbmm(torch.empty(g_query.shape[0], g_query.shape[1], g_key.shape[1], dtype=g_query.dtype,
-                                                 device=g_query.device),
-                                     g_query, g_key.transpose(-1, -2), beta=0, )  # [head, 64, 77]
+            query = query_dict[layer][0].squeeze()  # 8, 64, 160
+            key = key_dict[layer][0].squeeze()  # 8, 77, 160
+    global_query = query_transformer(query)  # g_query = 8, 64, 160 -> 8, 64*64, 280 (feature generating with only global context)
+    attention_scores = torch.baddbmm(torch.empty(query.shape[0], query.shape[1], key.shape[1], dtype=query.dtype, device=query.device),
+                                     query, key.transpose(-1, -2), beta=0, )  # [head, 64, 77]
     global_attn = attention_scores.softmax(dim=-1)[:, :, 1:65]  # [head, 64, 64]
+
     head = global_attn.shape[0]
     attn = [torch.diagonal(global_attn[i]) for i in range(head)]
     global_anomal_map = torch.stack(attn, dim=0).mean(dim=0).view(8, 8).unsqueeze(0).unsqueeze(0)
-    trigger_map = nn.functional.interpolate(global_anomal_map, size=(64, 64),
-                                                  mode='bilinear').squeeze().flatten()
-    pix_num = trigger_map.shape[0]
-    res = int(pix_num ** 0.5)
-    normal_map = torch.where(trigger_map > thred, 1, trigger_map).squeeze()
-    normal_map = normal_map.unsqueeze(0).view(res, res)
-    normal_map_pil = Image.fromarray(
-        normal_map.cpu().detach().numpy().astype(np.uint8) * 255).resize((org_h, org_w))
+    global_anomal_map = nn.functional.interpolate(global_anomal_map, size=(64, 64), mode='bilinear').squeeze() # (64,64)
+    res = 64
+    normal_map = torch.where(global_anomal_map > thred, 1, global_anomal_map).squeeze()
+    #normal_map = normal_map.unsqueeze(0).view(res, res)
+    normal_map_pil = Image.fromarray(normal_map.cpu().detach().numpy().astype(np.uint8) * 255).resize((org_h, org_w))
     anomal_np = ((1 - normal_map) * 255).cpu().detach().numpy().astype(np.uint8)
     anomaly_map_pil = Image.fromarray(anomal_np).resize((org_h, org_w))
     return normal_map_pil, anomaly_map_pil
 
-
-def generate_object_point(object_mask_pil):
-    object_mask_np = np.array(object_mask_pil)
-    h, w = object_mask_np.shape
-    h_indexs, w_indexs = [], []
-    for h_i in range(h):
-        for w_i in range(w):
-            if object_mask_np[h_i, w_i] > 0:
-                h_indexs.append(h_i)
-                w_indexs.append(w_i)
-
-    h_start, h_end = min(h_indexs), max(h_indexs)
-    w_start, w_end = min(w_indexs), max(w_indexs)
-
-    h_pad = 0.02 * h
-    w_pad = 0.02 * w
-    h_start = h_start - h_pad if h_start - h_pad > 0 else 0
-    h_end = h_end + h_pad if h_end + h_pad < h else h
-    w_start = w_start - w_pad if w_start - w_pad > 0 else 0
-    w_end = w_end + w_pad if w_end + w_pad < w else w
-    h_start, h_end, w_start, w_end = int(h_start), int(h_end), int(w_start), int(w_end)
-
-    return h_start, h_end, w_start, w_end
 
 class UNetUpBlock(nn.Module):
     def __init__(self, in_size, out_size):
@@ -135,6 +109,8 @@ def main(args):
     if args.use_position_embedder:
         position_embedder = PositionalEmbedding(max_len=args.latent_res * args.latent_res,
                                                 d_model=args.d_dim)
+        if args.all_positional_embedder :
+            position_embedder = AllPositionalEmbedding()
 
     print(f'\n step 2. accelerator and device')
     vae.requires_grad_(False)
@@ -158,9 +134,6 @@ def main(args):
     normal_activator = NormalActivator(None, None, args.use_focal_loss)
 
     gquery_transformer = UNetUpBlock(in_size=160, out_size=280)
-    segmentation_net = SegmentationSubNetwork(in_channels=4480,
-                                              out_channels=1,
-                                              base_channels=64)
 
 
     for model in models:
@@ -177,10 +150,6 @@ def main(args):
         position_embedder.load_state_dict(position_embedder_state_dict)
         position_embedder.to(accelerator.device, dtype=weight_dtype)
 
-        # [2] segmentation model
-        segmentation_net.load_state_dict(load_file(os.path.join(os.path.join(parent, f'segmentation_model'),f'segmentation_{lora_epoch}.safetensors')))
-        segmentation_net.to(accelerator.device, dtype=weight_dtype)
-
         # [3]
         gquery_transformer.load_state_dict(load_file(os.path.join(os.path.join(parent, f'query_transformer'),f'query_transformer_{lora_epoch}.safetensors')))
         gquery_transformer.to(accelerator.device, dtype=weight_dtype)
@@ -194,10 +163,7 @@ def main(args):
 
         # [3] files
         parent, _ = os.path.split(args.network_folder)
-        if args.object_crop :
-            recon_base_folder = os.path.join(parent, 'reconstruction_with_crop')
-        else :
-            recon_base_folder = os.path.join(parent, 'reconstruction')
+        recon_base_folder = os.path.join(parent, 'reconstruction')
         os.makedirs(recon_base_folder, exist_ok=True)
         lora_base_folder = os.path.join(recon_base_folder, f'lora_epoch_{lora_epoch}')
         os.makedirs(lora_base_folder, exist_ok=True)
@@ -248,13 +214,10 @@ def main(args):
                         with torch.no_grad():
                             img = np.array(input_img.resize((512, 512)))
                             latent = image2latent(img, vae, weight_dtype)
-                            normal_map_pil, anomaly_map_pil = inference(latent,
-                                                                                     tokenizer, text_encoder, unet,
-                                                                                     controller, normal_activator,
-                                                                                     position_embedder,
-                                                                                     args,
-                                                                                     trg_h, trg_w,
-                                                                                     thred)
+                            normal_map_pil, anomaly_map_pil = inference(latent,tokenizer, text_encoder, unet,
+                                                                        controller, normal_activator,
+                                                                        position_embedder,
+                                                                        args, trg_h, trg_w, thred, gquery_transformer)
                             #cls_map_pil.save(os.path.join(save_base_folder, f'{name}_cls.png'))
                             normal_map_pil.save(os.path.join(save_base_folder, f'{name}_normal.png'))
                             anomaly_map_pil.save( os.path.join(save_base_folder, f'{name}_anomal.png'))
@@ -363,7 +326,7 @@ if __name__ == '__main__':
     parser.add_argument("--image_classification_layer", type=str)
     parser.add_argument("--use_focal_loss", action='store_true')
     parser.add_argument("--gen_batchwise_attn", action='store_true')
-    parser.add_argument("--object_crop", action='store_true')
+    parser.add_argument("--all_positional_embedder", action='store_true')
     args = parser.parse_args()
     passing_argument(args)
     unet_passing_argument(args)
