@@ -109,16 +109,12 @@ def main(args):
 
     l_vae.requires_grad_(False)
     l_vae.to(accelerator.device, dtype=weight_dtype)
-
     l_unet.requires_grad_(False)
     l_unet.to(accelerator.device, dtype=weight_dtype)
-
     l_text_encoder.requires_grad_(False)
     l_text_encoder.to(accelerator.device, dtype=weight_dtype)
-
     l_network.requires_grad_(False)
     l_network.to(accelerator.device, dtype=weight_dtype)
-
     l_controller = AttentionStore()
     register_attention_control(l_unet, l_controller)
 
@@ -130,16 +126,17 @@ def main(args):
     g_unet.to(accelerator.device, dtype=weight_dtype)
     g_text_encoder.requires_grad_(False)
     g_text_encoder.to(accelerator.device, dtype=weight_dtype)
-    g_network.requires_grad_(False)
-    g_network.to(accelerator.device, dtype=weight_dtype)
-    g_controller = AttentionStore()
-    register_attention_control(g_unet, g_controller)
-
-    print(f'\n step 3. call experiment network dirs')
-    models = os.listdir(args.network_folder)
+    g_network = LoRANetwork(text_encoder=g_text_encoder,
+                          unet=g_unet,
+                          lora_dim=args.network_dim,
+                          alpha=args.network_alpha,
+                          module_class=LoRAInfModule)
     g_network.apply_to(g_text_encoder, g_unet, True, True)
     raw_state_dict = g_network.state_dict()
     raw_state_dict_orig = raw_state_dict.copy()
+
+    print(f'\n step 3. call experiment network dirs')
+    models = os.listdir(args.network_folder)
 
     for model in models:
         # [3.1] global network
@@ -165,6 +162,9 @@ def main(args):
         os.makedirs(recon_base_folder, exist_ok=True)
         lora_base_folder = os.path.join(recon_base_folder, f'lora_epoch_{lora_epoch}')
         os.makedirs(lora_base_folder, exist_ok=True)
+
+        g_controller = AttentionStore()
+        register_attention_control(g_unet, g_controller)
 
         for thred in args.threds :
             thred_folder = os.path.join(lora_base_folder, f'thred_{thred}')
