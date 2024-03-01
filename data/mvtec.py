@@ -145,8 +145,10 @@ class MVTecDRAEMTrainDataset(Dataset):
         pil = Image.fromarray(np_img)
     def get_img_name(self, img_path):
         rgb_folder, name = os.path.split(img_path)
-        class_folder, rgb = os.path.split(rgb_folder)
-        return name, class_folder
+        net_name, ext = os.path.splittext(name)
+        #class_folder, rgb = os.path.split(rgb_folder)
+        #return name, class_folder
+        return net_name
 
     def get_object_mask_dir(self, img_path):
         parent, name = os.path.split(img_path)
@@ -235,7 +237,7 @@ class MVTecDRAEMTrainDataset(Dataset):
         img_path = self.image_paths[img_idx]
         img = self.load_image(img_path, self.resize_shape[0], self.resize_shape[1])  # np.array,
         img = aug(image=img)
-        name, class_folder = self.get_img_name(img_path)
+        name = self.get_img_name(img_path)
 
         # [2] object mask dir
         object_mask_dir = self.get_object_mask_dir(img_path)
@@ -279,6 +281,12 @@ class MVTecDRAEMTrainDataset(Dataset):
                                                                          argument.back_min_beta_scale, argument.back_max_beta_scale,
                                                                          object_position=object_position,
                                                                          trg_beta=argument.back_trg_beta)  # [512,512,3], [512,512]
+        else :
+            anomal_img = img
+            anomal_mask_torch = object_mask.unsqueeze(0)
+            back_anomal_img = img
+            back_anomal_mask_torch = object_mask.unsqueeze(0)
+
 
         # [5] rotate image
         rorate_angle = 180
