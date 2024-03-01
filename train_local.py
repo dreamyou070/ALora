@@ -69,6 +69,9 @@ def main(args):
 
     print(f'\n step 8. model to device')
     print(f'position embedder : {position_embedder}')
+    positional_encodings = position_embedder.positional_encodings
+    print(f'positional_encodings : {positional_encodings}')
+    print(f'position embedder parameters : {position_embedder.parameters()}')
     #unet, text_encoder, network, optimizer, train_dataloader, lr_scheduler, position_embedder,query_transformer = accelerator.prepare(
     #    unet, text_encoder, network, optimizer, train_dataloader, lr_scheduler, position_embedder, gquery_transformer)
     unet, text_encoder, network, optimizer, train_dataloader, lr_scheduler, position_embedder = accelerator.prepare(unet,
