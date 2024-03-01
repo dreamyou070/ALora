@@ -60,12 +60,11 @@ def main(args):
 
     print(f'\n step 4. model ')
     weight_dtype, save_dtype = prepare_dtype(args)
+    l_text_encoder, l_vae, l_unet, l_network, l_position_embedder = call_model_package(args, weight_dtype, accelerator, True)
     g_text_encoder, g_vae, g_unet, g_network, g_position_embedder = call_model_package(args, weight_dtype, accelerator,False)
     vae_config = g_vae.config
     if args.train_vae :
         scratch_vae = AutoencoderKL.from_config(vae_config)
-    g_position_embedder = transform_models_if_DDP([g_position_embedder])[0]
-
 
     print(f'\n step 5. optimizer')
     args.max_train_steps = len(train_dataloader) * args.max_train_epochs
@@ -108,18 +107,6 @@ def main(args):
     del t_enc
     g_network.prepare_grad_etc(g_text_encoder, g_unet)
     g_vae.to(accelerator.device, dtype=weight_dtype)
-
-    l_text_encoder, l_vae, l_unet, l_network, l_position_embedder = call_model_package(args, weight_dtype, accelerator,True)
-    l_unet = l_unet.to(accelerator.device, dtype=weight_dtype)
-    l_unet.eval()
-    l_text_encoder = l_text_encoder.to(accelerator.device, dtype=weight_dtype)
-    l_text_encoder.eval()
-    l_vae = l_vae.to(accelerator.device, dtype=weight_dtype)
-    l_vae.eval()
-    l_position_embedder.to(accelerator.device, dtype=weight_dtype)
-    l_position_embedder.eval()
-    l_network.to(accelerator.device, dtype=weight_dtype)
-    l_network.eval()
 
     print(f'\n step 9. registering saving tensor')
     g_controller = AttentionStore()

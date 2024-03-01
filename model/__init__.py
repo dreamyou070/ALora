@@ -1,5 +1,5 @@
 from model.lora import create_network
-from model.pe import PositionalEmbedding, MultiPositionalEmbedding, AllPositionalEmbedding, Patch_MultiPositionalEmbedding, AllSelfCrossPositionalEmbedding
+from model.pe import AllPositionalEmbedding
 from model.diffusion_model import load_target_model
 import os
 from safetensors.torch import load_file
@@ -20,6 +20,15 @@ def call_model_package(args, weight_dtype, accelerator, is_local ):
 
     unet.requires_grad_(False)
     unet.to(dtype=weight_dtype)
+
+    if is_local :
+        unet = unet.to(accelerator.device, dtype=weight_dtype)
+        unet.eval()
+        text_encoder = text_encoder.to(accelerator.device, dtype=weight_dtype)
+        text_encoder.eval()
+        vae = vae.to(accelerator.device, dtype=weight_dtype)
+        vae.eval()
+
 
     # [2] lora network
     net_kwargs = {}
@@ -52,16 +61,12 @@ def call_model_package(args, weight_dtype, accelerator, is_local ):
             print(f'Position Embedding Loading Weights from {position_embedder_path}')
             position_embedder.to(weight_dtype)
 
-    else :
-        position_embedder = PositionalEmbedding(max_len=args.latent_res * args.latent_res,d_model=args.d_dim)
-        if args.use_multi_position_embedder :
-            position_embedder = MultiPositionalEmbedding()
-        if args.all_positional_embedder :
-            position_embedder = AllPositionalEmbedding()
-        if args.all_self_cross_positional_embedder :
-            position_embedder = AllSelfCrossPositionalEmbedding()
-        if args.patch_positional_self_embedder :
-            position_embedder = Patch_MultiPositionalEmbedding()
+        position_embedder.to(accelerator.device, dtype=weight_dtype)
+        position_embedder.eval()
+        network.to(accelerator.device, dtype=weight_dtype)
+        network.eval()
 
+    else :
+        position_embedder = AllPositionalEmbedding()
 
     return text_encoder, vae, unet, network, position_embedder

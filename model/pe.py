@@ -1,7 +1,32 @@
 import torch.nn as nn
 import torch
 import einops
-class PositionalEmbedding(nn.Module):
+
+layer_names_res_dim = {'down_blocks_0_attentions_0_transformer_blocks_0_attn2': (64, 320),
+                       'down_blocks_0_attentions_1_transformer_blocks_0_attn2': (64, 320),
+
+                       'down_blocks_1_attentions_0_transformer_blocks_0_attn2': (32, 640),
+                       'down_blocks_1_attentions_1_transformer_blocks_0_attn2': (32, 640),
+
+                       'down_blocks_2_attentions_0_transformer_blocks_0_attn2': (16, 1280),
+                       'down_blocks_2_attentions_1_transformer_blocks_0_attn2': (16, 1280),
+
+                       'mid_block_attentions_0_transformer_blocks_0_attn2': (8, 1280),
+
+                       'up_blocks_1_attentions_0_transformer_blocks_0_attn2': (16, 1280),
+                       'up_blocks_1_attentions_1_transformer_blocks_0_attn2': (16, 1280),
+                       'up_blocks_1_attentions_2_transformer_blocks_0_attn2': (16, 1280),
+
+                       'up_blocks_2_attentions_0_transformer_blocks_0_attn2': (32, 640),
+                       'up_blocks_2_attentions_1_transformer_blocks_0_attn2': (32, 640),
+                       'up_blocks_2_attentions_2_transformer_blocks_0_attn2': (32, 640),
+
+                       'up_blocks_3_attentions_0_transformer_blocks_0_attn2': (64, 320),
+                       'up_blocks_3_attentions_1_transformer_blocks_0_attn2': (64, 320),
+                       'up_blocks_3_attentions_2_transformer_blocks_0_attn2': (64, 320), }
+
+
+class SinglePositionalEmbedding(nn.Module):
 
     def __init__(self,
                  max_len: int = 64 * 64,
@@ -23,143 +48,23 @@ class PositionalEmbedding(nn.Module):
             x = einops.rearrange(x, 'b (h w) c -> b c h w', h=res, w=res)
         return x
 
-layer_names_res_dim = {'down_blocks_0_attentions_0_transformer_blocks_0_attn2' : (64,320),
-                       'down_blocks_0_attentions_1_transformer_blocks_0_attn2' : (64,320),
-
-                       'down_blocks_1_attentions_0_transformer_blocks_0_attn2' : (32,640),
-                       'down_blocks_1_attentions_1_transformer_blocks_0_attn2' : (32,640),
-
-                       'down_blocks_2_attentions_0_transformer_blocks_0_attn2' : (16,1280),
-                       'down_blocks_2_attentions_1_transformer_blocks_0_attn2' : (16,1280),
-
-                       'mid_block_attentions_0_transformer_blocks_0_attn2' : (8,1280),
-
-                       'up_blocks_1_attentions_0_transformer_blocks_0_attn2' : (16,1280),
-                       'up_blocks_1_attentions_1_transformer_blocks_0_attn2' : (16,1280),
-                       'up_blocks_1_attentions_2_transformer_blocks_0_attn2' : (16,1280),
-
-                       'up_blocks_2_attentions_0_transformer_blocks_0_attn2' : (32,640),
-                       'up_blocks_2_attentions_1_transformer_blocks_0_attn2' : (32,640),
-                       'up_blocks_2_attentions_2_transformer_blocks_0_attn2' : (32,640),
-
-                       'up_blocks_3_attentions_0_transformer_blocks_0_attn2' : (64,320),
-                       'up_blocks_3_attentions_1_transformer_blocks_0_attn2' : (64,320),
-                       'up_blocks_3_attentions_2_transformer_blocks_0_attn2' : (64,320),}
-
-layer_names_self_res_dim = {'down_blocks_0_attentions_0_transformer_blocks_0_attn1' : (64,320),
-                            'down_blocks_0_attentions_1_transformer_blocks_0_attn1' : (64,320),
-
-                           'down_blocks_1_attentions_0_transformer_blocks_0_attn1' : (32,640),
-                           'down_blocks_1_attentions_1_transformer_blocks_0_attn1' : (32,640),
-
-                           'down_blocks_2_attentions_0_transformer_blocks_0_attn1' : (16,1280),
-                           'down_blocks_2_attentions_1_transformer_blocks_0_attn1' : (16,1280),
-
-                           'mid_block_attentions_0_transformer_blocks_0_attn1' : (8,1280),
-
-                           'up_blocks_1_attentions_0_transformer_blocks_0_attn1' : (16,1280),
-                           'up_blocks_1_attentions_1_transformer_blocks_0_attn1' : (16,1280),
-                           'up_blocks_1_attentions_2_transformer_blocks_0_attn1' : (16,1280),
-
-                           'up_blocks_2_attentions_0_transformer_blocks_0_attn1' : (32,640),
-                           'up_blocks_2_attentions_1_transformer_blocks_0_attn1' : (32,640),
-                           'up_blocks_2_attentions_2_transformer_blocks_0_attn1' : (32,640),
-
-                           'up_blocks_3_attentions_0_transformer_blocks_0_attn1' : (64,320),
-                           'up_blocks_3_attentions_1_transformer_blocks_0_attn1' : (64,320),
-                           'up_blocks_3_attentions_2_transformer_blocks_0_attn1' : (64,320),}
-layer_names_self_cross_res_dim = {}
-for k in layer_names_res_dim.keys() :
-    layer_names_self_cross_res_dim[k] = layer_names_res_dim[k]
-for k in layer_names_self_res_dim.keys() :
-    layer_names_self_cross_res_dim[k] = layer_names_self_res_dim[k]
-
 class AllPositionalEmbedding(nn.Module):
 
-    def __init__(self,):
+    def __init__(self) -> None:
         super().__init__()
 
+        self.layer_dict = layer_names_res_dim
         self.positional_encodings = {}
-        for layer_name in layer_names_res_dim.keys():
-            print(f'all position embedding, layer_name : {layer_name}')
-            res,dim = layer_names_res_dim[layer_name]
-            d_model = res*res
-            pe = nn.Parameter(torch.randn(1,d_model, dim), requires_grad=True)
-            self.positional_encodings[layer_name] = pe
+        for layer_name in self.layer_dict.keys() :
+            res, dim = self.layer_dict[layer_name]
+            self.positional_encodings[layer_name] = SinglePositionalEmbedding(max_len = res*res, d_model = dim)
 
     def forward(self, x: torch.Tensor, layer_name):
 
-        start_dim = 3
-        if x.dim() == 4:
-            start_dim = 4
-            x = einops.rearrange(x, 'b c h w -> b (h w) c')  # B,H*W,C
-        b_size = x.shape[0]
-        res = int(x.shape[1] ** 0.5)
+        position_embedder = self.positional_encodings[layer_name]
+        output = position_embedder(x)
+        return output
 
-        pe_layer = self.positional_encodings[layer_name]
-        pe = pe_layer.expand(b_size, -1, -1)
-        x = x + pe.to(x.device)
-        if start_dim == 4:
-            x = einops.rearrange(x, 'b (h w) c -> b c h w', h=res, w=res)
-        return x
-
-class AllSelfCrossPositionalEmbedding(nn.Module):
-
-    def __init__(self,):
-
-        super().__init__()
-
-        self.positional_encodings = {}
-
-        for layer_name in layer_names_self_cross_res_dim.keys():
-            res, dim = layer_names_self_cross_res_dim[layer_name]
-            d_model = res*res
-            pe = nn.Parameter(torch.randn(1,d_model, dim), requires_grad=True)
-            self.positional_encodings[layer_name] = pe
-
-    def forward(self, x: torch.Tensor, layer_name):
-
-        start_dim = 3
-        if x.dim() == 4:
-            start_dim = 4
-            x = einops.rearrange(x, 'b c h w -> b (h w) c')  # B,H*W,C
-        b_size = x.shape[0]
-        res = int(x.shape[1] ** 0.5)
-
-        pe_layer = self.positional_encodings[layer_name]
-        pe = pe_layer.expand(b_size, -1, -1)
-        x = x + pe.to(x.device)
-        if start_dim == 4:
-            x = einops.rearrange(x, 'b (h w) c -> b c h w', h=res, w=res)
-        return x
-
-class MultiPositionalEmbedding(nn.Module):
-
-    def __init__(self,
-                 max_lens: int = [64*64,32*32,16*16],
-                 d_models: int = [320,640,1280]):
-        super().__init__()
-        self.positional_encodings = {}
-        for d_model, max_len in zip(d_models, max_lens) :
-            pe = nn.Parameter(torch.randn(1,max_len, d_model), requires_grad=True)
-            self.positional_encodings[int(max_len ** 0.5)] = pe
-
-    def forward(self, x: torch.Tensor, layer_name):
-
-        start_dim = 3
-        if x.dim() == 4:
-            start_dim = 4
-            x = einops.rearrange(x, 'b c h w -> b (h w) c')  # B,H*W,C
-        b_size = x.shape[0]
-        res = int(x.shape[1] ** 0.5)
-
-        pe_layer = self.positional_encodings[res]
-        #pe = self.positional_encodings.expand(b_size, -1, -1)
-        pe = pe_layer.expand(b_size, -1, -1)
-        x = x + pe.to(x.device)
-        if start_dim == 4:
-            x = einops.rearrange(x, 'b (h w) c -> b c h w', h=res, w=res)
-        return x
 
 
 class ViTPatchEmbeddings(nn.Module):
