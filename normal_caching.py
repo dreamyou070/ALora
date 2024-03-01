@@ -37,6 +37,7 @@ def main(args):
 
     print(f'\n step 1. setting')
     output_dir = args.output_dir
+    args.logging_dir = os.path.join(output_dir, 'log')
 
     print(f'\n step 2. dataset and dataloader')
     if args.seed is None:
