@@ -62,7 +62,6 @@ def main(args):
     vae_config = g_vae.config
     if args.train_vae :
         scratch_vae = AutoencoderKL.from_config(vae_config)
-    g_position_embedder = transform_models_if_DDP([g_position_embedder])[0]
 
     print(f'\n step 5. optimizer')
     args.max_train_steps = len(train_dataloader) * args.max_train_epochs
@@ -87,6 +86,7 @@ def main(args):
 
     g_text_encoders = transform_models_if_DDP([g_text_encoder])
     g_unet, g_network = transform_models_if_DDP([g_unet, g_network])
+    g_position_embedder = transform_models_if_DDP([g_position_embedder])[0]
     if args.train_vae :
         scratch_vae = transform_models_if_DDP([scratch_vae])[0]
     if args.gradient_checkpointing:
