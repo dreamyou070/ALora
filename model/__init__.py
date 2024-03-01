@@ -61,8 +61,8 @@ def call_model_package(args, weight_dtype, accelerator, is_local ):
             print(f'Position Embedding Loading Weights from {position_embedder_path}')
             position_embedder.to(weight_dtype)
 
-        position_embedder.to(accelerator.device, dtype=weight_dtype)
-        position_embedder.eval()
+        #position_embedder.to(accelerator.device, dtype=weight_dtype)
+        #position_embedder.eval()
         network.to(accelerator.device, dtype=weight_dtype)
         network.eval()
 
