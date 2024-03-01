@@ -20,5 +20,5 @@ accelerate launch --config_file ../../../gpu_config/gpu_0_config \
  --trg_layer_list "['up_blocks_1_attentions_2_transformer_blocks_0_attn2',
                     'up_blocks_2_attentions_2_transformer_blocks_0_attn2',
                     'up_blocks_3_attentions_2_transformer_blocks_0_attn2',]" \
- --d_dim 320 --all_positional_embedder \
+ --d_dim 320 --use_position_embedder --all_positional_embedder \
  --threds [0.5]
