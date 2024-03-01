@@ -124,10 +124,11 @@ def main(args):
             device = accelerator.device
             loss_dict = {}
             matching_loss, anormality_loss = 0.0, 0.0
-            """
+
             with torch.set_grad_enabled(True):
-                # global and local share text network 
                 encoder_hidden_states = l_text_encoder(batch["input_ids"].to(device))["last_hidden_state"]
+
+            # ---------------------------------------------------------------------------------------------------------------- #
             with torch.no_grad():
                 latents = l_vae.encode(batch["image"].to(dtype=weight_dtype)).latent_dist.sample() * args.vae_scale_factor
                 l_unet(latents, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list,noise_type=l_position_embedder,)
@@ -138,11 +139,8 @@ def main(args):
                     if 'mid' not in layer :
                         l_query_list.append(resize_query_features(l_query_dict[layer][0].squeeze())) # feature selecting
                 local_query = torch.cat(l_query_list, dim=-1)  # 8, 64*64, 280
-            print(f'local query finish')
-            """
 
             # ---------------------------------------------------------------------------------------------------------------- #
-            # global full image feature
             if args.global_net_normal_training :
                 with torch.set_grad_enabled(True):
                     g_encoder_hidden_states = g_text_encoder(batch["input_ids"].to(device))["last_hidden_state"]
@@ -156,10 +154,8 @@ def main(args):
                     if 'mid' not in layer:
                         g_query_list.append(resize_query_features(g_query_dict[layer][0].squeeze()))  # feature selecting
                 global_query = torch.cat(g_query_list, dim=-1)  # 8, 64*64, 280
-            print(f'global net finish')
+
             # ---------------------------------------------------------------------------------------------------------------- #
-            """
-            # global full image feature
             with torch.no_grad():
                 latents = l_vae.encode(batch["bg_anomal_image"].to(dtype=weight_dtype)).latent_dist.sample() * args.vae_scale_factor
             if args.train_vae :
@@ -179,10 +175,8 @@ def main(args):
 
             if args.global_net_normal_training :
                 matching_loss += loss_l2(local_query.float(), global_query.float()) # [8, 64*64, 280]
-            #matching_loss += loss_l2(local_query.float(),global_query_masked.float())  # [8, 64*64, 280]
-
-            
-
+            matching_loss += loss_l2(local_query.float(),global_query_masked.float())  # [8, 64*64, 280]
+            """
             latent_diff = abs(local_query.float() - global_query_masked.float())
             latent_diff = latent_diff.mean(dim=0).mean(dim=-1)
             latent_diff = (latent_diff.max() + 0.0001) - latent_diff
