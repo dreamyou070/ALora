@@ -4,9 +4,6 @@ import torch
 
 
 def call_dataset(args) :
-
-
-
     # [1] set root data
     if args.do_object_detection :
         root_dir = os.path.join(args.data_path, f'{args.obj_name}/train_object_detector')
