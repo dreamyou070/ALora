@@ -10,6 +10,9 @@ def call_dataset(args) :
     else:
         root_dir = os.path.join(args.data_path, f'{args.obj_name}/train')
     data_class = MVTecDRAEMTrainDataset
+    if args.blurring_test :
+        from data.mvtec_blur import MVTecBlurDataset
+        data_class = MVTecBlurDataset
 
     tokenizer = None
     if not args.on_desktop :

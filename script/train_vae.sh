@@ -29,4 +29,4 @@ accelerate launch --config_file ../../../gpu_config/gpu_0_1_2_3_4_5_config \
  --back_max_beta_scale 0.9 \
  --back_trg_beta 0 \
  --use_pretrained_vae \
- --do_attn_loss --attn_loss_weight 1.0 --do_cls_train --normal_weight 1
+ --do_attn_loss --attn_loss_weight 1.0 --do_cls_train --normal_weight 1 --blurring_test
