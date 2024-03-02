@@ -41,9 +41,17 @@ def inference(latent,
     encoder_hidden_states = text_encoder(input_ids.to(text_encoder.device))["last_hidden_state"]
     # [2] unet
     if args.use_position_embedder:
-        unet(latent, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list, noise_type=position_embedder, )
+        pred = unet(latent, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list, noise_type=position_embedder, ).sample
     else :
-        unet(latent, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list)
+        pred = unet(latent, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list).sample
+
+
+
+
+
+
+
+
     query_dict, key_dict, attn_dict = controller.query_dict, controller.key_dict, controller.attn_dict
     controller.reset()
     attn_list, origin_query_list, query_list, key_list = [], [], [], []
@@ -77,7 +85,7 @@ def inference(latent,
     anomal_np = ((1 - normal_map) * 255).cpu().detach().numpy().astype(np.uint8)
     anomaly_map_pil = Image.fromarray(anomal_np).resize((org_h, org_w))
 
-    return cls_map_pil, normal_map_pil, anomaly_map_pil
+    return cls_map_pil, normal_map_pil, anomaly_map_pil, pred
 
 
 
@@ -207,7 +215,7 @@ def main(args):
                                     latent = position_embedder.patch_embed(image.to(dtype=weight_dtype))
                                 else:
                                     latent = vae.encode(image.to(dtype=weight_dtype)).latent_dist.sample() * 0.18215
-                            cls_map_pil, normal_map_pil, anomaly_map_pil = inference(latent,
+                            cls_map_pil, normal_map_pil, anomaly_map_pil, pred = inference(latent,
                                                                                      tokenizer, text_encoder, unet,
                                                                                      controller, normal_activator,
                                                                                      position_embedder,
@@ -218,6 +226,16 @@ def main(args):
                             normal_map_pil.save(os.path.join(save_base_folder, f'{name}_normal.png'))
                             anomaly_map_pil.save( os.path.join(save_base_folder, f'{name}_anomal.png'))
                             anomaly_map_pil.save(os.path.join(answer_anomal_folder, f'{name}.tiff'))
+                            #
+
+                            with torch.no_grad():
+                                image = vae.decode(pred)['sample']
+                                image = (image / 2 + 0.5).clamp(0, 1)
+                                image = image.cpu().permute(0, 2, 3, 1).numpy()[0]
+                                image = (image * 255).astype(np.uint8)
+                                pil = Image.fromarray(image)
+                                pil.save(os.path.join(save_base_folder, f'{name}_unet_pred.png'))
+
                     controller.reset()
                     normal_activator.reset()
                     # [2] gt save
