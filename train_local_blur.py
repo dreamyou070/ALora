@@ -129,12 +129,8 @@ def main(args):
                 encoder_hidden_states = text_encoder(batch["input_ids"].to(device))["last_hidden_state"]
 
             if args.do_anomal_sample:
-
-                if args.patch_positional_self_embedder:
-                    latents = position_embedder.patch_embed(batch["anomal_image"].to(dtype=weight_dtype))
-                else :
-                    with torch.no_grad():
-                        latents = vae.encode(batch["anomal_image"].to(dtype=weight_dtype)).latent_dist.sample() * args.vae_scale_factor
+                with torch.no_grad():
+                    latents = vae.encode(batch["anomal_image"].to(dtype=weight_dtype)).latent_dist.sample() * args.vae_scale_factor
 
                 anomal_position_vector = batch["anomal_mask"].squeeze().flatten()
                 with torch.set_grad_enabled(True):
