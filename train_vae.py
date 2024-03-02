@@ -15,6 +15,7 @@ from data.mvtec import passing_mvtec_argument
 from losses import PerceptualLoss, PatchAdversarialLoss
 from torch.nn import L1Loss
 from diffusers import AutoencoderKL
+from monai.networks.layers import Act
 
 def main(args):
 
@@ -41,8 +42,8 @@ def main(args):
 
     print(f'\n step 4. model ')
     weight_dtype, save_dtype = prepare_dtype(args)
-    vae_base_dir = r'/home/dreamyou070/AnomalLora_OriginCode/result/MVTec/transistor/vae_train/train_vae_20240302'
-    config_dir = os.path.join(vae_base_dir, 'vae_config.json')
+    config_dir = os.path.join(r'/home/dreamyou070/AnomalLora_OriginCode/result/MVTec/transistor/vae_train/train_vae_20240302',
+                              'vae_config.json')
     with open(config_dir, 'r') as f:
         config_dict = json.load(f)
     vae = AutoencoderKL.from_config(pretrained_model_name_or_path=config_dict)
@@ -166,6 +167,7 @@ def main(args):
                 torch.save(state_dict, save_dir)
         vae_base_dir = os.path.join(args.output_dir, 'vae_models')
         os.makedirs(vae_base_dir, exist_ok = True)
+        print(f'model save ... ')
         model_save(accelerator.unwrap_model(vae), save_dtype, os.path.join(vae_base_dir, f'vae_{epoch + 1}.safetensors'))
     print("Finish!!")
     accelerator.end_training()
