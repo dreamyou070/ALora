@@ -130,7 +130,7 @@ def main(args):
                 target_pred = anomal_position_map * random_noise + (1-anomal_position_map) * latents
                 loss += loss_l2(pred.float(), target_pred.float())
 
-            if args.do_nomal_sample:
+            if args.do_normal_sample:
                 with torch.no_grad():
                     latents = vae.encode(batch["image"].to(dtype=weight_dtype)).latent_dist.sample() * args.vae_scale_factor
                 anomal_position_map = torch.zeros(64,64).to(latents.device).to(dtype=weight_dtype)

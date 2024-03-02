@@ -24,5 +24,5 @@ accelerate launch --config_file ../../../gpu_config/gpu_0_1_2_3_4_5_config \
  --anomal_min_beta_scale 0.5 \
  --anomal_max_beta_scale 0.8 \
  --back_trg_beta 0 \
- --do_nomal_sample --do_object_detection --do_anomal_sample \
+ --do_normal_sample --do_object_detection --do_anomal_sample \
  --use_position_embedder
