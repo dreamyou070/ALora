@@ -67,7 +67,7 @@ def main(args):
                 posterior = vae.encode(img).latent_dist
                 z_mu, z_sigma = posterior.mean, posterior.logvar
                 z = posterior.sample()
-                reconstruction = vae.decode(z).sample.unsqueeze() # 3,512,512
+                reconstruction = vae.decode(z).sample.squeeze() # 3,512,512
                 pil = Image.fromarray(np.array(((reconstruction + 1) / 2) * 255).astype(np.uint8).transpose(1, 2, 0))
                 # org save
                 Image.open(img_dir).save(os.path.join(save_base_dir, f'{defect}_org_{img}'))
