@@ -42,7 +42,8 @@ def main(args):
     weight_dtype, save_dtype = prepare_dtype(args)
     config_dir = os.path.join(args.output_dir, 'vae_config.json')
     print(f'config_dir = {config_dir}')
-    #config_dict = json.loads(config_dir)
+    config_dict = json.load(config_dir)
+    print(f'config_dict = {config_dict}')
     #print(f'config_dict = {config_dict}')
     """
     vae = AutoencoderKL.from_config(pretrained_model_name_or_path=config_dir)
