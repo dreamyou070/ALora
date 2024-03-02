@@ -63,6 +63,7 @@ def main(args):
 
     l1_loss = L1Loss()
     perceptual_loss = PerceptualLoss(spatial_dims=2, network_type="alex")
+    perceptual_loss.to(accelerator.device)
 
 
     print(f'\n step 8. model to device')
