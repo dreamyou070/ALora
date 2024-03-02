@@ -50,10 +50,10 @@ def main(args):
     vae = AutoencoderKL.from_config(pretrained_model_name_or_path=config_dict)
 
     # get pretrained vae
-    if args.use_pretrained_vae :
-        from model import call_model_package
-        text_encoder, vae, unet, network, position_embedder = call_model_package(args, weight_dtype, accelerator, True)
-        del text_encoder, unet, network, position_embedder
+    #if args.use_pretrained_vae :
+    from model import call_model_package
+    text_encoder, pretrained_vae, unet, network, position_embedder = call_model_package(args, weight_dtype, accelerator, True)
+    del text_encoder, unet, network, position_embedder
 
 
     print(f'\n (4.2) discriminator')
@@ -118,7 +118,18 @@ def main(args):
             z = posterior.sample()
             # [1.2] decoding
             reconstruction = vae.decode(z).sample
+            # --------------------------------------------------------------------------------------------------------- #
+            with torch.no_grad() :
+                pretrained_posterior = pretrained_vae.encode(images).latent_dist
+                z_mu_t, z_sigma_t = pretrained_posterior.mean, pretrained_posterior.logvar
+                z_t = pretrained_posterior.sample()
+                reconstruction_t = pretrained_vae.decode(z).sample
 
+            latent_matching_loss = l1_loss(z, z_t)
+            recon_matching_loss = l1_loss(reconstruction, reconstruction_t)
+            total_loss = latent_matching_loss + recon_matching_loss
+
+            """
             # [3] discriminator
             logits_fake = discriminator(reconstruction.contiguous().float())[-1]
 
@@ -144,21 +155,26 @@ def main(args):
             loss_d = adv_weight * discriminator_loss
             # ------------------------------------------------------------------------------------------------------- #
             total_loss = loss_g + loss_d
+            """
+
+
             accelerator.backward(total_loss)
             optimizer.step()
             optimizer_d.step()
             # ------------------------------------------------------------------------------------------------------- #
             lr_scheduler.step()
-            epoch_loss += recons_loss.item()
-            gen_epoch_loss += generator_loss.item()
-            disc_epoch_loss += discriminator_loss.item()
-            overall_loss = loss_g + loss_d
+            #epoch_loss += recons_loss.item()
+            #gen_epoch_loss += generator_loss.item()
+            #disc_epoch_loss += discriminator_loss.item()
+            #overall_loss = loss_g + loss_d
+            epoch_loss += total_loss.item()
             if is_main_process:
-                progress_bar.set_postfix({"recons_loss": epoch_loss / (step + 1),
-                                          "gen_loss": gen_epoch_loss / (step + 1),
-                                          "disc_loss": disc_epoch_loss / (step + 1),})
+                #progress_bar.set_postfix({"recons_loss": epoch_loss / (step + 1),
+                #                          "gen_loss": gen_epoch_loss / (step + 1),
+                #                          "disc_loss": disc_epoch_loss / (step + 1),})
                 global_step += 1
-        print("\tEpoch", epoch + 1, "complete!", "\tAverage Loss: ", overall_loss )
+        #print("\tEpoch", epoch + 1, "complete!", "\tAverage Loss: ", overall_loss )
+        print("\tEpoch", epoch + 1, "complete!")
         # saving vae model
         def model_save(model, save_dtype, save_dir):
             state_dict = model.state_dict()
