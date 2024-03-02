@@ -3,21 +3,16 @@ from tqdm import tqdm
 from accelerate.utils import set_seed
 import torch
 import os
-from attention_store import AttentionStore
-from attention_store.normal_activator import NormalActivator
 from model.diffusion_model import transform_models_if_DDP
 from model.unet import unet_passing_argument
 from utils import get_epoch_ckpt_name, save_model, prepare_dtype, arg_as_list
-from utils.attention_control import passing_argument, register_attention_control
+from utils.attention_control import passing_argument
 from utils.accelerator_utils import prepare_accelerator
 from utils.optimizer_utils import get_optimizer, get_scheduler_fix
-from utils.model_utils import pe_model_save, te_model_save
-from utils.utils_loss import FocalLoss
 from data.prepare_dataset import call_dataset
-from model import call_model_package
 from attention_store.normal_activator import passing_normalize_argument
 from data.mvtec import passing_mvtec_argument
-from losses import PerceptualLoss
+from losses import PerceptualLoss, PatchAdversarialLoss
 from torch.nn import L1Loss
 from diffusers import AutoencoderKL
 
@@ -52,24 +47,44 @@ def main(args):
         config_dict = json.load(f)
     vae = AutoencoderKL.from_config(pretrained_model_name_or_path=config_dict)
 
+    print(f'\n (4.2) discriminator')
+    from model.patchgan_discriminator import PatchDiscriminator
+    discriminator = PatchDiscriminator(
+        spatial_dims=2,
+        num_layers_d=3,
+        num_channels=64,
+        in_channels=1,
+        out_channels=1,
+        kernel_size=4,
+        activation=(Act.LEAKYRELU, {"negative_slope": 0.2}),
+        norm="BATCH",
+        bias=False,
+        padding=1,)
+
+
     print(f'\n step 5. optimizer')
     args.max_train_steps = len(train_dataloader) * args.max_train_epochs
     trainable_params = []
     trainable_params.append({"params": vae.parameters(), "lr": args.learning_rate})
     optimizer_name, optimizer_args, optimizer = get_optimizer(args, trainable_params)
+    optimizer_d = torch.optim.Adam(params=discriminator.parameters(), lr=5e-4)
 
     print(f'\n step 6. lr')
     lr_scheduler = get_scheduler_fix(args, optimizer, accelerator.num_processes)
 
     print(f'\n step 7. losses function')
-
+    # [1]
     l1_loss = L1Loss()
+    # [2]
     perceptual_loss = PerceptualLoss(spatial_dims=2, network_type="alex")
     perceptual_loss.to(accelerator.device)
+    # [3]
+    adv_loss = PatchAdversarialLoss(criterion="least_squares")
 
 
     print(f'\n step 8. model to device')
-    vae, optimizer, train_dataloader, lr_scheduler = accelerator.prepare(vae, optimizer, train_dataloader, lr_scheduler)
+    discriminator, vae, optimizer, train_dataloader, lr_scheduler = accelerator.prepare(discriminator, vae, optimizer,
+                                                                                        train_dataloader, lr_scheduler)
     vae = transform_models_if_DDP([vae])[0]
 
     print(f'\n step 9. Training !')
@@ -78,12 +93,13 @@ def main(args):
     global_step = 0
     kl_weight = 1e-6
     perceptual_weight = 0.001
-
+    adv_weight = 0.01
     for epoch in range(args.start_epoch, args.max_train_epochs):
 
-        overall_loss = 0
+        epoch_loss = 0
+        gen_epoch_loss = 0
+        disc_epoch_loss = 0
         loss_dict = {}
-
         for step, batch in enumerate(train_dataloader):
 
             # x = [1,4,512,512]
@@ -95,27 +111,45 @@ def main(args):
             # [1.2] decoding
             reconstruction = vae.decode(z).sample
 
+            # [3] discriminator
+            logits_fake = discriminator(reconstruction.contiguous().float())[-1]
+
+            # ------------------------------------------------------------------------------------------------------- #
             # [2.1] reconstruction losses
+            optimizer.zero_grad(set_to_none=True)
             recons_loss = l1_loss(reconstruction.float(), images.float())
-            # [2.2]
+            # [2.2] kl loss
             kl_loss = 0.5 * torch.sum(z_mu.pow(2) + z_sigma.pow(2) - torch.log(z_sigma.pow(2)) - 1, dim=[1, 2, 3])
             kl_loss = torch.sum(kl_loss) / kl_loss.shape[0]
             # [2.3] perceptual loss
             p_loss = perceptual_loss(reconstruction.float(), images.float())
-            loss = recons_loss + kl_weight * kl_loss + perceptual_weight * p_loss
-            overall_loss += loss.item()
-
-            # [3.1] backprop
-            accelerator.backward(loss)
+            # [2.4] generator loss
+            generator_loss = adv_loss(logits_fake, target_is_real=True, for_discriminator=False)
+            loss_g = recons_loss + kl_weight * kl_loss + perceptual_weight * p_loss + adv_weight * generator_loss
+            # [3.1] backprop 1
+            accelerator.backward(loss_g)
             optimizer.step()
+            # ------------------------------------------------------------------------------------------------------- #
+            optimizer_d.zero_grad(set_to_none=True)
+            logits_fake = discriminator(reconstruction.contiguous().detach())[-1]
+            loss_d_fake = adv_loss(logits_fake, target_is_real=False, for_discriminator=True)
+            logits_real = discriminator(images.contiguous().detach())[-1]
+            loss_d_real = adv_loss(logits_real, target_is_real=True, for_discriminator=True)
+            discriminator_loss = (loss_d_fake + loss_d_real) * 0.5
+            loss_d = adv_weight * discriminator_loss
+            accelerator.backward(loss_d)
+            optimizer_d.step()
+            # ------------------------------------------------------------------------------------------------------- #
             lr_scheduler.step()
-            optimizer.zero_grad(set_to_none=True)
-
-            loss_dict['loss'] = loss.item()
+            epoch_loss += recons_loss.item()
+            gen_epoch_loss += generator_loss.item()
+            disc_epoch_loss += discriminator_loss.item()
+            overall_loss = loss_g + loss_d
             if is_main_process:
-                progress_bar.set_postfix(**loss_dict)
+                progress_bar.set_postfix({"recons_loss": epoch_loss / (step + 1),
+                                          "gen_loss": gen_epoch_loss / (step + 1),
+                                          "disc_loss": disc_epoch_loss / (step + 1),})
                 global_step += 1
-
         print("\tEpoch", epoch + 1, "complete!", "\tAverage Loss: ", overall_loss )
         # saving vae model
         def model_save(model, save_dtype, save_dir):
