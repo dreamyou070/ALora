@@ -14,11 +14,9 @@ from utils.optimizer_utils import get_optimizer, get_scheduler_fix
 from utils.model_utils import pe_model_save, te_model_save
 from utils.utils_loss import FocalLoss
 from data.prepare_dataset import call_dataset
-from model import call_model_package
 from attention_store.normal_activator import passing_normalize_argument
 from data.mvtec import passing_mvtec_argument
-from losses import PerceptualLoss
-from torch.nn import L1Loss
+from safetensors.torch import load_file
 from diffusers import AutoencoderKL
 
 def main(args):
@@ -28,11 +26,11 @@ def main(args):
     print(f' *** output_dir : {output_dir}')
     os.makedirs(output_dir, exist_ok=True)
     args.logging_dir = os.path.join(output_dir, 'log')
-    os.makedirs(args.logging_dir, exist_ok=True)
 
 
     print(f'\n step 2. dataset and dataloader')
-    if args.seed is None: args.seed = random.randint(0, 2 ** 32)
+    if args.seed is None:
+        args.seed = random.randint(0, 2 ** 32)
     set_seed(args.seed)
     train_dataloader = call_dataset(args)
 
@@ -42,13 +40,15 @@ def main(args):
 
     print(f'\n step 4. model ')
     weight_dtype, save_dtype = prepare_dtype(args)
-    text_encoder, vae, unet, network, position_embedder = call_model_package(args, weight_dtype, accelerator, True)
-    del text_encoder, unet, network, position_embedder
+    config_dir = os.path.join(args.output_dir, 'vae_config.json')
+    vae = AutoencoderKL.from_config(config_dir)
+    pretrained_models = os.path.join(args.output_dir, 'vae_models')
+    weights = os.listdir(pretrained_models)
+    for weight in weights :
+        vae.load_state_dict(load_file(os.path.join(pretrained_models, weight)))
+        vae.to(accelerator.device, dtype=weight_dtype)
 
-    config_dir = os.path.join(r'/home/dreamyou070/AnomalLora_OriginCode/result/MVTec/transistor/vae_train/mid_up_16_32_64/train_vae_20240302',
-                              'vae_config.json')
-    with open(config_dir, "w") as json_file:
-        json.dump(vae.config, json_file)
+
 
 
 
