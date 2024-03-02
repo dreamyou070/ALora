@@ -9,6 +9,7 @@ from PIL import Image
 from data.prepare_dataset import call_dataset
 from attention_store.normal_activator import passing_normalize_argument
 from data.mvtec import passing_mvtec_argument
+from data.mvtec_blur import passing_mvtec_argument as passing_mvtec_argument_blur
 
 def torch_to_pil(torch_img):
     # torch_img = [3, H, W], from -1 to 1
@@ -182,10 +183,13 @@ if __name__ == "__main__":
     parser.add_argument("--anomal_trg_beta", type=float)
     parser.add_argument("--back_trg_beta", type=float)
     parser.add_argument("--on_desktop", action='store_true')
+    parser.add_argument("--blurring_test", action='store_true')
+
     # -----------------------------------------------------------------------------------------------------------------
     args = parser.parse_args()
     unet_passing_argument(args)
     passing_argument(args)
     passing_normalize_argument(args)
     passing_mvtec_argument(args)
+    passing_mvtec_argument_blur(args)
     main(args)
