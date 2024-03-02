@@ -282,7 +282,17 @@ class MVTecBlurDataset(Dataset):
             net_name, ext = os.path.splitext(name)
             super_parent, rgb_folder = os.path.split(parent)
             blur_img_path =os.path.join(super_parent, f'blur/good_recon_{name}')
-            blur_img = self.load_image(blur_img_path, self.resize_shape[0], self.resize_shape[1])
+            background_img = self.load_image(blur_img_path, self.resize_shape[0], self.resize_shape[1])
+            back_anomal_img, back_anomal_mask_torch = self.augment_image(img,
+                                                                         aug(image=background_img),
+                                                                         argument.back_min_perlin_scale,
+                                                                         argument.back_max_perlin_scale,
+                                                                         argument.back_min_beta_scale,
+                                                                         argument.back_max_beta_scale,
+                                                                         object_position=object_position,
+                                                                         trg_beta=argument.back_trg_beta)  # [512,512,3], [512,512]
+
+
         else :
             anomal_img = img
             anomal_mask_torch = object_mask.unsqueeze(0)
@@ -295,18 +305,20 @@ class MVTecBlurDataset(Dataset):
         else :
             input_ids = torch.tensor([0])
 
-        return {'image': self.transform(img),               # original image
-                "object_mask": object_mask.unsqueeze(0),    # [1, 64, 64]
+        return {'image': self.transform(img),  # original image
+                "object_mask": object_mask.unsqueeze(0),  # [1, 64, 64]
 
                 'anomal_image': self.transform(anomal_img),
                 "anomal_mask": anomal_mask_torch,
 
-                'blur_img': self.transform(blur_img),          # masked image
-            #   'bg_anomal_mask': back_anomal_mask_torch,
-            #   'rotate_image': self.transform(rotate_np),
-            #    'rotate_mask' : rotate_mask.unsqueeze(0),
+                'bg_anomal_image': self.transform(back_anomal_img),  # masked image
+                'bg_anomal_mask': back_anomal_mask_torch,
+
+                #     'rotate_image': self.transform(rotate_np),
+                #    'rotate_mask' : rotate_mask.unsqueeze(0),
+
                 'idx': idx,
                 'input_ids': input_ids.squeeze(0),
                 'caption': self.caption,
-                'image_name' : name,
-                'anomal_name' : anomal_name,}
+                'image_name': name,
+                'anomal_name': anomal_name, }
