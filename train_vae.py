@@ -69,6 +69,7 @@ def main(args):
 
     print(f'\n step 8. model to device')
     vae, optimizer, train_dataloader, lr_scheduler = accelerator.prepare(vae, optimizer, train_dataloader, lr_scheduler)
+    vae = transform_models_if_DDP([vae])[0]
 
     print(f'\n step 9. Training !')
     progress_bar = tqdm(range(args.max_train_steps), smoothing=0,
