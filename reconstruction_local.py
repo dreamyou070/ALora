@@ -36,7 +36,8 @@ def prev_step(model_output,
               timestep: int,
               sample,
               scheduler):
-    timestep, prev_timestep = timestep, max( timestep - scheduler.config.num_train_timesteps // scheduler.num_inference_steps, 0)
+    #timestep, prev_timestep = timestep, max( timestep - scheduler.config.num_train_timesteps // scheduler.num_inference_steps, 0)
+    timestep, prev_timestep = 1,0
     alpha_prod_t = scheduler.alphas_cumprod[timestep] if timestep >= 0 else scheduler.final_alpha_cumprod
     alpha_prod_t_prev = scheduler.alphas_cumprod[prev_timestep]
     beta_prod_t = 1 - alpha_prod_t
