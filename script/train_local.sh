@@ -1,16 +1,16 @@
 # !/bin/bash
 
-port_number=50015
+port_number=50055
 bench_mark="MVTec"
 obj_name='transistor'
 trigger_word='transistor'
 layer_name='layer_3'
 sub_folder="up_16_32_64"
-file_name="local_no_pe"
+file_name="test_20240302"
 
 anomal_source_path="../../../MyData/anomal_source"
-# --position_embedding_layer 'down_blocks_0_attentions_0_transformer_blocks_0_attn1' --d_dim 320 --latent_res 64 \
-accelerate launch --config_file ../../../gpu_config/gpu_0_1_2_config \
+
+accelerate launch --config_file ../../../gpu_config/gpu_0_1_2_3_4_5_config \
  --main_process_port $port_number ../train_local.py --log_with wandb \
  --output_dir "../../result/${bench_mark}/${obj_name}/${layer_name}/${sub_folder}/${file_name}" \
  --train_unet --train_text_encoder --start_epoch 0 --max_train_epochs 30 \
@@ -23,7 +23,9 @@ accelerate launch --config_file ../../../gpu_config/gpu_0_1_2_config \
  --anomal_max_perlin_scale 6 \
  --anomal_min_beta_scale 0.5 \
  --anomal_max_beta_scale 0.8 \
- --do_anomal_sample --do_object_detection \
+ --back_trg_beta 0 \
+ --do_background_masked_sample --do_object_detection --do_anomal_sample \
+ --use_position_embedder \
  --do_map_loss \
  --trg_layer_list "['up_blocks_1_attentions_2_transformer_blocks_0_attn2',
                     'up_blocks_2_attentions_2_transformer_blocks_0_attn2',

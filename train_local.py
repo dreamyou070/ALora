@@ -3,7 +3,6 @@ from tqdm import tqdm
 from accelerate.utils import set_seed
 import torch
 import os
-from model.query_transformer import QueryTransformer
 from attention_store import AttentionStore
 from attention_store.normal_activator import NormalActivator
 from model.diffusion_model import transform_models_if_DDP
@@ -21,13 +20,13 @@ from data.mvtec import passing_mvtec_argument
 from torch import nn
 
 def main(args):
+
     print(f'\n step 1. setting')
     output_dir = args.output_dir
     print(f' *** output_dir : {output_dir}')
     os.makedirs(output_dir, exist_ok=True)
     args.logging_dir = os.path.join(output_dir, 'log')
     os.makedirs(args.logging_dir, exist_ok=True)
-    logging_file = os.path.join(args.logging_dir, 'log.txt')
 
     record_save_dir = os.path.join(output_dir, 'record')
     os.makedirs(record_save_dir, exist_ok=True)
@@ -47,7 +46,6 @@ def main(args):
     weight_dtype, save_dtype = prepare_dtype(args)
     text_encoder, vae, unet, network, position_embedder = call_model_package(args, weight_dtype, accelerator, True)
 
-
     print(f'\n step 5. optimizer')
     args.max_train_steps = len(train_dataloader) * args.max_train_epochs
     trainable_params = network.prepare_optimizer_params(args.text_encoder_lr,
@@ -65,8 +63,6 @@ def main(args):
     normal_activator = NormalActivator(loss_focal, loss_l2, args.use_focal_loss)
 
     print(f'\n step 8. model to device')
-    #unet, text_encoder, network, optimizer, train_dataloader, lr_scheduler, position_embedder,query_transformer = accelerator.prepare(
-    #    unet, text_encoder, network, optimizer, train_dataloader, lr_scheduler, position_embedder, gquery_transformer)
     if args.use_position_embedder:
         unet, text_encoder, network, optimizer, train_dataloader, lr_scheduler, position_embedder = accelerator.prepare(unet,
               text_encoder, network, optimizer, train_dataloader, lr_scheduler, position_embedder)
@@ -266,6 +262,7 @@ def main(args):
                 p_save_dir = os.path.join(position_embedder_base_save_dir,
                                           f'position_embedder_{epoch + 1}.safetensors')
                 pe_model_save(accelerator.unwrap_model(position_embedder), save_dtype, p_save_dir)
+            """
             # saving query transformer
             query_transformer_save_dir = os.path.join(args.output_dir, 'query_transformer')
             os.makedirs(query_transformer_save_dir, exist_ok = True)
@@ -283,6 +280,7 @@ def main(args):
                 else:
                     torch.save(state_dict, save_dir)
             #qt_model_save(accelerator.unwrap_model(query_transformer), save_dtype, qt_save_dir)
+            """
     accelerator.end_training()
 
 if __name__ == "__main__":
