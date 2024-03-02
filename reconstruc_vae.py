@@ -37,7 +37,6 @@ def main(args):
     print(f'\n step 4. model ')
     transform = transforms.Compose([transforms.ToTensor(),
                                     transforms.Normalize([0.5], [0.5]), ])
-
     weight_dtype, save_dtype = prepare_dtype(args)
     config_dir = os.path.join(args.output_dir, 'vae_config.json')
     with open(config_dir, 'r') as f :
@@ -57,7 +56,8 @@ def main(args):
             for img in images :
                 img_dir = os.path.join(rgb_folder, img)
                 img = np.array(Image.open(img_dir).convert('RGB').resize((512,512), Image.BICUBIC))
-                img = transform(img).unsqueeze(dim=0)
+                img = transform(img).unsqueeze(dim=0).to(accelerator.device, dtype=weight_dtype)
+                print(f'input image : {img.shape}')
 
                 posterior = vae.encode(img).latent_dist
                 z_mu, z_sigma = posterior.mean, posterior.logvar
