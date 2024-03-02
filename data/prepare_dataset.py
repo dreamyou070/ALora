@@ -29,7 +29,7 @@ def call_dataset(args) :
                          anomal_training=True,
                          latent_res=args.latent_res,
                          do_anomal_sample =args.do_anomal_sample,
-                         use_object_mask = args.do_object_detection)
+                         use_object_mask = args.do_object_detection,)
     dataloader = torch.utils.data.DataLoader(dataset,
                                              batch_size=args.batch_size,
                                              shuffle=True)
