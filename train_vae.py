@@ -49,6 +49,13 @@ def main(args):
         config_dict = json.load(f)
     vae = AutoencoderKL.from_config(pretrained_model_name_or_path=config_dict)
 
+    # get pretrained vae
+    if args.use_pretrained_vae :
+        from model import call_model_package
+        text_encoder, vae, unet, network, position_embedder = call_model_package(args, weight_dtype, accelerator, True)
+        del text_encoder, unet, network, position_embedder
+
+
     print(f'\n (4.2) discriminator')
     discriminator = PatchDiscriminator(spatial_dims=2,
                                        num_layers_d=3,
@@ -298,7 +305,7 @@ if __name__ == "__main__":
     parser.add_argument("--all_self_cross_positional_embedder", action='store_true')
     parser.add_argument("--patch_positional_self_embedder", action='store_true')
     parser.add_argument("--use_position_embedder", action='store_true')
-
+    parser.add_argument("--use_pretrained_vae", action='store_true')
     # -----------------------------------------------------------------------------------------------------------------
     args = parser.parse_args()
     unet_passing_argument(args)
