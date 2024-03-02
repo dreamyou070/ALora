@@ -50,17 +50,16 @@ def main(args):
 
     print(f'\n (4.2) discriminator')
     from model.patchgan_discriminator import PatchDiscriminator
-    discriminator = PatchDiscriminator(
-        spatial_dims=2,
-        num_layers_d=3,
-        num_channels=64,
-        in_channels=1,
-        out_channels=1,
-        kernel_size=4,
-        activation=(Act.LEAKYRELU, {"negative_slope": 0.2}),
-        norm="BATCH",
-        bias=False,
-        padding=1,)
+    discriminator = PatchDiscriminator(spatial_dims=2,
+                                       num_layers_d=3,
+                                       num_channels=64,
+                                       in_channels=3,
+                                       out_channels=3,
+                                       kernel_size=4,
+                                       activation=(Act.LEAKYRELU, {"negative_slope": 0.2}),
+                                       norm="BATCH",
+                                       bias=False,
+                                       padding=1,)
 
 
     print(f'\n step 5. optimizer')
