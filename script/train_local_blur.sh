@@ -21,13 +21,13 @@ accelerate launch --config_file ../../../gpu_config/gpu_0_1_2_3_4_5_config \
  --anomal_source_path "${anomal_source_path}" \
  --anomal_min_perlin_scale 0 \
  --anomal_max_perlin_scale 6 \
- --anomal_min_beta_scale 0.5 \
- --anomal_max_beta_scale 0.8 \
+ --anomal_min_beta_scale 0.4 \
+ --anomal_max_beta_scale 0.9 \
  --back_min_perlin_scale 0 \
  --back_max_perlin_scale 2 \
  --back_trg_beta 0 \
  --use_position_embedder \
- --do_map_loss --anomal_p 0.03 \
+ --do_map_loss --anomal_p 0.02 \
  --do_anomal_sample --do_background_masked_sample --do_object_detection \
  --trg_layer_list "['up_blocks_1_attentions_2_transformer_blocks_0_attn2',
                     'up_blocks_2_attentions_2_transformer_blocks_0_attn2',
