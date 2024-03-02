@@ -68,11 +68,12 @@ def main(args):
                 z_mu, z_sigma = posterior.mean, posterior.logvar
                 z = posterior.sample()
                 reconstruction = vae.decode(z).sample.squeeze().detach().cpu() # 3,512,512
-                pil = Image.fromarray(np.array(((reconstruction + 1) / 2) * 255).astype(np.uint8).transpose(1, 2, 0))
+                rec_pil = Image.fromarray(np.array(((reconstruction + 1) / 2) * 255).astype(np.uint8).transpose(1, 2, 0))
                 # org save
-                Image.open(img_dir).save(os.path.join(save_base_dir, f'{defect}_org_{img}'))
+                org_pil = Image.open(img_dir)
+                org_pil.save(os.path.join(save_base_dir, f'{defect}_org_{img}'))
                 # recon save
-                pil.save(os.path.join(save_base_dir, f'{defect}_recon_{img}'))
+                rec_pil.save(os.path.join(save_base_dir, f'{defect}_recon_{img}'))
 
 
 
