@@ -250,7 +250,7 @@ class MVTecDRAEMTrainDataset(Dataset):
             object_mask_np = np.where((np.array(object_img, np.uint8) / 255) == 0, 0, 1)  # object = 1
             object_mask = torch.tensor(object_mask_np)  # shape = [64,64], 0 = background, 1 = object
         else :
-            object_mask = img
+            object_mask = torch.zeros(self.latent_res, self.latent_res)
 
         # [3] anomaly
         anomal_img = img
