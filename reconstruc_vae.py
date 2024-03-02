@@ -41,7 +41,7 @@ def main(args):
     print(f'\n step 4. model ')
     weight_dtype, save_dtype = prepare_dtype(args)
     config_dir = os.path.join(args.output_dir, 'vae_config.json')
-    vae = AutoencoderKL.from_config(config_dir)
+    vae = AutoencoderKL.from_config(pretrained_model_name_or_path=config_dir)
     pretrained_models = os.path.join(args.output_dir, 'vae_models')
     weights = os.listdir(pretrained_models)
     for weight in weights :
