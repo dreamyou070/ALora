@@ -81,7 +81,7 @@ def main(args):
         for step, batch in enumerate(train_dataloader):
 
             # x = [1,4,512,512]
-            x = batch["input_ids"].to(accelerator.device)
+            x = batch["input_ids"].to(accelerator.device).to(dtype=weight_dtype)
             posterior = vae.encode(x).latent_dist
             mean, log_var = posterior.mean, posterior.log_var
             z = posterior.sample()
