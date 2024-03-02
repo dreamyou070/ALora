@@ -3,17 +3,13 @@ from tqdm import tqdm
 from accelerate.utils import set_seed
 import torch
 import os
-from attention_store import AttentionStore
-from attention_store.normal_activator import NormalActivator
-from model.diffusion_model import transform_models_if_DDP
+from torchvision import transforms
 from model.unet import unet_passing_argument
 from utils import get_epoch_ckpt_name, save_model, prepare_dtype, arg_as_list
 from utils.attention_control import passing_argument, register_attention_control
 from utils.accelerator_utils import prepare_accelerator
-from utils.optimizer_utils import get_optimizer, get_scheduler_fix
-from utils.model_utils import pe_model_save, te_model_save
-from utils.utils_loss import FocalLoss
-from data.prepare_dataset import call_dataset
+from PIL import Image
+import numpy as np
 from attention_store.normal_activator import passing_normalize_argument
 from data.mvtec import passing_mvtec_argument
 from safetensors.torch import load_file
@@ -39,22 +35,36 @@ def main(args):
     is_main_process = accelerator.is_main_process
 
     print(f'\n step 4. model ')
+    transform = transforms.Compose([transforms.ToTensor(),
+                                    transforms.Normalize([0.5], [0.5]), ])
+
     weight_dtype, save_dtype = prepare_dtype(args)
     config_dir = os.path.join(args.output_dir, 'vae_config.json')
     with open(config_dir, 'r') as f :
         config_dict = json.load(f)
-    print(f'config_dict = {config_dict}')
-    #print(f'config_dict = {config_dict}')
     vae = AutoencoderKL.from_config(pretrained_model_name_or_path=config_dict)
-    """
-    vae = AutoencoderKL.from_config(pretrained_model_name_or_path=config_dir)
     pretrained_models = os.path.join(args.output_dir, 'vae_models')
     weights = os.listdir(pretrained_models)
-    for weight in weights :
+    for weight in weights:
         vae.load_state_dict(load_file(os.path.join(pretrained_models, weight)))
         vae.to(accelerator.device, dtype=weight_dtype)
-    """
+        # [5] image
+        defects = os.listdir(args.data_path)
+        for defect in defects:
+            defect_dir = os.path.join(args.data_path, defect)
+            rgb_folder = os.path.join(defect_dir, 'rgb')
+            images = os.listdir(rgb_folder)
+            for img in images :
+                img_dir = os.path.join(rgb_folder, img)
+                img = np.array(Image.open(img_dir).convert('RGB').resize((512,512), Image.BICUBIC))
+                img = transform(img).unsqueeze(dim=0)
 
+                posterior = vae.encode(img).latent_dist
+                z_mu, z_sigma = posterior.mean, posterior.logvar
+                z = posterior.sample()
+                reconstruction = vae.decode(z).sample
+                print(f'reconstruction = {reconstruction.shape}')
+                print(f'reconstruction = {type(reconstruction)}')
 
 
 

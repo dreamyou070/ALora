@@ -11,3 +11,5 @@ accelerate launch --config_file ../../../gpu_config/gpu_0_config \
  --output_dir "../../result/${bench_mark}/${obj_name}/vae_train/${file_name}" \
  --data_path "../../../MyData/anomaly_detection/${bench_mark}/${obj_name}/test" \
  --obj_name "${obj_name}"
+
+
