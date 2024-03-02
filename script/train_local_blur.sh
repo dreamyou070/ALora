@@ -6,7 +6,7 @@ obj_name='transistor'
 trigger_word='transistor'
 layer_name='layer_3'
 sub_folder="up_16_32_64"
-file_name="test_20240302_blur"
+file_name="test_20240302_blur_2"
 
 anomal_source_path="../../../MyData/anomal_source"
 
