@@ -126,9 +126,11 @@ def main(args):
                         pred = unet(latents, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list,noise_type=position_embedder,).sample
                     else :
                         pred = unet(latents, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list,).sample
+                print(f'pred = {pred}')
                 random_noise = torch.randn(1, 4, 64, 64).to(latents.device).to(dtype=weight_dtype)
                 target_pred = anomal_position_map * random_noise + (1-anomal_position_map) * latents
-                loss += loss_l2(pred.float(), target_pred.float())
+                loss += loss_l2(pred.float(),
+                                target_pred.float())
 
             if args.do_normal_sample:
                 with torch.no_grad():
@@ -141,7 +143,8 @@ def main(args):
                         pred = unet(latents, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list,
                                     noise_type=position_embedder, ).sample
                     else:
-                        pred = unet(latents, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list, ).sample
+                        pred = unet(latents, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list,).sample
+                print(f'pred = {pred}')
                 random_noise = torch.randn(1, 4, 64, 64).to(latents.device).to(dtype=weight_dtype)
                 target_pred = anomal_position_map * random_noise + (1 - anomal_position_map) * latents
                 loss += loss_l2(pred.float(), target_pred.float())
