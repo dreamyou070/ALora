@@ -18,6 +18,7 @@ from attention_store.normal_activator import passing_normalize_argument
 from data.mvtec import passing_mvtec_argument
 from safetensors.torch import load_file
 from diffusers import AutoencoderKL
+import json
 
 def main(args):
 
@@ -41,12 +42,16 @@ def main(args):
     print(f'\n step 4. model ')
     weight_dtype, save_dtype = prepare_dtype(args)
     config_dir = os.path.join(args.output_dir, 'vae_config.json')
+    config_dict = json.loads(config_dir)
+    print(f'config_dict = {config_dict}')
+    """
     vae = AutoencoderKL.from_config(pretrained_model_name_or_path=config_dir)
     pretrained_models = os.path.join(args.output_dir, 'vae_models')
     weights = os.listdir(pretrained_models)
     for weight in weights :
         vae.load_state_dict(load_file(os.path.join(pretrained_models, weight)))
         vae.to(accelerator.device, dtype=weight_dtype)
+    """
 
 
 
