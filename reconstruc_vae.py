@@ -41,10 +41,11 @@ def main(args):
     print(f'\n step 4. model ')
     weight_dtype, save_dtype = prepare_dtype(args)
     config_dir = os.path.join(args.output_dir, 'vae_config.json')
-    print(f'config_dir = {config_dir}')
-    config_dict = json.load(config_dir)
+    with open(config_dir, 'r') as f :
+        config_dict = json.load(f)
     print(f'config_dict = {config_dict}')
     #print(f'config_dict = {config_dict}')
+    vae = AutoencoderKL.from_config(pretrained_model_name_or_path=config_dict)
     """
     vae = AutoencoderKL.from_config(pretrained_model_name_or_path=config_dir)
     pretrained_models = os.path.join(args.output_dir, 'vae_models')
