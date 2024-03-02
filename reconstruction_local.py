@@ -10,10 +10,9 @@ from model.tokenizer import load_tokenizer
 from utils import prepare_dtype
 from utils.model_utils import get_input_ids
 from PIL import Image
-from utils.image_utils import load_image, image2latent
 import numpy as np
 from model.diffusion_model import load_target_model
-from model.pe import PositionalEmbedding, MultiPositionalEmbedding, AllPositionalEmbedding, Patch_MultiPositionalEmbedding, AllSelfCrossPositionalEmbedding
+from model.pe import AllPositionalEmbedding
 from safetensors.torch import load_file
 from attention_store.normal_activator import NormalActivator
 from attention_store.normal_activator import passing_normalize_argument
@@ -98,19 +97,9 @@ def main(args):
 
     position_embedder = None
     if args.use_position_embedder:
-        position_embedder = PositionalEmbedding(max_len=args.latent_res * args.latent_res,
-                                                d_model=args.d_dim)
-        if args.use_multi_position_embedder :
-            position_embedder = MultiPositionalEmbedding()
-
-        elif args.all_positional_embedder :
+        if args.all_positional_embedder :
             position_embedder = AllPositionalEmbedding()
 
-        elif args.patch_positional_self_embedder :
-            position_embedder = Patch_MultiPositionalEmbedding()
-
-        elif args.all_self_cross_positional_embedder :
-            position_embedder = AllSelfCrossPositionalEmbedding()
 
     print(f'\n step 2. accelerator and device')
     vae.requires_grad_(False)
