@@ -33,17 +33,28 @@ def resize_query_features(query):
     return resized_query
 
 
+from utils.model_utils import get_noise_noisy_latents_and_timesteps
+from diffusers import DDPMScheduler
+noise_scheduler = DDPMScheduler(beta_start=0.00085, beta_end=0.012, beta_schedule="scaled_linear",
+            num_train_timesteps=1000, clip_sample=False)
+
+
 def inference(latent,
               tokenizer, text_encoder, unet, controller, normal_activator, position_embedder,
               args, org_h, org_w, thred):
     # [1] text
     input_ids, attention_mask = get_input_ids(tokenizer, args.prompt)
     encoder_hidden_states = text_encoder(input_ids.to(text_encoder.device))["last_hidden_state"]
+
+    noise, noisy_latents, timesteps = get_noise_noisy_latents_and_timesteps(noise_scheduler,
+                                                                            latent, None, 99,
+                                                                            100)
+
     # [2] unet
     if args.use_position_embedder:
-        pred = unet(latent, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list, noise_type=position_embedder, ).sample
+        pred = unet(noisy_latents, timesteps, encoder_hidden_states, trg_layer_list=args.trg_layer_list, noise_type=position_embedder, ).sample
     else :
-        pred = unet(latent, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list).sample
+        pred = unet(noisy_latents, timesteps, encoder_hidden_states, trg_layer_list=args.trg_layer_list).sample
 
 
 

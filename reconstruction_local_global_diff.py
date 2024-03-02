@@ -123,6 +123,9 @@ def main(args):
         l_position_embedder.load_state_dict(load_file(args.local_position_embedder_dir))
 
 
+
+
+
     print(f' (2.2) global model')
     g_text_encoder, g_vae, g_unet, _ = load_target_model(args, weight_dtype, accelerator, False)
     g_vae.requires_grad_(False)
@@ -212,10 +215,13 @@ def main(args):
                             input_ids, attention_mask = get_input_ids(tokenizer, args.prompt)
                             encoder_hidden_states = l_text_encoder(input_ids.to(l_text_encoder.device))["last_hidden_state"]
                             # (3) extract local features
+
+
+
                             if args.local_position_embedder_dir:
-                                l_unet(latent, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list, noise_type=l_position_embedder, )
+                                l_unet(noisy_latents, timesteps, encoder_hidden_states, trg_layer_list=args.trg_layer_list, noise_type=l_position_embedder, )
                             else :
-                                l_unet(latent, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list, noise_type=None, )
+                                l_unet(noisy_latents, timesteps, encoder_hidden_states, trg_layer_list=args.trg_layer_list, noise_type=None, )
                             l_query_dict, l_key_dict = l_controller.query_dict, l_controller.key_dict
                             l_controller.reset()
                             l_query_list = []
