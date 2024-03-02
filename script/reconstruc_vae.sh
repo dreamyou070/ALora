@@ -10,4 +10,4 @@ accelerate launch --config_file ../../../gpu_config/gpu_0_config \
  --main_process_port $port_number ../reconstruc_vae.py \
  --output_dir "../../result/${bench_mark}/${obj_name}/vae_train/${file_name}" \
  --data_path "../../../MyData/anomaly_detection/${bench_mark}/${obj_name}/test" \
- --obj_name "${obj_name}" --prompt "${caption}"
+ --obj_name "${obj_name}"
