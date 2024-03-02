@@ -32,7 +32,24 @@ def resize_query_features(query):
     # resized_query = resized_query.view(64 * 64,dim)  # #view(head_num, -1, dim).squeeze()  # 1, pix_num, dim
     return resized_query
 
+def prev_step(model_output,
+              timestep: int,
+              sample,
+              scheduler):
+    timestep, prev_timestep = timestep, max( timestep - scheduler.config.num_train_timesteps // scheduler.num_inference_steps, 0)
+    alpha_prod_t = scheduler.alphas_cumprod[timestep] if timestep >= 0 else scheduler.final_alpha_cumprod
+    alpha_prod_t_prev = scheduler.alphas_cumprod[prev_timestep]
+    beta_prod_t = 1 - alpha_prod_t
+    prev_original_sample = (sample - beta_prod_t ** 0.5 * model_output) / alpha_prod_t ** 0.5
+    prev_sample_direction = (1 - alpha_prod_t_prev) ** 0.5 * model_output
+    prev_sample = alpha_prod_t_prev ** 0.5 * prev_original_sample + prev_sample_direction
+    return prev_sample
 
+from diffusers import DDIMScheduler
+scheduler = DDIMScheduler(num_train_timesteps=1000,
+                                      beta_start=0.00085,
+                                      beta_end=0.012,
+                                      beta_schedule="scaled_linear")
 
 def inference(latent,
               tokenizer, text_encoder, unet, controller, normal_activator, position_embedder,
@@ -45,6 +62,10 @@ def inference(latent,
         pred = unet(latent, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list, noise_type=position_embedder, ).sample
     else :
         pred = unet(latent, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list).sample
+    prev_sample = prev_step(pred, 1, latent, scheduler)
+
+
+
     query_dict, key_dict, attn_dict = controller.query_dict, controller.key_dict, controller.attn_dict
     controller.reset()
     attn_list, origin_query_list, query_list, key_list = [], [], [], []
@@ -78,7 +99,7 @@ def inference(latent,
     anomal_np = ((1 - normal_map) * 255).cpu().detach().numpy().astype(np.uint8)
     anomaly_map_pil = Image.fromarray(anomal_np).resize((org_h, org_w))
 
-    return cls_map_pil, normal_map_pil, anomaly_map_pil, pred
+    return cls_map_pil, normal_map_pil, anomaly_map_pil, prev_sample
 
 
 
@@ -227,7 +248,7 @@ def main(args):
                                 image = image.cpu().permute(0, 2, 3, 1).numpy()[0]
                                 image = (image * 255).astype(np.uint8)
                                 pil = Image.fromarray(image)
-                                pil.save(os.path.join(save_base_folder, f'{name}_unet_pred.png'))
+                                pil.save(os.path.join(save_base_folder, f'{name}_unet_prev_sample.png'))
 
                     controller.reset()
                     normal_activator.reset()
