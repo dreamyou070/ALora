@@ -74,26 +74,24 @@ def main(args):
     progress_bar = tqdm(range(args.max_train_steps), smoothing=0,
                         disable=not accelerator.is_local_main_process, desc="steps")
     global_step = 0
-    loss_list = []
     kl_weight = 1e-6
     perceptual_weight = 0.001
 
     for epoch in range(args.start_epoch, args.max_train_epochs):
 
         overall_loss = 0
+        loss_dict = {}
 
         for step, batch in enumerate(train_dataloader):
 
             # x = [1,4,512,512]
             images = batch["image"].to(accelerator.device).to(dtype=weight_dtype)
-
             # [1.1] latent space
             posterior = vae.encode(images).latent_dist
             z_mu, z_sigma = posterior.mean, posterior.logvar
             z = posterior.sample()
             # [1.2] decoding
             reconstruction = vae.decode(z).sample
-            print(f'recon = {reconstruction}')
 
             # [2.1] reconstruction losses
             recons_loss = l1_loss(reconstruction.float(), images.float())
@@ -111,6 +109,11 @@ def main(args):
             lr_scheduler.step()
             optimizer.zero_grad(set_to_none=True)
 
+            loss_dict['loss'] = loss.item()
+            if is_main_process:
+                progress_bar.set_postfix(**loss_dict)
+                global_step += 1
+
         print("\tEpoch", epoch + 1, "complete!", "\tAverage Loss: ", overall_loss )
         # saving vae model
         def model_save(model, save_dtype, save_dir):
@@ -126,7 +129,7 @@ def main(args):
             else:
                 torch.save(state_dict, save_dir)
         vae_base_dir = os.path.join(args.output_dir, 'vae_models')
-        os.makedirs(vae_base_dir, exists_ok = True)
+        os.makedirs(vae_base_dir, exist_ok = True)
         model_save(accelerator.unwrap_model(vae), save_dtype, os.path.join(vae_base_dir, f'vae_{epoch + 1}.safetensors'))
     print("Finish!!")
     accelerator.end_training()
