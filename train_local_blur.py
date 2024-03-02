@@ -17,6 +17,7 @@ from data.prepare_dataset import call_dataset
 from model import call_model_package
 from attention_store.normal_activator import passing_normalize_argument
 from data.mvtec import passing_mvtec_argument
+from data.mvtec_blur import passing_mvtec_argument as passing_mvtec_argument_blur
 from torch import nn
 
 def main(args):
@@ -438,5 +439,6 @@ if __name__ == "__main__":
     passing_argument(args)
     passing_normalize_argument(args)
     passing_mvtec_argument(args)
+    passing_mvtec_argument_blur(args)
     main(args)
 
