@@ -24,7 +24,7 @@ def main(args):
     os.makedirs(output_dir, exist_ok=True)
     args.logging_dir = os.path.join(output_dir, 'log')
 
-    recon_check_dir = os.path.join(output_dir, 'reconstruction')
+    recon_check_dir = os.path.join(output_dir, 'reconstruction_train_data')
     os.makedirs(recon_check_dir, exist_ok = True)
 
     print(f'\n step 2. dataset and dataloader')
