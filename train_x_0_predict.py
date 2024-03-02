@@ -307,6 +307,7 @@ if __name__ == "__main__":
     parser.add_argument("--all_self_cross_positional_embedder", action='store_true')
     parser.add_argument("--patch_positional_self_embedder", action='store_true')
     parser.add_argument("--use_position_embedder", action='store_true')
+    parser.add_argument("--blurring_test", action='store_true')
 
     # -----------------------------------------------------------------------------------------------------------------
     args = parser.parse_args()
