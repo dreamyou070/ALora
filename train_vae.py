@@ -17,8 +17,10 @@ from data.prepare_dataset import call_dataset
 from model import call_model_package
 from attention_store.normal_activator import passing_normalize_argument
 from data.mvtec import passing_mvtec_argument
-from torch import nn
+from losses import PerceptualLoss
+from torch.nn import L1Loss
 from diffusers import AutoencoderKL
+
 def main(args):
 
     print(f'\n step 1. setting')
@@ -57,15 +59,11 @@ def main(args):
     print(f'\n step 6. lr')
     lr_scheduler = get_scheduler_fix(args, optimizer, accelerator.num_processes)
 
-    print(f'\n step 7. loss function')
-    from torch.nn import L1Loss
+    print(f'\n step 7. losses function')
+
     l1_loss = L1Loss()
-    #def loss_function(x, x_hat, mean, log_var):
-    #    reproduction_loss = nn.functional.binary_cross_entropy(x_hat, x, reduction='sum')
-    #    KLD = - 0.5 * torch.sum(1 + log_var - mean.pow(2) - log_var.exp())
-    #    return reproduction_loss + KLD
-    # kl loss : should be
-    #BCE_loss = nn.BCELoss()
+    perceptual_loss = PerceptualLoss(spatial_dims=2, network_type="alex")
+
 
     print(f'\n step 8. model to device')
     vae, optimizer, train_dataloader, lr_scheduler = accelerator.prepare(vae, optimizer, train_dataloader, lr_scheduler)
@@ -76,32 +74,41 @@ def main(args):
                         disable=not accelerator.is_local_main_process, desc="steps")
     global_step = 0
     loss_list = []
+    kl_weight = 1e-6
+    perceptual_weight = 0.001
+
     for epoch in range(args.start_epoch, args.max_train_epochs):
+
         overall_loss = 0
+
         for step, batch in enumerate(train_dataloader):
 
             # x = [1,4,512,512]
-            x = batch["image"].to(accelerator.device).to(dtype=weight_dtype)
-            posterior = vae.encode(x).latent_dist
-            mean, log_var = posterior.mean, posterior.log_var
+            images = batch["image"].to(accelerator.device).to(dtype=weight_dtype)
+
+            # [1.1] latent space
+            posterior = vae.encode(images).latent_dist
+            z_mu, z_sigma = posterior.mean, posterior.logvar
             z = posterior.sample()
-            x_hat = vae.decode(z).sample
+            # [1.2] decoding
+            reconstruction = vae.decode(z).sample
 
-            # [1] reconstruction loss
-            recons_loss = l1_loss(x_hat.float(), x.float())
-
-            # [2]
-            kl_loss = 0.5 * torch.sum(mean.pow(2) + log_var.pow(2) - torch.log(log_var.pow(2)) - 1, dim=[1, 2, 3])
+            # [2.1] reconstruction losses
+            recons_loss = l1_loss(reconstruction.float(), images.float())
+            # [2.2]
+            kl_loss = 0.5 * torch.sum(z_mu.pow(2) + z_sigma.pow(2) - torch.log(z_sigma.pow(2)) - 1, dim=[1, 2, 3])
             kl_loss = torch.sum(kl_loss) / kl_loss.shape[0]
-
-            # [3] total loss
-            loss = recons_loss + kl_loss
+            # [2.3] perceptual loss
+            p_loss = perceptual_loss(reconstruction.float(), images.float())
+            loss = recons_loss + kl_weight * kl_loss + perceptual_weight * p_loss
             overall_loss += loss.item()
 
+            # [3.1] backprop
             accelerator.backward(loss)
             optimizer.step()
             lr_scheduler.step()
             optimizer.zero_grad(set_to_none=True)
+
         print("\tEpoch", epoch + 1, "complete!", "\tAverage Loss: ", overall_loss )
         # saving vae model
         def model_save(model, save_dtype, save_dir):
@@ -119,10 +126,9 @@ def main(args):
         vae_base_dir = os.path.join(args.output_dir, 'vae_models')
         os.makedirs(vae_base_dir, exists_ok = True)
         model_save(accelerator.unwrap_model(vae), save_dtype, os.path.join(vae_base_dir, f'vae_{epoch + 1}.safetensors'))
-
-
     print("Finish!!")
     accelerator.end_training()
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

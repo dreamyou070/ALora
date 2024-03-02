@@ -1,6 +1,6 @@
 # !/bin/bash
 # scratch vae / trained vae
-# matching loss : only normal
+# matching losses : only normal
 
 port_number=50005
 bench_mark="MVTec"

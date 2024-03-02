@@ -189,7 +189,7 @@ def main(args):
                                        anomal_position_vector.float())
             """
             # -------------------------------------------------------------------------------------------------------- #
-            #loss = matching_loss.mean() + anormality_loss.mean()
+            #losses = matching_loss.mean() + anormality_loss.mean()
             loss = matching_loss.mean()
             loss = loss.to(weight_dtype)
             current_loss = loss.detach().item()

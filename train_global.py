@@ -202,7 +202,7 @@ def main(args):
                         #g_query = g_query_dict[layer][0].squeeze() # 8, 64, 160 (most global features)
                         #g_key = g_key_dict[layer][0].squeeze()     # 8, 77, 160
                 global_query = torch.cat(g_query_list, dim=-1)  # 8, 64*64, 280
-                # matching loss (why matching?)
+                # matching losses (why matching?)
                 matching_loss += loss_l2(local_query.float(), global_query.float()) # [8, 64*64, 280]
                 """
                 # matching throug segmentation
@@ -246,7 +246,7 @@ def main(args):
                         g_query = g_query_dict[layer][0].squeeze()  # 8, 64, 160
                         g_key = g_key_dict[layer][0].squeeze()  # 8, 77, 160
                 global_query = gquery_transformer(g_query)  # g_query = 8, 64, 160 -> 8, 64*64, 280 (feature generating with only global context)
-                # matching loss
+                # matching losses
                 matching_loss += loss_l2(local_query.float(), global_query.float())  # [8, 64*64, 280]
                 # matching throug segmentation
                 attention_scores = torch.baddbmm(
@@ -294,7 +294,7 @@ def main(args):
                         g_key = g_key_dict[layer][0].squeeze()  # 8, 77, 160
                 global_query = gquery_transformer(
                     g_query)  # g_query = 8, 64, 160 -> 8, 64*64, 280 (feature generating with only global context)
-                # matching loss
+                # matching losses
                 matching_loss += loss_l2(local_query.float(), global_query.float())  # [8, 64*64, 280]
                 # matching throug segmentation
                 attention_scores = torch.baddbmm(

@@ -34,11 +34,11 @@ class FocalLoss(nn.Module):
     'Focal Loss for Dense Object Detection. (https://arxiv.org/abs/1708.02002)'
         Focal_Loss= -1*alpha*(1-pt)*log(pt)
     :param alpha: (tensor) 3D or 4D the scalar factor for this criterion
-    :param gamma: (float,double) gamma > 0 reduces the relative loss for well-classified examples (p>0.5) putting more
+    :param gamma: (float,double) gamma > 0 reduces the relative losses for well-classified examples (p>0.5) putting more
                     focus on hard misclassified example
     :param smooth: (float,double) smooth value when cross entropy
     :param balance_index: (int) balance class index, should be specific when alpha is float
-    :param size_average: (bool, optional) By default, the losses are averaged over each loss element in the batch.
+    :param size_average: (bool, optional) By default, the losses are averaged over each losses element in the batch.
     """
 
     def __init__(self, apply_nonlin=None, alpha=None, gamma=2, balance_index=0, smooth=1e-5, size_average=True):
