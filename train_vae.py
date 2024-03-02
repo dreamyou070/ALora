@@ -93,6 +93,7 @@ def main(args):
             z = posterior.sample()
             # [1.2] decoding
             reconstruction = vae.decode(z).sample
+            print(f'recon = {reconstruction}')
 
             # [2.1] reconstruction losses
             recons_loss = l1_loss(reconstruction.float(), images.float())
