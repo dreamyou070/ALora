@@ -46,9 +46,11 @@ def main(args):
 
     print(f'\n step 4. model ')
     weight_dtype, save_dtype = prepare_dtype(args)
-    text_encoder, vae, unet, network, position_embedder = call_model_package(args, weight_dtype, accelerator, True)
-    del text_encoder, unet, network, position_embedder
-    vae = AutoencoderKL.from_config(vae.config)
+    vae_base_dir = r'/home/dreamyou070/AnomalLora_OriginCode/result/MVTec/transistor/vae_train/train_vae_20240302'
+    config_dir = os.path.join(vae_base_dir, 'vae_config.json')
+    with open(config_dir, 'r') as f:
+        config_dict = json.load(f)
+    vae = AutoencoderKL.from_config(pretrained_model_name_or_path=config_dict)
 
     print(f'\n step 5. optimizer')
     args.max_train_steps = len(train_dataloader) * args.max_train_epochs
