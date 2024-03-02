@@ -126,9 +126,6 @@ def main(args):
             # [2.4] generator loss
             generator_loss = adv_loss(logits_fake, target_is_real=True, for_discriminator=False)
             loss_g = recons_loss + kl_weight * kl_loss + perceptual_weight * p_loss + adv_weight * generator_loss
-            # [3.1] backprop 1
-            accelerator.backward(loss_g)
-            optimizer.step()
             # ------------------------------------------------------------------------------------------------------- #
             optimizer_d.zero_grad(set_to_none=True)
             logits_fake = discriminator(reconstruction.contiguous().detach())[-1]
@@ -137,7 +134,10 @@ def main(args):
             loss_d_real = adv_loss(logits_real, target_is_real=True, for_discriminator=True)
             discriminator_loss = (loss_d_fake + loss_d_real) * 0.5
             loss_d = adv_weight * discriminator_loss
-            accelerator.backward(loss_d)
+            # ------------------------------------------------------------------------------------------------------- #
+            total_loss = loss_g + loss_d
+            accelerator.backward(total_loss)
+            optimizer.step()
             optimizer_d.step()
             # ------------------------------------------------------------------------------------------------------- #
             lr_scheduler.step()
