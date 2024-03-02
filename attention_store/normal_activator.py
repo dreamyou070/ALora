@@ -105,6 +105,7 @@ class NormalActivator(nn.Module):
 
         # [5]
         if do_normal_activating:
+            # normal activating !
             self.attention_loss['normal_cls_loss'].append(normal_cls_loss.mean())
             self.attention_loss['normal_trigger_loss'].append(normal_trigger_loss.mean())
 
