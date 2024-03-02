@@ -85,7 +85,8 @@ class MVTecDRAEMTrainDataset(Dataset):
                  anomal_only_on_object : bool = True,
                  anomal_training : bool = False,
                  latent_res : int = 64,
-                 do_anomal_sample : bool = True) :
+                 do_anomal_sample : bool = True,
+                 use_object_mask : bool = True) :
 
         # [1] base image
         self.root_dir = root_dir
@@ -132,6 +133,8 @@ class MVTecDRAEMTrainDataset(Dataset):
         self.background_paths = []
         for ext in ["png", "jpg"]:
             self.background_paths.extend(sorted(glob.glob(background_base_dir + f"/*.{ext}")))
+
+        self.use_object_mask = use_object_mask
 
     def __len__(self):
         if len(self.anomaly_source_paths) > 0 :
@@ -240,11 +243,14 @@ class MVTecDRAEMTrainDataset(Dataset):
         name = self.get_img_name(img_path)
 
         # [2] object mask dir
-        object_mask_dir = self.get_object_mask_dir(img_path)
-        object_img = self.load_image(object_mask_dir, self.latent_res, self.latent_res, type='L')
-        object_img = aug(image=object_img)
-        object_mask_np = np.where((np.array(object_img, np.uint8) / 255) == 0, 0, 1)  # object = 1
-        object_mask = torch.tensor(object_mask_np)  # shape = [64,64], 0 = background, 1 = object
+        if self.use_object_mask :
+            object_mask_dir = self.get_object_mask_dir(img_path)
+            object_img = self.load_image(object_mask_dir, self.latent_res, self.latent_res, type='L')
+            object_img = aug(image=object_img)
+            object_mask_np = np.where((np.array(object_img, np.uint8) / 255) == 0, 0, 1)  # object = 1
+            object_mask = torch.tensor(object_mask_np)  # shape = [64,64], 0 = background, 1 = object
+        else :
+            object_mask = img
 
         # [3] anomaly
         anomal_img = img

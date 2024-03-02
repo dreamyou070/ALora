@@ -9,6 +9,7 @@ sub_folder="mid_up_16_32_64"
 file_name="train_vae_20240302"
 
 anomal_source_path="../../../MyData/anomal_source"
+# --anomal_source_path "${anomal_source_path}" \
 
 accelerate launch --config_file ../../../gpu_config/gpu_0_1_2_3_4_5_config \
  --main_process_port $port_number ../train_vae.py --log_with wandb \
@@ -18,7 +19,6 @@ accelerate launch --config_file ../../../gpu_config/gpu_0_1_2_3_4_5_config \
  --data_path "../../../MyData/anomaly_detection/${bench_mark}" \
  --trigger_word "${trigger_word}" \
  --obj_name "${obj_name}" --anomal_only_on_object \
- --anomal_source_path "${anomal_source_path}" \
  --anomal_min_perlin_scale 0 \
  --anomal_max_perlin_scale 6 \
  --anomal_min_beta_scale 0.5 \
