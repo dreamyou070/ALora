@@ -62,15 +62,15 @@ def main(args):
             images = os.listdir(rgb_folder)
             for img in images :
                 img_dir = os.path.join(rgb_folder, img)
-                img = np.array(Image.open(img_dir).convert('RGB').resize((512,512), Image.BICUBIC))
-                img = transform(img).unsqueeze(dim=0).to(accelerator.device, dtype=weight_dtype)
-                posterior = vae.encode(img).latent_dist
+                org_pil = Image.open(img_dir).convert('RGB')
+                np_img = np.array(org_pil.resize((512,512), Image.BICUBIC))
+                tf_img = transform(np_img).unsqueeze(dim=0).to(accelerator.device, dtype=weight_dtype)
+                posterior = vae.encode(tf_img).latent_dist
                 z_mu, z_sigma = posterior.mean, posterior.logvar
                 z = posterior.sample()
                 reconstruction = vae.decode(z).sample.squeeze().detach().cpu() # 3,512,512
                 rec_pil = Image.fromarray(np.array(((reconstruction + 1) / 2) * 255).astype(np.uint8).transpose(1, 2, 0))
                 # org save
-                org_pil = Image.open(img_dir)
                 org_pil.save(os.path.join(save_base_dir, f'{defect}_org_{img}'))
                 # recon save
                 rec_pil.save(os.path.join(save_base_dir, f'{defect}_recon_{img}'))
