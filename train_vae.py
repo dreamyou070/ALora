@@ -13,6 +13,7 @@ from data.prepare_dataset import call_dataset
 from attention_store.normal_activator import passing_normalize_argument
 from data.mvtec import passing_mvtec_argument
 from losses import PerceptualLoss, PatchAdversarialLoss
+from model.patchgan_discriminator import PatchDiscriminator
 from torch.nn import L1Loss
 from diffusers import AutoencoderKL
 from monai.networks.layers import Act
@@ -49,7 +50,6 @@ def main(args):
     vae = AutoencoderKL.from_config(pretrained_model_name_or_path=config_dict)
 
     print(f'\n (4.2) discriminator')
-    from model.patchgan_discriminator import PatchDiscriminator
     discriminator = PatchDiscriminator(spatial_dims=2,
                                        num_layers_d=3,
                                        num_channels=64,
@@ -86,6 +86,7 @@ def main(args):
     discriminator, vae, optimizer, train_dataloader, lr_scheduler = accelerator.prepare(discriminator, vae, optimizer,
                                                                                         train_dataloader, lr_scheduler)
     vae = transform_models_if_DDP([vae])[0]
+    discriminator = transform_models_if_DDP([discriminator])[0]
 
     print(f'\n step 9. Training !')
     progress_bar = tqdm(range(args.max_train_steps), smoothing=0,
