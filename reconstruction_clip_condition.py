@@ -95,6 +95,7 @@ def main(args):
         content = f.readlines()
     scaling_factor = float(content[0])
     unet_models = os.listdir(os.path.join(args.output_dir, 'unet_models'))
+    clip_model = model.to(accelerator.device)
 
     for unet_model in unet_models:
 
@@ -139,8 +140,8 @@ def main(args):
                 rgb_img_dir = os.path.join(rgb_folder, rgb_img)
                 pil_img = Image.open(rgb_img_dir).convert('RGB')
                 np_img = np.array(pil_img)
-                inputs = processor(images=np_img, return_tensors="pt")
-                img_condition = model(**inputs).last_hidden_state  # 1, 50, 768
+                inputs = processor(images=np_img, return_tensors="pt").to(accelerator.device)
+                img_condition = clip_model(**inputs).last_hidden_state  # 1, 50, 768
                 # [2] sampling
                 latent = torch.randn(1,4,64,64).to(accelerator.device)
                 num_inference_steps = 50
