@@ -4,7 +4,7 @@ port_number=50003
 bench_mark="MVTec"
 obj_name='transistor'
 caption='transistor'
-file_name="train_vae_20240302_1"
+file_name="train_vae_20240302_6_distill_recon"
 
 accelerate launch --config_file ../../../gpu_config/gpu_0_config \
  --main_process_port $port_number ../reconstruc_vae.py \
