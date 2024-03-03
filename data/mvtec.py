@@ -458,7 +458,12 @@ class MVTecAnswerTrainDataset(Dataset):
         gt_torch = torch.tensor(gt_img) / 255
         gt_torch = torch.where(gt_torch>0.5, 1, 0).unsqueeze(0)
 
+        if self.tokenizer is not None :
+            input_ids, attention_mask = self.get_input_ids(self.caption) # input_ids = [77]
+        else :
+            input_ids = torch.tensor([0])
+
 
         return {'image': self.transform(img),               # [3,512,512]
                 "gt": gt_torch,                             # [1, 64, 64]
-                }
+                'input_ids': input_ids.squeeze(0),  }
