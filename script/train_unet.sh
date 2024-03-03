@@ -10,7 +10,7 @@ file_name="train_unet_anomal_background_sample"
 anomal_source_path="../../../MyData/anomal_source"
 # --anomal_source_path "${anomal_source_path}" \
 
-accelerate launch --config_file ../../../gpu_config/gpu_0_1_2_3_4_5_config \
+accelerate launch --config_file ../../../gpu_config/gpu_0_config \
  --main_process_port $port_number ../train_unet.py --log_with wandb \
  --output_dir "../../result/${bench_mark}/${obj_name}/${layer_name}/${file_name}" \
  --start_epoch 30 --max_train_epochs 100 \
