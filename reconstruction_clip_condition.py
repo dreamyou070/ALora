@@ -154,7 +154,7 @@ def main(args):
                     img_condition = clip_model(**inputs).last_hidden_state  # 1, 50, 768
 
                     # [3] noisy latent
-                    noise = torch.randn(1,4,64,64)
+                    noise = torch.randn(1,4,64,64).to(latents.device)
                     timesteps = torch.tensor([200]).to(latents.device)
                     timesteps = timesteps.long()
                     latents = scheduler.add_noise(latents, noise, timesteps)
