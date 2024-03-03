@@ -5,7 +5,7 @@ bench_mark="MVTec"
 obj_name='transistor'
 caption='transistor'
 layer_name='layer_1'
-sub_folder="mid_layer"
+sub_folder="mid_1"
 file_name="test_20240303_with_gcn"
 
 # position_embedding_layer="down_blocks_0_attentions_0_transformer_blocks_0_attn1"
