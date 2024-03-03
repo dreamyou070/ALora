@@ -113,7 +113,7 @@ def main(args):
                         disable=not accelerator.is_local_main_process, desc="steps")
     global_step = 0
     loss_list = []
-
+    global_conv_net.to(dtype=weight_dtype)
 
     def resize_query_features(query):
 
