@@ -54,6 +54,7 @@ def main(args):
         vae_config_dict = json.load(f)
     vae = AutoencoderKL.from_config(pretrained_model_name_or_path=vae_config_dict)
     vae.load_state_dict(load_file(os.path.join(vae_base_dir, f'vae_models/vae_91.safetensors')))
+    vae.to(dtype=weight_dtype).to(accelerator.device)
     # [3] unet
     unet_config_dir = os.path.join(r'/home/dreamyou070/AnomalLora_OriginCode/result/MVTec/transistor/unet_train/train_unet_20240303',
                               'unet_config.json')
