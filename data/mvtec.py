@@ -454,7 +454,7 @@ class MVTecAnswerTrainDataset(Dataset):
 
         # [2] gt dir
         gt_path = self.gt_paths[img_idx]
-        gt_img = np.array(Image.open(gt_path).convert('L').resize(self.latent_res, self.latent_res)) # 64,64
+        gt_img = np.array(Image.open(gt_path).convert('L').resize((self.latent_res, self.latent_res),Image.BICUBIC)) # 64,64
         gt_torch = torch.tensor(gt_img) / 255
         gt_torch = torch.where(gt_torch>0.5, 1, 0).unsqueeze(0)
 
