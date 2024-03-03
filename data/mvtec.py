@@ -423,11 +423,6 @@ class MVTecAnswerTrainDataset(Dataset):
         object_mask_dir = os.path.join(parent, f"object_mask/{name}")
         return object_mask_dir
 
-    def randAugmenter(self, idx):
-        rot_aug_ind = idx % len(self.rot_augmenters)
-        rot_aug = self.rot_augmenters[rot_aug_ind]
-        aug = iaa.Sequential([rot_aug])
-        return aug
 
     def get_input_ids(self, caption):
         tokenizer_output = self.tokenizer(caption, padding="max_length", truncation=True,return_tensors="pt")
@@ -459,8 +454,6 @@ class MVTecAnswerTrainDataset(Dataset):
         img_idx = idx % len(self.image_paths)
         img_path = self.image_paths[img_idx]
         img = self.load_image(img_path, self.resize_shape[0], self.resize_shape[1])  # np.array,
-        img = aug(image=img)
-        name = self.get_img_name(img_path)
 
         # [2] gt dir
         gt_path = self.gt_paths[img_idx]
