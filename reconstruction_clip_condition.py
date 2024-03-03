@@ -139,7 +139,7 @@ def main(args):
                 # [1] image condition
                 name, ext = os.path.splitext(rgb_img)
                 rgb_img_dir = os.path.join(rgb_folder, rgb_img)
-                pil_img = Image.open(rgb_img_dir).convert('RGB')
+                pil_img = Image.open(rgb_img_dir).convert('RGB').resize((512,512))
                 np_img = np.array(pil_img)
                 with torch.no_grad() :
 
