@@ -140,23 +140,24 @@ def main(args):
                 rgb_img_dir = os.path.join(rgb_folder, rgb_img)
                 pil_img = Image.open(rgb_img_dir).convert('RGB')
                 np_img = np.array(pil_img)
-                inputs = processor(images=np_img, return_tensors="pt").to(accelerator.device)
-                img_condition = clip_model(**inputs).last_hidden_state  # 1, 50, 768
-                # [2] sampling
-                latent = torch.randn(1,4,64,64).to(accelerator.device)
-                num_inference_steps = 50
-                scheduler.set_timesteps(num_inference_steps, device=accelerator.device)
-                timesteps = scheduler.timesteps
-                for i, t in enumerate(timesteps):
-                    noise_pred = unet(latent, t, encoder_hidden_states=img_condition).sample
-                    latent = scheduler.step(noise_pred, t, latent, return_dict=False)[0]
-                # latent to image
-                image = vae.decode(latent / scaling_factor, return_dict=False)[0]
-                print(f'vae out. image : {type(image)}')
-                np_image = image.cpu().permute(0, 2, 3, 1).float().numpy()
-                np_image = (np_image * 255).round().astype("uint8")
-                pil_image = Image.fromarray(np_image[:, :, :3])
-                pil_image.save()
+                with torch.no_grad() :
+                    inputs = processor(images=np_img, return_tensors="pt").to(accelerator.device)
+                    img_condition = clip_model(**inputs).last_hidden_state  # 1, 50, 768
+                    # [2] sampling
+                    latent = torch.randn(1,4,64,64).to(accelerator.device)
+                    num_inference_steps = 50
+                    scheduler.set_timesteps(num_inference_steps, device=accelerator.device)
+                    timesteps = scheduler.timesteps
+                    for i, t in enumerate(timesteps):
+                        noise_pred = unet(latent, t, encoder_hidden_states=img_condition).sample
+                        latent = scheduler.step(noise_pred, t, latent, return_dict=False)[0]
+                    # latent to image
+                    image = vae.decode(latent / scaling_factor, return_dict=False)[0]
+                    print(f'vae out. image : {type(image)}')
+                    np_image = image.cpu().permute(0, 2, 3, 1).float().numpy()
+                    np_image = (np_image * 255).round().astype("uint8")
+                    pil_image = Image.fromarray(np_image[:, :, :3])
+                    #pil_image.save()
 
 
 
