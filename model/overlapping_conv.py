@@ -38,11 +38,11 @@ class GCN(nn.Module):
 
     def forward(self, x):
 
-        x_l = self.conv_l1(x.to(self.conv_l1.device))
-        x_l = self.conv_l2(x_l)
+        x_l = self.conv_l1.to(x.device)(x)
+        x_l = self.conv_l2.to(x.device)(x_l)
 
-        x_r = self.conv_r1(x)
-        x_r = self.conv_r2(x_r)
+        x_r = self.conv_r1.to(x.device)(x)
+        x_r = self.conv_r2.to(x.device)(x_r)
 
         x = x_l + x_r
 

@@ -85,6 +85,8 @@ def main(args):
     unet, network = transform_models_if_DDP([unet, network])
     if args.use_position_embedder:
         position_embedder = transform_models_if_DDP([position_embedder])[0]
+    if args.use_global_conv :
+        global_conv_net = transform_models_if_DDP([global_conv_net])[0]
     if args.gradient_checkpointing:
         unet.train()
         position_embedder.train()

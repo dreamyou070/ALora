@@ -61,7 +61,7 @@ for layer_name in layer_names_res_dim.keys() :
     #print(f'hidden_states2d = {hidden_states2d.shape}')
     kernel_size = int(res/2)-1
     gcn = GCN(c=dim, out_c=dim, k=(kernel_size,kernel_size))
-    out = gcn(hidden_states2d)
+    out = gcn(hidden_states2d.to(dtype=gcn.weight_dtype))
     out = out.permute(0,2,3,1)
     out1d = out.view(1,pix_num,dim)
     print(f'layer_name = {layer_name} | output = {out1d.shape}')
