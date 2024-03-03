@@ -109,23 +109,19 @@ def main(args):
             # [2.1] clip image condition
             condition = batch['anomal_image'].to(dtype=weight_dtype) # [1,50, 768]
             noise_pred_1 = unet(noisy_latents, timesteps, condition).sample
-            loss_1 = torch.nn.functional.mse_loss(noise_pred_1.float(), noise.float())#.mean([1, 2, 3])
-            print(f'loss_1 : {loss_1}')
-            print(f'loss_1 : {loss_1.shape}')
+            loss_1 = torch.nn.functional.mse_loss(noise_pred_1.float(), noise.float(), reduction = "none").mean([1, 2, 3])
 
             # [2.2]
             condition = batch['bg_anomal_image'].to(dtype=weight_dtype) # [1,50, 768]
             noise_pred_2 = unet(noisy_latents, timesteps, condition).sample
-            loss_2 = torch.nn.functional.mse_loss(noise_pred_2.float(), noise.float())#.mean([1, 2, 3])
+            loss_2 = torch.nn.functional.mse_loss(noise_pred_2.float(), noise.float(), reduction = "none").mean([1, 2, 3])
 
             loss = (loss_1 + loss_2).mean()
             accelerator.backward(loss)
-            if accelerator.sync_gradients and args.max_grad_norm != 0.0:
-                params_to_clip = network.get_trainable_params()
-                accelerator.clip_grad_norm_(params_to_clip, args.max_grad_norm)
             optimizer.step()
             lr_scheduler.step()
             optimizer.zero_grad(set_to_none=True)
+            break
 
         # [4] saving model
         def model_save(model, save_dtype, save_dir):
