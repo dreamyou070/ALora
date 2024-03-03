@@ -11,6 +11,8 @@ def passing_argument(args):
 
     argument = args
 
+
+
 def register_attention_control(unet: nn.Module,controller: AttentionStore):
 
     def ca_forward(self, layer_name):
@@ -19,7 +21,13 @@ def register_attention_control(unet: nn.Module,controller: AttentionStore):
             if context is not None:
                 is_cross_attention = True
             """ cross self rechecking necessary """
-            if argument.use_position_embedder and noise_type is not None :
+            if argument.use_position_embedder and argument.use_global_conv and noise_type is not None :
+                pe, g_conv = noise_type
+                hidden_states = pe(hidden_states, layer_name)
+                global_hidden_states = g_conv(hidden_states, layer_name)
+                total_conv = hidden_states + global_hidden_states
+
+            if argument.use_position_embedder and not argument.use_global_conv and noise_type is not None :
                 hidden_states = noise_type(hidden_states, layer_name)
             query = self.to_q(hidden_states)
             context = context if context is not None else hidden_states

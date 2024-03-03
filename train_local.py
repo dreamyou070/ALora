@@ -46,12 +46,20 @@ def main(args):
     weight_dtype, save_dtype = prepare_dtype(args)
     text_encoder, vae, unet, network, position_embedder = call_model_package(args, weight_dtype, accelerator, True)
 
+    if args.use_global_conv :
+        from model.overlapping_conv import AllGCN
+        global_conv_net = AllGCN()
+
+
     print(f'\n step 5. optimizer')
     args.max_train_steps = len(train_dataloader) * args.max_train_epochs
     trainable_params = network.prepare_optimizer_params(args.text_encoder_lr,
                                                         args.unet_lr, args.learning_rate)
     if args.use_position_embedder :
         trainable_params.append({"params": position_embedder.parameters(), "lr": args.learning_rate})
+    if args.use_global_conv:
+        trainable_params.append({"params": global_conv_net.parameters(),
+                                 "lr": args.learning_rate})
     optimizer_name, optimizer_args, optimizer = get_optimizer(args, trainable_params)
 
     print(f'\n step 6. lr')
@@ -63,7 +71,10 @@ def main(args):
     normal_activator = NormalActivator(loss_focal, loss_l2, args.use_focal_loss)
 
     print(f'\n step 8. model to device')
-    if args.use_position_embedder:
+    if args.use_position_embedder and args.use_global_conv:
+        unet, text_encoder, network, optimizer, train_dataloader, lr_scheduler, position_embedder, global_conv_net = accelerator.prepare(
+            unet, text_encoder, network, optimizer, train_dataloader, lr_scheduler, position_embedder, global_conv_net)
+    elif args.use_position_embedder and not args.use_global_conv :
         unet, text_encoder, network, optimizer, train_dataloader, lr_scheduler, position_embedder = accelerator.prepare(unet,
               text_encoder, network, optimizer, train_dataloader, lr_scheduler, position_embedder)
     else :
@@ -77,6 +88,8 @@ def main(args):
     if args.gradient_checkpointing:
         unet.train()
         position_embedder.train()
+        if args.use_global_conv :
+            global_conv_net.train()
         for t_enc in text_encoders:
             t_enc.train()
             if args.train_text_encoder:
@@ -104,15 +117,12 @@ def main(args):
 
     def resize_query_features(query):
 
-        #pix_num, dim = query.shape
         head_num, pix_num, dim = query.shape
         res = int(pix_num ** 0.5) # 8
-        # query_map = query.view(res, res, dim).permute(2,0,1).contiguous().unsqueeze(0)           # 1, channel, res, res
         query_map = query.view(head_num, res, res, dim).permute(0, 3, 1, 2).contiguous()  # 1, channel, res, res
         resized_query_map = nn.functional.interpolate(query_map, size=(64, 64), mode='bilinear') # 1, channel, 64,  64
         resized_query = resized_query_map.permute(0, 2, 3, 1).contiguous().squeeze() # head, 64, 64, channel
         resized_query = resized_query.view(head_num, 64*64, dim) # 8, 64*64, dim
-        # resized_query = resized_query.view(64 * 64,dim)  # #view(head_num, -1, dim).squeeze()  # 1, pix_num, dim
         return resized_query
 
     for epoch in range(args.start_epoch, args.max_train_epochs):
@@ -137,9 +147,15 @@ def main(args):
                         latents = vae.encode(batch["anomal_image"].to(dtype=weight_dtype)).latent_dist.sample() * args.vae_scale_factor
 
                 anomal_position_vector = batch["anomal_mask"].squeeze().flatten()
+                object_mask = batch['object_mask'].squeeze().flatten()
+                normal_position_vector = torch.where(object_mask == 1 and anomal_position_vector == 0, 1, 0)
+
                 with torch.set_grad_enabled(True):
-                    if args.use_position_embedder :
+                    if args.use_position_embedder and args.use_global_conv :
                         unet(latents, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list,noise_type=position_embedder,)
+                    elif args.use_position_embedder and not args.use_global_conv:
+                        unet(latents, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list,
+                             noise_type=[position_embedder,global_conv_net] )
                     else :
                         unet(latents, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list,)
                 query_dict, key_dict, attn_dict = controller.query_dict, controller.key_dict, controller.attn_dict
@@ -163,8 +179,11 @@ def main(args):
                 local_attn = attention_scores.softmax(dim=-1)[:,:,:2]
                 normal_activator.collect_attention_scores(local_attn,
                                                           anomal_position_vector,
+                                                          normal_position_vector,
                                                           True)
-                normal_activator.collect_anomal_map_loss(local_attn, anomal_position_vector)
+                normal_activator.collect_anomal_map_loss(local_attn,
+                                                         anomal_position_vector,
+                                                         normal_position_vector)
 
             if args.do_background_masked_sample:
                 if args.patch_positional_self_embedder:
@@ -173,9 +192,13 @@ def main(args):
                     with torch.no_grad():
                         latents = vae.encode(batch["bg_anomal_image"].to(dtype=weight_dtype)).latent_dist.sample() * args.vae_scale_factor
                 anomal_position_vector = batch["bg_anomal_mask"].squeeze().flatten()
+                normal_position_vector = torch.where(object_mask == 1 and anomal_position_vector == 0, 1, 0)
                 with torch.set_grad_enabled(True):
-                    if args.use_position_embedder :
+                    if args.use_position_embedder and args.use_global_conv :
                         unet(latents, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list,noise_type=position_embedder,)
+                    elif args.use_position_embedder and not args.use_global_conv:
+                        unet(latents, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list,
+                             noise_type=[position_embedder,global_conv_net] )
                     else :
                         unet(latents, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list,)
                 query_dict, key_dict, attn_dict = controller.query_dict, controller.key_dict, controller.attn_dict
@@ -197,9 +220,11 @@ def main(args):
                 local_attn = attention_scores.softmax(dim=-1)[:,:,:2]
                 normal_activator.collect_attention_scores(local_attn,
                                                           anomal_position_vector,
+                                                          normal_position_vector,
                                                           True)
                 normal_activator.collect_anomal_map_loss(local_attn, #
-                                                         anomal_position_vector)
+                                                         anomal_position_vector,
+                                                         normal_position_vector)
                 # [2] glocal
                 #global_query = gquery_transformer(origin_query_list)
 
