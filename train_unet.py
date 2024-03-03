@@ -108,12 +108,12 @@ def main(args):
 
             # [2.1] clip image condition
             condition = batch['anomal_image'].to(dtype=weight_dtype) # [1,50, 768]
-            noise_pred_1 = unet(noisy_latents, timesteps, condition)
+            noise_pred_1 = unet(noisy_latents, timesteps, condition).sample
             loss_1 = torch.nn.functional.mse_loss(noise_pred_1.float(), noise.float()).mean([1, 2, 3])
 
             # [2.2]
             condition = batch['bg_anomal_image'].to(dtype=weight_dtype) # [1,50, 768]
-            noise_pred_2 = unet(noisy_latents, timesteps, condition)
+            noise_pred_2 = unet(noisy_latents, timesteps, condition).sample
             loss_2 = torch.nn.functional.mse_loss(noise_pred_2.float(), noise.float()).mean([1, 2, 3])
 
             loss = (loss_1 + loss_2).mean()
