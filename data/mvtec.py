@@ -447,9 +447,6 @@ class MVTecAnswerTrainDataset(Dataset):
 
     def __getitem__(self, idx):
 
-        # [0] augmenter
-        aug = self.randAugmenter(idx)
-
         # [1] base
         img_idx = idx % len(self.image_paths)
         img_path = self.image_paths[img_idx]
