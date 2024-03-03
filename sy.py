@@ -53,15 +53,12 @@ layer_names_res_dim = {'down_blocks_0_attentions_0_transformer_blocks_0_attn2': 
                        'up_blocks_3_attentions_0_transformer_blocks_0_attn2': (64, 320),
                        'up_blocks_3_attentions_1_transformer_blocks_0_attn2': (64, 320),
                        'up_blocks_3_attentions_2_transformer_blocks_0_attn2': (64, 320), }
-for layer_name in layer_names_res_dim.keys() :
-    res, dim = layer_names_res_dim[layer_name]
-    pix_num = res * res
-    hidden_states = torch.randn(1,res*res,dim)
-    hidden_states2d = hidden_states.permute(0,2,1).view(1, dim, res,res)
-    #print(f'hidden_states2d = {hidden_states2d.shape}')
-    kernel_size = int(res/2)-1
-    gcn = GCN(c=dim, out_c=dim, k=(kernel_size,kernel_size))
-    out = gcn(hidden_states2d.to(dtype=gcn.weight_dtype))
-    out = out.permute(0,2,3,1)
-    out1d = out.view(1,pix_num,dim)
-    print(f'layer_name = {layer_name} | output = {out1d.shape}')
+
+in_dim = 320
+lora_dim = 64
+kernel_size = 3
+stride = 1
+padding = 1
+lora_down = torch.nn.Conv2d(in_dim, lora_dim, kernel_size, stride, padding, bias=False)
+input = torch.randn(1,320, 64*64)
+dilation_conv = torch.nn.Conv2d()
