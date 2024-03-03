@@ -58,7 +58,8 @@ class AllGCN(nn.Module):
         for layer_name in self.layer_dict.keys() :
             res, dim = self.layer_dict[layer_name]
             k_size = int(res/2) - 1
-            self.gcn[layer_name] = GCN(c=dim, c_out=dim,k = (k_size, k_size))
+            self.gcn[layer_name] = GCN(c=dim, out_c=dim,
+                                       k = (k_size, k_size))
 
     def forward(self, x: torch.Tensor, layer_name):
         b, pix_num, dim = x.shape
