@@ -90,7 +90,7 @@ def main(args):
     for step, batch in enumerate(train_dataloader) :
         with torch.no_grad():
             with autocast(enabled=True):
-                z = vae.encode(batch["image"]).latent_dist.sample()
+                z = vae.encode(batch["image"].to(dtype=weight_dtype)).latent_dist.sample()
     scale_factor = 1 / torch.std(z)
     unet_scale_factor_dir = os.path.join(output_dir, 'unet_scale_factor.txt')
     with open(unet_scale_factor_dir, 'w') as f :
@@ -105,18 +105,19 @@ def main(args):
             # [1] input latent : x = [1,4,512,512]
             z = vae.encode(batch["image"].to(dtype=weight_dtype)).latent_dist.sample()
             latents = z * scale_factor
-
             noise, noisy_latents, timesteps = get_noise_noisy_latents_and_timesteps(args, noise_scheduler,
                                                                                     latents, noise = None)
 
             # [2.1] clip image condition
-            condition = batch['anomal_image']
+            condition = batch['anomal_image'].to(dtype=weight_dtype)
+            print(f'condition shape = {condition.shape}')
             noise_pred_1 = unet(noisy_latents, timesteps, condition)
             loss_1 = torch.nn.functional.mse_loss(noise_pred_1.float(), noise.float()).mean([1, 2, 3])
 
             # [2.2]
-            condition = batch['bg_anomal_image']
+            condition = batch['bg_anomal_image'].to(dtype=weight_dtype)
             noise_pred_2 = unet(noisy_latents, timesteps, condition)
+            print(f'condition shape = {condition.shape}')
             loss_2 = torch.nn.functional.mse_loss(noise_pred_2.float(), noise.float()).mean([1, 2, 3])
 
             loss = (loss_1 + loss_2).mean()
