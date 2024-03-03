@@ -96,6 +96,7 @@ def main(args):
     progress_bar = tqdm(range(args.max_train_steps), smoothing=0,
                         disable=not accelerator.is_local_main_process, desc="steps")
     global_step = 0
+    loss_dict = {}
     for epoch in range(args.start_epoch, args.max_train_epochs):
         epoch_loss = 0
         for step, batch in enumerate(train_dataloader):
@@ -124,9 +125,10 @@ def main(args):
             optimizer.step()
             lr_scheduler.step()
             optimizer.zero_grad(set_to_none=True)
-
+            loss_dict['loss'] = loss.detach().item()
             if is_main_process :
                 progress_bar.update(1)
+                progress_bar.set_postfix(**loss_dict)
                 global_step += 1
 
         # [4] saving model
