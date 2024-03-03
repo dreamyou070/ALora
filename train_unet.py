@@ -107,15 +107,13 @@ def main(args):
                                                                                     latents, noise = None)
 
             # [2.1] clip image condition
-            condition = batch['anomal_image'].to(dtype=weight_dtype)
-            print(f'condition shape = {condition.shape}')
+            condition = batch['anomal_image'].to(dtype=weight_dtype) # [1,50, 768]
             noise_pred_1 = unet(noisy_latents, timesteps, condition)
             loss_1 = torch.nn.functional.mse_loss(noise_pred_1.float(), noise.float()).mean([1, 2, 3])
 
             # [2.2]
-            condition = batch['bg_anomal_image'].to(dtype=weight_dtype)
+            condition = batch['bg_anomal_image'].to(dtype=weight_dtype) # [1,50, 768]
             noise_pred_2 = unet(noisy_latents, timesteps, condition)
-            print(f'condition shape = {condition.shape}')
             loss_2 = torch.nn.functional.mse_loss(noise_pred_2.float(), noise.float()).mean([1, 2, 3])
 
             loss = (loss_1 + loss_2).mean()
@@ -128,6 +126,23 @@ def main(args):
             optimizer.zero_grad(set_to_none=True)
 
         # [4] saving model
+        def model_save(model, save_dtype, save_dir):
+            state_dict = model.state_dict()
+            for key in list(state_dict.keys()):
+                v = state_dict[key]
+                v = v.detach().clone().to("cpu").to(save_dtype)
+                state_dict[key] = v
+            _, file = os.path.split(save_dir)
+            if os.path.splitext(file)[1] == ".safetensors":
+                from safetensors.torch import save_file
+                save_file(state_dict, save_dir)
+            else:
+                torch.save(state_dict, save_dir)
+        unet_base_dir = os.path.join(args.output_dir, 'unet_models')
+        os.makedirs(unet_base_dir, exist_ok = True)
+        print(f'model save ... ')
+        model_save(accelerator.unwrap_model(unet), save_dtype, os.path.join(vae_base_dir, f'unet_{epoch + 1}.safetensors'))
+
 
 
 

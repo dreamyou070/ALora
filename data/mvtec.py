@@ -582,10 +582,10 @@ class MVTecClipTrainDataset(Dataset):
         return {'image': self.transform(img),               # original image
                 "object_mask": object_mask.unsqueeze(0),    # [1, 64, 64]
 
-                'anomal_image': anomal_clip_latent,         # [1, 50, 768]
+                'anomal_image': anomal_clip_latent.squeeze(),         # [1, 50, 768]
                 "anomal_mask": anomal_mask_torch,
 
-                'bg_anomal_image': back_anomal_clip_latent,        # masked image
+                'bg_anomal_image': back_anomal_clip_latent.squeeze(),        # masked image
                 'bg_anomal_mask': back_anomal_mask_torch,
 
             #     'rotate_image': self.transform(rotate_np),
