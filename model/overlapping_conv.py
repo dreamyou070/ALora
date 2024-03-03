@@ -37,7 +37,8 @@ class GCN(nn.Module):
         self.conv_r2 = nn.Conv2d(out_c, out_c, kernel_size=(k[1], 1), padding=(int((k[1] - 1) / 2), 0))
 
     def forward(self, x):
-        x_l = self.conv_l1(x)
+
+        x_l = self.conv_l1(x.to(self.conv_l1.device))
         x_l = self.conv_l2(x_l)
 
         x_r = self.conv_r1(x)
