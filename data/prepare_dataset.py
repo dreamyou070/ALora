@@ -10,9 +10,10 @@ def call_dataset(args) :
     else:
         root_dir = os.path.join(args.data_path, f'{args.obj_name}/train')
     data_class = MVTecDRAEMTrainDataset
-    if args.clip_test :
-        from data.mvtec import MVTecClipTrainDataset
-        data_class = MVTecClipTrainDataset
+    if args.answer_test:
+        from data.mvtec import MVTecAnswerTrainDataset
+        data_class = MVTecAnswerTrainDataset
+        root_dir = os.path.join(args.data_path, f'{args.obj_name}/test')
 
     tokenizer = None
     if not args.on_desktop :

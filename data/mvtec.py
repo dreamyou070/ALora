@@ -345,7 +345,9 @@ class MVTecDRAEMTrainDataset(Dataset):
 
 
 
-class MVTecClipTrainDataset(Dataset):
+
+
+class MVTecAnswerTrainDataset(Dataset):
 
     def __init__(self,
                  root_dir,
@@ -362,13 +364,17 @@ class MVTecClipTrainDataset(Dataset):
 
         # [1] base image
         self.root_dir = root_dir
-        image_paths = []
-        folder_path = os.path.join(root_dir, 'good')
-        rgb_folder = os.path.join(folder_path, "rgb")
-        images = os.listdir(rgb_folder)
-        for image in images:
-            image_path = os.path.join(rgb_folder, image)
-            image_paths.append(image_path)
+        image_paths, gt_paths = [], []
+        folders = os.listdir(self.root_dir)
+        for folder in folders :
+            folder_dir = os.path.join(self.root_dir, folder)
+            rgb_folder = os.path.join(folder_dir, 'rgb')
+            gt_folder = os.path.join(folder_dir, 'gt')
+            images = os.listdir(rgb_folder)
+            for image in images :
+                image_path = os.path.join(rgb_folder, image)
+                image_paths.append(image_path)
+                gt_paths.append(os.path.join(gt_folder, image))
 
         self.resize_shape=resize_shape
         if do_anomal_sample :
@@ -386,27 +392,13 @@ class MVTecClipTrainDataset(Dataset):
         self.transform = transforms.Compose([transforms.ToTensor(),
                                              transforms.Normalize([0.5], [0.5]),])
         self.use_perlin = use_perlin
-        if do_rot_augment :
-            self.rot_augmenters = [iaa.Affine(rotate=(0, 0)),
-                                   iaa.Affine(rotate=(180, 180)),
-                                   iaa.Affine(rotate=(90, 90)),
-                                   iaa.Affine(rotate=(270, 270)),
-                                   iaa.flip.Fliplr(p=1),]
-        else :
-            self.rot_augmenters = [iaa.Affine(rotate=(0, 0))]
-        num_repeat = len(self.rot_augmenters) # 4
-        self.image_paths = [image_path for image_path in image_paths for i in range(num_repeat)]
+
+        self.image_paths = image_paths
+        self.gt_paths = gt_paths
 
         self.anomal_only_on_object = anomal_only_on_object
         self.anomal_training = anomal_training
         self.latent_res = latent_res
-
-        background_base_dir = os.path.join(folder_path, "background")
-        self.background_paths = []
-        for ext in ["png", "jpg"]:
-            self.background_paths.extend(sorted(glob.glob(background_base_dir + f"/*.{ext}")))
-
-        self.use_object_mask = use_object_mask
 
     def __len__(self):
         if len(self.anomaly_source_paths) > 0 :
@@ -443,51 +435,7 @@ class MVTecClipTrainDataset(Dataset):
         attention_mask = tokenizer_output.attention_mask
         return input_ids, attention_mask
 
-    def augment_image(self, image, anomaly_source_img,
-                      min_perlin_scale, max_perlin_scale,
-                      min_beta_scale, max_beta_scale,
-                      object_position, trg_beta):
 
-        # [2] perlin noise
-        while True :
-
-            while True :
-                # [1] size of noise :big perlin scale means smaller noise
-                perlin_scalex = 2 ** (torch.randint(min_perlin_scale, max_perlin_scale, (1,)).numpy()[0])
-                perlin_scaley = 2 ** (torch.randint(min_perlin_scale, max_perlin_scale, (1,)).numpy()[0])
-                perlin_noise = rand_perlin_2d_np((self.resize_shape[0], self.resize_shape[1]), (perlin_scalex, perlin_scaley))
-                threshold = 0.3
-                perlin_thr = np.where(perlin_noise > threshold, np.ones_like(perlin_noise), np.zeros_like(perlin_noise))
-                # smoothing
-                perlin_thr = cv2.GaussianBlur(perlin_thr, (3,3), 0)
-                # only on object
-                total_object_pixel = int(self.resize_shape[0] * self.resize_shape[1])
-                if object_position is not None:
-                    total_object_pixel = np.sum(object_position)
-                    perlin_thr = perlin_thr * object_position
-                binary_2D_mask = (np.where(perlin_thr == 0, 0, 1)).astype(np.float32)  # [512,512,3]
-                if np.sum(binary_2D_mask) > anomal_p * total_object_pixel :
-                    break
-            blur_3D_mask = np.expand_dims(perlin_thr, axis=2)  # [512,512,3]
-
-            if trg_beta is None :
-                while True :
-                    # [1] how transparent the noise
-                    beta = torch.rand(1).numpy()[0]
-                    if max_beta_scale > beta > min_beta_scale :
-                        break
-            else:
-                beta = trg_beta
-
-            # big beta = transparent
-            A = beta * image + (1 - beta) * anomaly_source_img.astype(np.float32) # merged
-            augmented_image = (image * (1 - blur_3D_mask) + A * blur_3D_mask).astype(np.float32)
-            anomal_img = np.array(Image.fromarray(augmented_image.astype(np.uint8)), np.uint8)
-            binary_2d_pil = Image.fromarray((binary_2D_mask * 255).astype(np.uint8)).convert('L').resize((64, 64))
-            anomal_mask_torch = torch.where((torch.tensor(np.array(binary_2d_pil)) / 255) > 0.5, 1, 0)
-            if anomal_mask_torch.sum() > 0:
-                break
-        return anomal_img, anomal_mask_torch
 
     def load_image(self, image_path, trg_h, trg_w, type='RGB'):
         image = Image.open(image_path)
@@ -514,85 +462,13 @@ class MVTecClipTrainDataset(Dataset):
         img = aug(image=img)
         name = self.get_img_name(img_path)
 
-        # [2] object mask dir
-        if self.use_object_mask :
-            object_mask_dir = self.get_object_mask_dir(img_path)
-            object_img = self.load_image(object_mask_dir, self.latent_res, self.latent_res, type='L')
-            object_img = aug(image=object_img)
-            object_mask_np = np.where((np.array(object_img, np.uint8) / 255) == 0, 0, 1)  # object = 1
-            object_mask = torch.tensor(object_mask_np)  # shape = [64,64], 0 = background, 1 = object
-        else :
-            object_mask = torch.zeros(self.latent_res, self.latent_res)
-
-        # [3] anomaly
-        anomal_img = img
-        anomal_mask_torch = object_mask
-        anomal_name = 'none'
-        if len(self.anomaly_source_paths) > 0:
-            anomal_src_idx = idx % len(self.anomaly_source_paths)
-            anomal_dir = self.anomaly_source_paths[anomal_src_idx]
-            parent, a_name = os.path.split(anomal_dir)
-            a_name = a_name.split('.')[0]
-            anomal_class = os.path.split(parent)[1]
-            anomal_name = f'{anomal_class}_{a_name}'
-            object_position = None
-            if self.anomal_only_on_object:
-                object_img_aug = aug(image=self.load_image(object_mask_dir, self.resize_shape[0], self.resize_shape[1], type='L') )
-                object_position = np.where((np.array(object_img_aug)) == 0, 0, 1)             # [512,512]
-
-            # [4.1] anomal img
-            anomaly_source_img = self.load_image(self.anomaly_source_paths[anomal_src_idx], self.resize_shape[0], self.resize_shape[1])
-            anomal_img, anomal_mask_torch = self.augment_image(img, # 512
-                                                               anomaly_source_img, # 512
-                                                               argument.anomal_min_perlin_scale, argument.anomal_max_perlin_scale,
-                                                               argument.anomal_min_beta_scale, argument.anomal_max_beta_scale,
-                                                               object_position=object_position,
-                                                               trg_beta = argument.anomal_trg_beta) # [512,512,3], [512,512]
-
-            inputs = processor(images=anomal_img, return_tensors="pt")
-            anomal_clip_latent = model(**inputs).last_hidden_state # 1, 50, 768
+        # [2] gt dir
+        gt_path = self.gt_paths[img_idx]
+        gt_img = np.array(Image.open(gt_path).convert('L').resize(self.latent_res, self.latent_res)) # 64,64
+        gt_torch = torch.tensor(gt_img) / 255
+        gt_torch = torch.where(gt_torch>0.5, 1, 0).unsqueeze(0)
 
 
-            # [4] background
-            back_idx = idx % len(self.background_paths)
-            back_path = self.background_paths[back_idx]
-            background_img = self.load_image(back_path, self.resize_shape[0], self.resize_shape[1])
-            back_anomal_img, back_anomal_mask_torch = self.augment_image(img,
-                                                                         aug(image=background_img),
-                                                                         argument.back_min_perlin_scale, argument.back_max_perlin_scale,
-                                                                         argument.back_min_beta_scale, argument.back_max_beta_scale,
-                                                                         object_position=object_position,
-                                                                         trg_beta=argument.back_trg_beta)  # [512,512,3], [512,512]
-            inputs = processor(images=back_anomal_img, return_tensors="pt")
-            back_anomal_clip_latent = model(**inputs).last_hidden_state  # 1, 50, 768
-
-        else :
-            anomal_img = img
-            anomal_mask_torch = object_mask.unsqueeze(0)
-            back_anomal_img = img
-            back_anomal_mask_torch = object_mask.unsqueeze(0)
-
-        """
-        if self.tokenizer is not None :
-            input_ids, attention_mask = self.get_input_ids(self.caption) # input_ids = [77]
-        else :
-            input_ids = torch.tensor([0])
-        """
-
-        return {'image': self.transform(img),               # original image
-                "object_mask": object_mask.unsqueeze(0),    # [1, 64, 64]
-
-                'anomal_image': anomal_clip_latent.squeeze(),         # [1, 50, 768]
-                "anomal_mask": anomal_mask_torch,
-
-                'bg_anomal_image': back_anomal_clip_latent.squeeze(),        # masked image
-                'bg_anomal_mask': back_anomal_mask_torch,
-
-            #     'rotate_image': self.transform(rotate_np),
-            #    'rotate_mask' : rotate_mask.unsqueeze(0),
-
-                'idx': idx,
-           #     'input_ids': input_ids.squeeze(0),
-           #     'caption': self.caption,
-                'image_name' : name,
-                'anomal_name' : anomal_name,}
+        return {'image': self.transform(img),               # [3,512,512]
+                "gt": gt_torch,                             # [1, 64, 64]
+                }
