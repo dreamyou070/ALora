@@ -93,22 +93,32 @@ def main(args):
     with open(unet_scale_factor_dir, 'w') as f :
         f.write(f'scale_factor = {scale_factor}')
 
-    """
+
     for epoch in range(args.start_epoch, args.max_train_epochs):
 
         epoch_loss = 0
         for step, batch in enumerate(train_dataloader):
 
-            # x = [1,4,512,512]
+            # [1] input latent : x = [1,4,512,512]
             images = batch["image"].to(accelerator.device).to(dtype=weight_dtype)
-            z_mu, z_sigma = vae.encode(images)
-            z = vae.sampling(z_mu, z_sigma)
-            noise = torch.randn_like(z).to(images.device)
-            timesteps = torch.randint(0, scheduler.num_train_timesteps, (z.shape[0],), device=z.device).long()
+            masked_images = batch["bg_anomal_image"].to(accelerator.device).to(dtype=weight_dtype)
+            latents_ = torch.cat([images,masked_images], dim=0)
+            noise, noisy_latents, timesteps = get_noise_noisy_latents_and_timesteps(noise_scheduler, latents_,
+                                                                                    None, 0, 1000)
+            n_img, n_masked_img = noisy_latents.chunk(2, dim=0)
+            mask = batch['bg_anomal_mask'].to(accelerator.device).to(dtype=weight_dtype)
+            input = torch.cat([n_img, n_masked_img, mask], dim = 1)
+
+            # [2] timestep
+            t = timesteps
+
+            # [3] target
+            target = noise
 
             # [2] condition
-            noise_pred = unet(z, timesteps, encoder_hidden_states, trg_layer_list=args.trg_layer_list, noise_type=position_embedder)
-            loss = F.mse_loss(noise_pred.float(), noise.float())
+            noise_pred = unet(input, t, encoder_hidden_states, trg_layer_list=args.trg_layer_list, noise_type=position_embedder)
+            loss = F.mse_loss(noise_pred.float(), target.float())
+
     """
 
 

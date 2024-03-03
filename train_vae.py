@@ -116,16 +116,19 @@ def main(args):
     for epoch in range(args.start_epoch, args.max_train_epochs):
 
         epoch_loss = 0
-        for step, batch in enumerate(train_dataloader):
+        for step, batch in enumerate(train_dataloader) :
 
             # x = [1,4,512,512]
-            images = batch["image"].to(accelerator.device).to(dtype=weight_dtype)
+            image = batch["image"].to(accelerator.device).to(dtype=weight_dtype)
+            masked_image = batch['bg_anomal_image'].to(accelerator.device).to(dtype=weight_dtype)
+            mask = batch['bg_anomal_mask'].to(accelerator.device).to(dtype=weight_dtype)
+
             # [1.1] latent space
-            posterior = vae.encode(images).latent_dist
-            z_mu, z_sigma = posterior.mean, posterior.logvar
-            z = posterior.sample()
-            # [1.2] decoding
-            reconstruction = vae.decode(z).sample
+            image_latents = vae.encode(image).latent_dist.sample() * args.vae_scale_factor
+            masked_image_latents = vae.encode(masked_image).latent_dist.sample() * args.vae_scale_factor
+            input = torch.cat([image_latents, masked_image_latents, mask], dim = 1)
+
+
             # --------------------------------------------------------------------------------------------------------- #
             with torch.no_grad() :
                 pretrained_posterior = pretrained_vae.encode(images).latent_dist
