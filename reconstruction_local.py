@@ -54,16 +54,19 @@ scheduler = DDIMScheduler(num_train_timesteps=1000,
 
 def inference(latent,
               tokenizer, text_encoder, unet, controller, normal_activator, position_embedder,
-              args, org_h, org_w, thred):
+              args, org_h, org_w, thred, global_conv_net):
     # [1] text
     input_ids, attention_mask = get_input_ids(tokenizer, args.prompt)
     encoder_hidden_states = text_encoder(input_ids.to(text_encoder.device))["last_hidden_state"]
     # [2] unet
-    if args.use_position_embedder:
-        pred = unet(latent, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list, noise_type=position_embedder, ).sample
-    else :
-        pred = unet(latent, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list).sample
-    prev_sample = prev_step(pred, 1, latent, scheduler)
+    if args.use_position_embedder and args.use_global_conv:
+        unet(latent, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list,
+             noise_type=[position_embedder, global_conv_net])
+    elif args.use_position_embedder and not args.use_global_conv:
+        unet(latent, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list,
+             noise_type=[position_embedder, global_conv_net])
+    else:
+        unet(latent, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list, )
 
 
 
@@ -100,7 +103,7 @@ def inference(latent,
     anomal_np = ((1 - normal_map) * 255).cpu().detach().numpy().astype(np.uint8)
     anomaly_map_pil = Image.fromarray(anomal_np).resize((org_h, org_w))
 
-    return cls_map_pil, normal_map_pil, anomaly_map_pil, prev_sample
+    return cls_map_pil, normal_map_pil, anomaly_map_pil
 
 
 
@@ -122,6 +125,11 @@ def main(args):
     if args.use_position_embedder:
         if args.all_positional_embedder :
             position_embedder = AllPositionalEmbedding()
+
+    global_conv_net = None
+    if args.use_global_conv :
+        from model.overlapping_conv import AllGCN
+        global_conv_net = AllGCN()
 
 
     print(f'\n step 2. accelerator and device')
@@ -159,6 +167,11 @@ def main(args):
             position_embedder_state_dict = load_file(pretrained_pe_dir)
             position_embedder.load_state_dict(position_embedder_state_dict)
             position_embedder.to(accelerator.device, dtype=weight_dtype)
+
+        if args.use_global_conv:
+            global_net_pretrained_dir = os.path.join(os.path.join(parent, f'global_convolution_network'), f'global_convolution_net_{lora_epoch}.safetensors')
+            global_conv_net.load_state_dict(load_file(global_net_pretrained_dir))
+            global_conv_net.to(accelerator.device, dtype=weight_dtype)
 
         # [2] load network
         anomal_detecting_state_dict = load_file(network_model_dir)
@@ -230,27 +243,17 @@ def main(args):
                                     latent = position_embedder.patch_embed(image.to(dtype=weight_dtype))
                                 else:
                                     latent = vae.encode(image.to(dtype=weight_dtype)).latent_dist.sample() * 0.18215
-                            cls_map_pil, normal_map_pil, anomaly_map_pil, pred = inference(latent,
+                            cls_map_pil, normal_map_pil, anomaly_map_pil = inference(latent,
                                                                                      tokenizer, text_encoder, unet,
                                                                                      controller, normal_activator,
                                                                                      position_embedder,
                                                                                      args,
                                                                                      trg_h, trg_w,
-                                                                                     thred)
+                                                                                     thred, global_conv_net)
                             cls_map_pil.save(os.path.join(save_base_folder, f'{name}_cls.png'))
                             normal_map_pil.save(os.path.join(save_base_folder, f'{name}_normal.png'))
                             anomaly_map_pil.save( os.path.join(save_base_folder, f'{name}_anomal.png'))
                             anomaly_map_pil.save(os.path.join(answer_anomal_folder, f'{name}.tiff'))
-                            #
-
-                            with torch.no_grad():
-                                image = vae.decode(pred)['sample']
-                                image = (image / 2 + 0.5).clamp(0, 1)
-                                image = image.cpu().permute(0, 2, 3, 1).numpy()[0]
-                                image = (image * 255).astype(np.uint8)
-                                pil = Image.fromarray(image)
-                                pil.save(os.path.join(save_base_folder, f'{name}_unet_prev_sample.png'))
-
                     controller.reset()
                     normal_activator.reset()
                     # [2] gt save
@@ -361,6 +364,7 @@ if __name__ == '__main__':
     parser.add_argument("--all_positional_self_cross_embedder", action='store_true')
     parser.add_argument("--patch_positional_self_embedder", action='store_true')
     parser.add_argument("--all_self_cross_positional_embedder", action='store_true')
+    parser.add_argument("--use_global_conv", action='store_true')
     args = parser.parse_args()
     passing_argument(args)
     unet_passing_argument(args)
