@@ -19,6 +19,7 @@ from diffusers import AutoencoderKL
 from monai.networks.layers import Act
 from PIL import Image
 import numpy as np
+from safetensors.torch import load_file
 
 def main(args):
 
@@ -54,6 +55,10 @@ def main(args):
     saving_config_dir = os.path.join(output_dir, 'vae_config.json')
     with open(saving_config_dir, 'w') as f :
         json.dump(config_dict, f,  indent='\t')
+
+    if args.retrain :
+        vae.load_state_dict(load_file(os.path.join(output_dir, f'vae_models/vae_30.safetensors')))
+
 
     # get pretrained vae
     #if args.use_pretrained_vae :
