@@ -161,53 +161,53 @@ def main(args):
             normal_activator.collect_anomal_map_loss(local_attn,
                                                      anomal_position_vector, )
 
-        # [5] backprop
-        if args.do_attn_loss:
-            normal_cls_loss, normal_trigger_loss, anomal_cls_loss, anomal_trigger_loss = normal_activator.generate_attention_loss()
-            if type(anomal_cls_loss) == float:
-                attn_loss = args.normal_weight * normal_trigger_loss.mean()
-            else:
-                attn_loss = args.normal_weight * normal_cls_loss.mean() + args.anomal_weight * anomal_cls_loss.mean()
-            if args.do_cls_train:
-                if type(anomal_trigger_loss) == float:
-                    attn_loss = args.normal_weight * normal_cls_loss.mean()
+            # [5] backprop
+            if args.do_attn_loss:
+                normal_cls_loss, normal_trigger_loss, anomal_cls_loss, anomal_trigger_loss = normal_activator.generate_attention_loss()
+                if type(anomal_cls_loss) == float:
+                    attn_loss = args.normal_weight * normal_trigger_loss.mean()
                 else:
-                    attn_loss += args.normal_weight * normal_cls_loss.mean() + args.anomal_weight * anomal_cls_loss.mean()
-            loss += attn_loss
-            loss_dict['attn_loss'] = attn_loss.item()
+                    attn_loss = args.normal_weight * normal_cls_loss.mean() + args.anomal_weight * anomal_cls_loss.mean()
+                if args.do_cls_train:
+                    if type(anomal_trigger_loss) == float:
+                        attn_loss = args.normal_weight * normal_cls_loss.mean()
+                    else:
+                        attn_loss += args.normal_weight * normal_cls_loss.mean() + args.anomal_weight * anomal_cls_loss.mean()
+                loss += attn_loss
+                loss_dict['attn_loss'] = attn_loss.item()
 
-        if args.do_map_loss:
-            map_loss = normal_activator.generate_anomal_map_loss()
-            loss += map_loss
-            loss_dict['map_loss'] = map_loss.item()
+            if args.do_map_loss:
+                map_loss = normal_activator.generate_anomal_map_loss()
+                loss += map_loss
+                loss_dict['map_loss'] = map_loss.item()
 
-        if args.test_noise_predicting_task_loss:
-            noise_pred_loss = normal_activator.generate_noise_prediction_loss()
-            loss += noise_pred_loss
-            loss_dict['noise_pred_loss'] = noise_pred_loss.item()
+            if args.test_noise_predicting_task_loss:
+                noise_pred_loss = normal_activator.generate_noise_prediction_loss()
+                loss += noise_pred_loss
+                loss_dict['noise_pred_loss'] = noise_pred_loss.item()
 
-        loss = loss.to(weight_dtype)
-        current_loss = loss.detach().item()
-        if epoch == args.start_epoch:
-            loss_list.append(current_loss)
-        else:
-            epoch_loss_total -= loss_list[step]
-            loss_list[step] = current_loss
-        epoch_loss_total += current_loss
-        avr_loss = epoch_loss_total / len(loss_list)
-        loss_dict['avr_loss'] = avr_loss
-        accelerator.backward(loss)
-        optimizer.step()
-        lr_scheduler.step()
-        optimizer.zero_grad(set_to_none=True)
-        if accelerator.sync_gradients:
-            progress_bar.update(1)
-            global_step += 1
-        if is_main_process:
-            progress_bar.set_postfix(**loss_dict)
-        normal_activator.reset()
-        if global_step >= args.max_train_steps:
-            break
+            loss = loss.to(weight_dtype)
+            current_loss = loss.detach().item()
+            if epoch == args.start_epoch:
+                loss_list.append(current_loss)
+            else:
+                epoch_loss_total -= loss_list[step]
+                loss_list[step] = current_loss
+            epoch_loss_total += current_loss
+            avr_loss = epoch_loss_total / len(loss_list)
+            loss_dict['avr_loss'] = avr_loss
+            accelerator.backward(loss)
+            optimizer.step()
+            lr_scheduler.step()
+            optimizer.zero_grad(set_to_none=True)
+            if accelerator.sync_gradients:
+                progress_bar.update(1)
+                global_step += 1
+            if is_main_process:
+                progress_bar.set_postfix(**loss_dict)
+            normal_activator.reset()
+            if global_step >= args.max_train_steps:
+                break
         # ----------------------------------------------------------------------------------------------------------- #
         # [6] epoch final
         accelerator.wait_for_everyone()
