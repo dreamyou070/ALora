@@ -290,23 +290,33 @@ def main(args):
                 p_save_dir = os.path.join(position_embedder_base_save_dir,
                                           f'position_embedder_{epoch + 1}.safetensors')
                 pe_model_save(accelerator.unwrap_model(position_embedder), save_dtype, p_save_dir)
+            if args.use_global_conv :
+                global_conv_net_base_save_dir = os.path.join(args.output_dir, 'global_convolution_network')
+                os.makedirs(global_conv_net_base_save_dir, exist_ok = True)
+
+                def model_save(model, save_dtype, save_dir):
+                    state_dict = model.state_dict()
+                    for key in list(state_dict.keys()):
+                        v = state_dict[key]
+                        v = v.detach().clone().to("cpu").to(save_dtype)
+                        state_dict[key] = v
+                    _, file = os.path.split(save_dir)
+                    if os.path.splitext(file)[1] == ".safetensors":
+                        from safetensors.torch import save_file
+                        save_file(state_dict, save_dir)
+                    else:
+                        torch.save(state_dict, save_dir)
+                model_save(accelerator.unwrap_model(global_conv_net),
+                           save_dtype,
+                           os.path.join(global_conv_net_base_save_dir, f'global_convolution_net_{epoch + 1}.safetensors'))
+
+
             """
             # saving query transformer
             query_transformer_save_dir = os.path.join(args.output_dir, 'query_transformer')
             os.makedirs(query_transformer_save_dir, exist_ok = True)
             qt_save_dir = os.path.join(query_transformer_save_dir,f'query_transformer_{epoch + 1}.safetensors')
-            def qt_model_save(model, save_dtype, save_dir):
-                state_dict = model.state_dict()
-                for key in list(state_dict.keys()):
-                    v = state_dict[key]
-                    v = v.detach().clone().to("cpu").to(save_dtype)
-                    state_dict[key] = v
-                _, file = os.path.split(save_dir)
-                if os.path.splitext(file)[1] == ".safetensors":
-                    from safetensors.torch import save_file
-                    save_file(state_dict, save_dir)
-                else:
-                    torch.save(state_dict, save_dir)
+            
             #qt_model_save(accelerator.unwrap_model(query_transformer), save_dtype, qt_save_dir)
             """
     accelerator.end_training()
