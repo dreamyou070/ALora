@@ -17,4 +17,5 @@ accelerate launch --config_file ../../../gpu_config/gpu_0_config \
  --pretrained_model_name_or_path ../../../pretrained_stable_diffusion/stable-diffusion-v1-5/v1-5-pruned.safetensors \
  --data_path "../../../MyData/anomaly_detection/${bench_mark}" \
  --anomal_source_path "${anomal_source_path}" \
+ --do_object_detection --anomal_only_on_object \
  --clip_test
