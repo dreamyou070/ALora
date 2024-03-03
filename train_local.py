@@ -186,8 +186,7 @@ def main(args):
                                                           1 - anomal_position_vector,
                                                           True)
                 normal_activator.collect_anomal_map_loss(local_attn,
-                                                         anomal_position_vector,
-                                                         1 - anomal_position_vector,)
+                                                         anomal_position_vector,)
 
             if args.do_background_masked_sample:
                 if args.patch_positional_self_embedder:
@@ -228,8 +227,7 @@ def main(args):
                                                           1 - anomal_position_vector,
                                                           True)
                 normal_activator.collect_anomal_map_loss(local_attn, #
-                                                         anomal_position_vector,
-                                                         1 - anomal_position_vector)
+                                                         anomal_position_vector)
                 # [2] glocal
                 #global_query = gquery_transformer(origin_query_list)
 
