@@ -28,4 +28,4 @@ accelerate launch --config_file ../../../gpu_config/gpu_0_1_2_3_4_5_config \
  --back_min_beta_scale 0.6 \
  --back_max_beta_scale 0.9 \
  --back_trg_beta 0 \
- --use_pretrained_vae
+ --use_pretrained_vae --retrain

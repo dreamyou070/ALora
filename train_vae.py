@@ -340,6 +340,7 @@ if __name__ == "__main__":
     parser.add_argument("--patch_positional_self_embedder", action='store_true')
     parser.add_argument("--use_position_embedder", action='store_true')
     parser.add_argument("--use_pretrained_vae", action='store_true')
+    parser.add_argument("--retrain", action='store_true')
     # -----------------------------------------------------------------------------------------------------------------
     args = parser.parse_args()
     unet_passing_argument(args)
