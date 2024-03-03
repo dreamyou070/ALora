@@ -14,6 +14,8 @@ from attention_store.normal_activator import passing_normalize_argument
 from data.mvtec import passing_mvtec_argument
 from model import call_model_package
 from diffusers import AutoencoderKL
+from safetensors import load_file
+
 def main(args):
 
     print(f'\n step 1. setting')
@@ -45,12 +47,16 @@ def main(args):
     # [2] vae
     #vae_base_dir = r'/home/dreamyou070/AnomalLora_OriginCode/result/MVTec/transistor/vae_train/train_vae_20240302_6_distill_recon'
     #vae_config_dir = os.path.join(vae_base_dir, 'vae_config.json')
-    #vae_saved_dir = os.path.join(vae_base_dir, f'vae_models/vae_89.safetensors')
-    #vae = AutoencoderKL.from_config()
-
-    config_dir = os.path.join(r'/home/dreamyou070/AnomalLora_OriginCode/result/MVTec/transistor/unet_train/train_unet_20240303',
-                              'unet_config.json')
-    unet.save_config(config_dir)
+    #with open(vae_config_dir, 'r') as f :
+    #    vae_config_dict = json.load(f)
+    #vae = AutoencoderKL.from_config(pretrained_model_name_or_path=vae_config_dict)
+    #vae.load_state_dict(load_file(os.path.join(vae_base_dir, f'vae_models/vae_89.safetensors')))
+    # [3] unet
+    from model.unet import UNet2DConditionModel
+    #config_dir = os.path.join(r'/home/dreamyou070/AnomalLora_OriginCode/result/MVTec/transistor/unet_train/train_unet_20240303',
+    #                          'unet_config.json')
+    ##unet.save_config(config_dir)
+    #unet_config =
 
 
 if __name__ == "__main__":
