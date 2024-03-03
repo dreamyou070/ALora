@@ -21,6 +21,7 @@ from torch import nn
 
 
 def main(args):
+
     print(f'\n step 1. setting')
     output_dir = args.output_dir
     print(f' *** output_dir : {output_dir}')
@@ -101,6 +102,7 @@ def main(args):
                         disable=not accelerator.is_local_main_process, desc="steps")
     global_step = 0
     loss_list = []
+
     def resize_query_features(query):
 
         head_num, pix_num, dim = query.shape
@@ -216,6 +218,7 @@ def main(args):
                 p_save_dir = os.path.join(position_embedder_base_save_dir,
                                           f'position_embedder_{epoch + 1}.safetensors')
                 pe_model_save(accelerator.unwrap_model(position_embedder), save_dtype, p_save_dir)
+            """
             if args.use_global_conv:
                 global_conv_net_base_save_dir = os.path.join(args.output_dir, 'global_convolution_network')
                 os.makedirs(global_conv_net_base_save_dir, exist_ok=True)
@@ -232,13 +235,7 @@ def main(args):
                         save_file(state_dict, save_dir)
                     else:
                         torch.save(state_dict, save_dir)
-
-                model_save(accelerator.unwrap_model(global_conv_net),
-                           save_dtype,
-                           os.path.join(global_conv_net_base_save_dir,
-                                        f'global_convolution_net_{epoch + 1}.safetensors'))
-
-
+            """
     accelerator.end_training()
 
 
