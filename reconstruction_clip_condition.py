@@ -148,8 +148,8 @@ def main(args):
                 scheduler.set_timesteps(num_inference_steps, device=accelerator.device)
                 timesteps = scheduler.timesteps
                 for i, t in enumerate(timesteps):
-                    noise_pred = unet(latent, t, encoder_hidden_states=img_condition)[0]
-                    latents = scheduler.step(noise_pred, t, latents, return_dict=False)[0]
+                    noise_pred = unet(latent, t, encoder_hidden_states=img_condition).sample
+                    latents = scheduler.step(noise_pred, t, latents, return_dict=False).prev_sample
                 # latent to image
                 image = vae.decode(latents / scaling_factor, return_dict=False)[0]
                 np_image = image.cpu().permute(0, 2, 3, 1).float().numpy()
