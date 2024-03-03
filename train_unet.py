@@ -87,7 +87,7 @@ def main(args):
                         disable=not accelerator.is_local_main_process, desc="steps")
     global_step = 0
 
-    for step, batch in enumerate(train_dataloader)
+    for step, batch in enumerate(train_dataloader) :
         with torch.no_grad():
             with autocast(enabled=True):
                 z = vae.encode_stage_2_inputs(batch["image"])
