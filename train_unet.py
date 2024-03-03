@@ -42,7 +42,7 @@ def main(args):
     text_encoder, vae, unet, network, position_embedder = call_model_package(args, weight_dtype, accelerator, True)
     unet_config_dict = unet.config
     print(f'unet_config_dict = {type(unet_config_dict)}')
-    config_dir = os.path.join(r'/home/dreamyou070/AnomalLora_OriginCode/result/MVTec/transistor/ldm_train/train_ldm_20240303',
+    config_dir = os.path.join(r'/home/dreamyou070/AnomalLora_OriginCode/result/MVTec/transistor/unet_train/train_unet_20240303',
                               'unet_config.json')
     with open(config_dir, 'w') as f:
         json.dump(unet_config_dict, f, indent='\t')
