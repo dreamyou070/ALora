@@ -105,8 +105,8 @@ def main(args):
             # [1] input latent : x = [1,4,512,512]
             images = batch["image"].to(accelerator.device).to(dtype=weight_dtype)
             latents = vae()
-            noise, noisy_latents, timesteps = get_noise_noisy_latents_and_timesteps((args, noise_scheduler,
-                                                                                     latents, noise = None))
+            noise, noisy_latents, timesteps = get_noise_noisy_latents_and_timesteps(args, noise_scheduler,
+                                                                                    latents, noise = None)
 
             # [2.1] clip image condition
             condition = batch['anomal_image']
