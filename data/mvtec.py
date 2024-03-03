@@ -572,13 +572,12 @@ class MVTecClipTrainDataset(Dataset):
             back_anomal_img = img
             back_anomal_mask_torch = object_mask.unsqueeze(0)
 
-
-
-
+        """
         if self.tokenizer is not None :
             input_ids, attention_mask = self.get_input_ids(self.caption) # input_ids = [77]
         else :
             input_ids = torch.tensor([0])
+        """
 
         return {'image': self.transform(img),               # original image
                 "object_mask": object_mask.unsqueeze(0),    # [1, 64, 64]
@@ -593,7 +592,7 @@ class MVTecClipTrainDataset(Dataset):
             #    'rotate_mask' : rotate_mask.unsqueeze(0),
 
                 'idx': idx,
-                'input_ids': input_ids.squeeze(0),
-                'caption': self.caption,
+           #     'input_ids': input_ids.squeeze(0),
+           #     'caption': self.caption,
                 'image_name' : name,
                 'anomal_name' : anomal_name,}
