@@ -17,6 +17,7 @@ from diffusers import AutoencoderKL, DDPMScheduler
 from safetensors.torch import load_file
 from torch.cuda.amp import GradScaler, autocast
 from model.unet import UNet2DConditionModel
+from utils.model_utils import get_noise_noisy_latents_and_timesteps
 
 def main(args):
 
@@ -61,7 +62,9 @@ def main(args):
     unet_config_dict['in_channels'] = 9
     #unet = UNet2DConditionModel.from_config(pretrained_model_name_or_path = unet_config_dict)
     unet = UNet2DConditionModel(**unet_config_dict)
-    scheduler = DDPMScheduler(num_train_timesteps=1000, schedule="linear_beta", beta_start=0.0015, beta_end=0.0195)
+    noise_scheduler = DDPMScheduler(beta_start=0.00085, beta_end=0.012, beta_schedule="scaled_linear",
+                                    num_train_timesteps=1000, clip_sample=False)
+
 
     print(f'\n step 5. optimizer')
     args.max_train_steps = len(train_dataloader) * args.max_train_epochs
@@ -101,25 +104,30 @@ def main(args):
 
             # [1] input latent : x = [1,4,512,512]
             images = batch["image"].to(accelerator.device).to(dtype=weight_dtype)
-            masked_images = batch["bg_anomal_image"].to(accelerator.device).to(dtype=weight_dtype)
-            latents_ = torch.cat([images,masked_images], dim=0)
-            noise, noisy_latents, timesteps = get_noise_noisy_latents_and_timesteps(noise_scheduler, latents_,
-                                                                                    None, 0, 1000)
-            n_img, n_masked_img = noisy_latents.chunk(2, dim=0)
-            mask = batch['bg_anomal_mask'].to(accelerator.device).to(dtype=weight_dtype)
-            input = torch.cat([n_img, n_masked_img, mask], dim = 1)
+            latents = vae()
+            noise, noisy_latents, timesteps = get_noise_noisy_latents_and_timesteps((args, noise_scheduler,
+                                                                                     latents, noise = None))
 
-            # [2] timestep
-            t = timesteps
+            # [2.1] clip image condition
+            condition = batch['anomal_image']
+            noise_pred_1 = unet(noisy_latents, timesteps, condition)
+            loss_1 = torch.nn.functional.mse_loss(noise_pred_1.float(), noise.float()).mean([1, 2, 3])
 
-            # [3] target
-            target = noise
+            # [2.2]
+            condition = batch['bg_anomal_image']
+            noise_pred_2 = unet(noisy_latents, timesteps, condition)
+            loss_2 = torch.nn.functional.mse_loss(noise_pred_2.float(), noise.float()).mean([1, 2, 3])
 
-            # [2] condition
-            noise_pred = unet(input, t, encoder_hidden_states, trg_layer_list=args.trg_layer_list, noise_type=position_embedder)
-            loss = F.mse_loss(noise_pred.float(), target.float())
+            loss = (loss_1 + loss_2).mean()
+            accelerator.backward(loss)
+            if accelerator.sync_gradients and args.max_grad_norm != 0.0:
+                params_to_clip = network.get_trainable_params()
+                accelerator.clip_grad_norm_(params_to_clip, args.max_grad_norm)
+            optimizer.step()
+            lr_scheduler.step()
+            optimizer.zero_grad(set_to_none=True)
 
-    """
+        # [4] saving model
 
 
 
