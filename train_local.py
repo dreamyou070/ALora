@@ -147,8 +147,8 @@ def main(args):
                         latents = vae.encode(batch["anomal_image"].to(dtype=weight_dtype)).latent_dist.sample() * args.vae_scale_factor
 
                 anomal_position_vector = batch["anomal_mask"].squeeze().flatten()
-                object_mask = batch['object_mask'].squeeze().flatten()
-                normal_position_vector = torch.where(object_mask == 1 and anomal_position_vector == 0, 1, 0)
+                #object_mask = batch['object_mask'].squeeze().flatten()
+                #normal_position_vector = torch.where(object_mask == 1 and anomal_position_vector == 0, 1, 0)
 
                 with torch.set_grad_enabled(True):
                     if args.use_position_embedder and args.use_global_conv :
@@ -179,11 +179,12 @@ def main(args):
                 local_attn = attention_scores.softmax(dim=-1)[:,:,:2]
                 normal_activator.collect_attention_scores(local_attn,
                                                           anomal_position_vector,
-                                                          normal_position_vector,
+                                                          #normal_position_vector,
+                                                          1 - anomal_position_vector,
                                                           True)
                 normal_activator.collect_anomal_map_loss(local_attn,
                                                          anomal_position_vector,
-                                                         normal_position_vector)
+                                                         1 - anomal_position_vector,)
 
             if args.do_background_masked_sample:
                 if args.patch_positional_self_embedder:
@@ -192,7 +193,7 @@ def main(args):
                     with torch.no_grad():
                         latents = vae.encode(batch["bg_anomal_image"].to(dtype=weight_dtype)).latent_dist.sample() * args.vae_scale_factor
                 anomal_position_vector = batch["bg_anomal_mask"].squeeze().flatten()
-                normal_position_vector = torch.where(object_mask == 1 and anomal_position_vector == 0, 1, 0)
+                #normal_position_vector = torch.where(object_mask == 1 and anomal_position_vector == 0, 1, 0)
                 with torch.set_grad_enabled(True):
                     if args.use_position_embedder and args.use_global_conv :
                         unet(latents, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list,noise_type=position_embedder,)
@@ -220,11 +221,11 @@ def main(args):
                 local_attn = attention_scores.softmax(dim=-1)[:,:,:2]
                 normal_activator.collect_attention_scores(local_attn,
                                                           anomal_position_vector,
-                                                          normal_position_vector,
+                                                          1 - anomal_position_vector,
                                                           True)
                 normal_activator.collect_anomal_map_loss(local_attn, #
                                                          anomal_position_vector,
-                                                         normal_position_vector)
+                                                         1 - anomal_position_vector)
                 # [2] glocal
                 #global_query = gquery_transformer(origin_query_list)
 
