@@ -149,7 +149,7 @@ def main(args):
                 timesteps = scheduler.timesteps
                 for i, t in enumerate(timesteps):
                     noise_pred = unet(latent, t, encoder_hidden_states=img_condition).sample
-                    latent = scheduler.step(noise_pred, t, latent, return_dict=False).prev_sample
+                    latent = scheduler.step(noise_pred, t, latent, return_dict=False)[0]
                 # latent to image
                 image = vae.decode(latent / scaling_factor, return_dict=False)[0]
                 print(f'vae out. image : {type(image)}')
