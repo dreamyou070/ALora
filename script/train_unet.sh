@@ -18,4 +18,6 @@ accelerate launch --config_file ../../../gpu_config/gpu_0_config \
  --data_path "../../../MyData/anomaly_detection/${bench_mark}" \
  --anomal_source_path "${anomal_source_path}" \
  --do_object_detection --anomal_only_on_object \
- --clip_test
+ --clip_test \
+ --obj_name ${obj_name} \
+ --trigger_word ${trigger_word}
