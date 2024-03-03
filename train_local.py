@@ -152,7 +152,8 @@ def main(args):
 
                 with torch.set_grad_enabled(True):
                     if args.use_position_embedder and args.use_global_conv :
-                        unet(latents, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list,noise_type=position_embedder,)
+                        unet(latents, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list,
+                             noise_type=[position_embedder,global_conv_net])
                     elif args.use_position_embedder and not args.use_global_conv:
                         unet(latents, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list,
                              noise_type=[position_embedder,global_conv_net] )
@@ -196,7 +197,8 @@ def main(args):
                 #normal_position_vector = torch.where(object_mask == 1 and anomal_position_vector == 0, 1, 0)
                 with torch.set_grad_enabled(True):
                     if args.use_position_embedder and args.use_global_conv :
-                        unet(latents, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list,noise_type=position_embedder,)
+                        unet(latents, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list,
+                             noise_type=[position_embedder, global_conv_net],)
                     elif args.use_position_embedder and not args.use_global_conv:
                         unet(latents, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list,
                              noise_type=[position_embedder,global_conv_net] )
