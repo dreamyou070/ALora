@@ -78,7 +78,7 @@ def main(args):
     vae = AutoencoderKL.from_config(pretrained_model_name_or_path=vae_config_dict)
     vae.load_state_dict(load_file(os.path.join(vae_base_dir, f'vae_models/vae_91.safetensors')))
     # [3] unet
-    unet_config_dir = os.path.join(r'/home/dreamyou070/AnomalLora_OriginCode/result/MVTec/transistor/unet_train/train_unet_20240303',
+    unet_config_dir = os.path.join(r'/home/dreamyou070/AnomalLora_OriginCode/result/MVTec/transistor/unet_train/train_unet_background_sample',
                                    'unet_config.json')
     with open(unet_config_dir, 'r') as f:
         unet_config_dict = json.load(f)
@@ -88,9 +88,12 @@ def main(args):
     vae.requires_grad_(False)
     vae.to(accelerator.device, dtype=weight_dtype)
 
-
     print(f'\n step 3. inference')
-    scaling_factor =0.23556430637836456
+    s_file = os.path.join(r'/home/dreamyou070/AnomalLora_OriginCode/result/MVTec/transistor/unet_train/train_unet_background_sample',
+                                   'unet_scale_factor.txt')
+    with open(s_file, 'r') as f :
+        content = f.readlines()
+    scaling_factor = float(content[0])
     unet_models = os.listdir(os.path.join(args.output_dir, 'unet_models'))
 
     for unet_model in unet_models:
