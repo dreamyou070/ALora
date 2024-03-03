@@ -13,8 +13,8 @@ from data.prepare_dataset import call_dataset
 from attention_store.normal_activator import passing_normalize_argument
 from data.mvtec import passing_mvtec_argument
 from model import call_model_package
-from diffusers import AutoencoderKL
-from safetensors import load_file
+from diffusers import AutoencoderKL, Unet2DConditionModel
+#from safetensors import load_file
 
 def main(args):
 
@@ -53,10 +53,24 @@ def main(args):
     #vae.load_state_dict(load_file(os.path.join(vae_base_dir, f'vae_models/vae_89.safetensors')))
     # [3] unet
     from model.unet import UNet2DConditionModel
-    #config_dir = os.path.join(r'/home/dreamyou070/AnomalLora_OriginCode/result/MVTec/transistor/unet_train/train_unet_20240303',
+    #unet_config_dir = os.path.join(r'/home/dreamyou070/AnomalLora_OriginCode/result/MVTec/transistor/unet_train/train_unet_20240303',
     #                          'unet_config.json')
-    ##unet.save_config(config_dir)
-    #unet_config =
+    # with open(unet_config_dir, 'r') as f :
+    #    unet_config_dict = json.load(f)
+    #unet = Unet2DConditionModel.from_config(pretrained_model_name_or_path = unet_config_dict)
+
+    print(f'\n step 5. optimizer')
+    args.max_train_steps = len(train_dataloader) * args.max_train_epochs
+    trainable_params = []
+    trainable_params.append({"params": unet.parameters(), "lr": args.learning_rate})
+    optimizer_name, optimizer_args, optimizer = get_optimizer(args, trainable_params)
+
+    print(f'\n step 6. lr')
+    lr_scheduler = get_scheduler_fix(args, optimizer, accelerator.num_processes)
+
+    print(f'\n step 7. losses function')
+    #l1_loss = L1Loss()
+
 
 
 if __name__ == "__main__":
