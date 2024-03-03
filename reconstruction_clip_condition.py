@@ -149,9 +149,10 @@ def main(args):
                 timesteps = scheduler.timesteps
                 for i, t in enumerate(timesteps):
                     noise_pred = unet(latent, t, encoder_hidden_states=img_condition).sample
-                    latents = scheduler.step(noise_pred, t, latents, return_dict=False).prev_sample
+                    latent = scheduler.step(noise_pred, t, latent, return_dict=False).prev_sample
                 # latent to image
-                image = vae.decode(latents / scaling_factor, return_dict=False)[0]
+                image = vae.decode(latent / scaling_factor, return_dict=False)[0]
+                print(f'vae out. image : {type(image)}')
                 np_image = image.cpu().permute(0, 2, 3, 1).float().numpy()
                 np_image = (np_image * 255).round().astype("uint8")
                 pil_image = Image.fromarray(np_image[:, :, :3])
