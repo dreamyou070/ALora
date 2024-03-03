@@ -13,7 +13,7 @@ from data.prepare_dataset import call_dataset
 from attention_store.normal_activator import passing_normalize_argument
 from data.mvtec import passing_mvtec_argument
 from model import call_model_package
-from diffusers import AutoencoderKL, DDPMScheduler # , UNet2DConditionModel
+from diffusers import AutoencoderKL, DDPMScheduler
 from safetensors.torch import load_file
 from torch.cuda.amp import GradScaler, autocast
 from model.unet import UNet2DConditionModel
@@ -58,6 +58,7 @@ def main(args):
                               'unet_config.json')
     with open(unet_config_dir, 'r') as f :
         unet_config_dict = json.load(f)
+    unet_config_dict['in_channels'] = 9
     #unet = UNet2DConditionModel.from_config(pretrained_model_name_or_path = unet_config_dict)
     unet = UNet2DConditionModel(**unet_config_dict)
     scheduler = DDPMScheduler(num_train_timesteps=1000, schedule="linear_beta", beta_start=0.0015, beta_end=0.0195)
@@ -92,7 +93,7 @@ def main(args):
     with open(unet_scale_factor_dir, 'w') as f :
         f.write(f'scale_factor = {scale_factor}')
 
-
+    """
     for epoch in range(args.start_epoch, args.max_train_epochs):
 
         epoch_loss = 0
@@ -100,6 +101,15 @@ def main(args):
 
             # x = [1,4,512,512]
             images = batch["image"].to(accelerator.device).to(dtype=weight_dtype)
+            z_mu, z_sigma = vae.encode(images)
+            z = vae.sampling(z_mu, z_sigma)
+            noise = torch.randn_like(z).to(images.device)
+            timesteps = torch.randint(0, scheduler.num_train_timesteps, (z.shape[0],), device=z.device).long()
+
+            # [2] condition
+            noise_pred = unet(z, timesteps, encoder_hidden_states, trg_layer_list=args.trg_layer_list, noise_type=position_embedder)
+            loss = F.mse_loss(noise_pred.float(), noise.float())
+    """
 
 
 
