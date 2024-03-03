@@ -15,4 +15,5 @@ accelerate launch --config_file ../../../gpu_config/gpu_0_config \
  --output_dir "../../result/${bench_mark}/${obj_name}/${layer_name}/${file_name}" \
  --start_epoch 30 --max_train_epochs 100 \
  --pretrained_model_name_or_path ../../../pretrained_stable_diffusion/stable-diffusion-v1-5/v1-5-pruned.safetensors \
- --data_path "../../../MyData/anomaly_detection/${bench_mark}"
+ --data_path "../../../MyData/anomaly_detection/${bench_mark}" \
+ --clip_test

@@ -291,8 +291,6 @@ class MVTecDRAEMTrainDataset(Dataset):
                                                                object_position=object_position,
                                                                trg_beta = argument.anomal_trg_beta) # [512,512,3], [512,512]
 
-            anomal_img_latent =
-
             # [4] background
             back_idx = idx % len(self.background_paths)
             back_path = self.background_paths[back_idx]
