@@ -59,7 +59,7 @@ def main(args):
                               'unet_config.json')
     with open(unet_config_dir, 'r') as f :
         unet_config_dict = json.load(f)
-    unet_config_dict['in_channels'] = 9
+    #unet_config_dict['in_channels'] = 9
     #unet = UNet2DConditionModel.from_config(pretrained_model_name_or_path = unet_config_dict)
     unet = UNet2DConditionModel(**unet_config_dict)
     noise_scheduler = DDPMScheduler(beta_start=0.00085, beta_end=0.012, beta_schedule="scaled_linear",

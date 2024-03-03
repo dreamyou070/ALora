@@ -16,4 +16,5 @@ accelerate launch --config_file ../../../gpu_config/gpu_0_config \
  --start_epoch 30 --max_train_epochs 100 \
  --pretrained_model_name_or_path ../../../pretrained_stable_diffusion/stable-diffusion-v1-5/v1-5-pruned.safetensors \
  --data_path "../../../MyData/anomaly_detection/${bench_mark}" \
+ --anomal_source_path "${anomal_source_path}" \
  --clip_test
