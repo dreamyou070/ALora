@@ -90,7 +90,7 @@ def main(args):
     for step, batch in enumerate(train_dataloader) :
         with torch.no_grad():
             with autocast(enabled=True):
-                z = vae.encode_stage_2_inputs(batch["image"])
+                z = vae.encode(batch["image"]).latent_dist.sample()
     scale_factor = 1 / torch.std(z)
     unet_scale_factor_dir = os.path.join(output_dir, 'unet_scale_factor.txt')
     with open(unet_scale_factor_dir, 'w') as f :
@@ -103,8 +103,9 @@ def main(args):
         for step, batch in enumerate(train_dataloader):
 
             # [1] input latent : x = [1,4,512,512]
-            images = batch["image"].to(accelerator.device).to(dtype=weight_dtype)
-            latents = vae()
+            z = vae.encode(batch["image"].to(dtype=weight_dtype)).latent_dist.sample()
+            latents = z * scale_factor
+
             noise, noisy_latents, timesteps = get_noise_noisy_latents_and_timesteps(args, noise_scheduler,
                                                                                     latents, noise = None)
 
