@@ -13,8 +13,10 @@ from data.prepare_dataset import call_dataset
 from attention_store.normal_activator import passing_normalize_argument
 from data.mvtec import passing_mvtec_argument
 from model import call_model_package
-from diffusers import AutoencoderKL, UNet2DConditionModel
+from diffusers import AutoencoderKL, DDPMScheduler # , UNet2DConditionModel
 from safetensors.torch import load_file
+from torch.cuda.amp import GradScaler, autocast
+from model.unet import UNet2DConditionModel
 
 def main(args):
 
@@ -45,19 +47,20 @@ def main(args):
     # [1] text_encoder
     del vae, network, position_embedder
     # [2] vae
-    #vae_base_dir = r'/home/dreamyou070/AnomalLora_OriginCode/result/MVTec/transistor/vae_train/train_vae_20240302_6_distill_recon'
-    #vae_config_dir = os.path.join(vae_base_dir, 'vae_config.json')
-    #with open(vae_config_dir, 'r') as f :
-    #    vae_config_dict = json.load(f)
-    #vae = AutoencoderKL.from_config(pretrained_model_name_or_path=vae_config_dict)
-    #vae.load_state_dict(load_file(os.path.join(vae_base_dir, f'vae_models/vae_89.safetensors')))
+    vae_base_dir = r'/home/dreamyou070/AnomalLora_OriginCode/result/MVTec/transistor/vae_train/train_vae_20240302_6_distill_recon'
+    vae_config_dir = os.path.join(vae_base_dir, 'vae_config.json')
+    with open(vae_config_dir, 'r') as f :
+        vae_config_dict = json.load(f)
+    vae = AutoencoderKL.from_config(pretrained_model_name_or_path=vae_config_dict)
+    vae.load_state_dict(load_file(os.path.join(vae_base_dir, f'vae_models/vae_89.safetensors')))
     # [3] unet
-    from model.unet import UNet2DConditionModel
-    #unet_config_dir = os.path.join(r'/home/dreamyou070/AnomalLora_OriginCode/result/MVTec/transistor/unet_train/train_unet_20240303',
-    #                          'unet_config.json')
-    # with open(unet_config_dir, 'r') as f :
-    #    unet_config_dict = json.load(f)
-    #unet = Unet2DConditionModel.from_config(pretrained_model_name_or_path = unet_config_dict)
+    unet_config_dir = os.path.join(r'/home/dreamyou070/AnomalLora_OriginCode/result/MVTec/transistor/unet_train/train_unet_20240303',
+                              'unet_config.json')
+    with open(unet_config_dir, 'r') as f :
+        unet_config_dict = json.load(f)
+    #unet = UNet2DConditionModel.from_config(pretrained_model_name_or_path = unet_config_dict)
+    unet = UNet2DConditionModel(**unet_config_dict)
+    scheduler = DDPMScheduler(num_train_timesteps=1000, schedule="linear_beta", beta_start=0.0015, beta_end=0.0195)
 
     print(f'\n step 5. optimizer')
     args.max_train_steps = len(train_dataloader) * args.max_train_epochs
@@ -79,6 +82,16 @@ def main(args):
     progress_bar = tqdm(range(args.max_train_steps), smoothing=0,
                         disable=not accelerator.is_local_main_process, desc="steps")
     global_step = 0
+
+    for step, batch in enumerate(train_dataloader)
+        with torch.no_grad():
+            with autocast(enabled=True):
+                z = vae.encode_stage_2_inputs(batch["image"])
+    scale_factor = 1 / torch.std(z)
+    unet_scale_factor_dir = os.path.join(output_dir, 'unet_scale_factor.txt')
+    with open(unet_scale_factor_dir, 'w') as f :
+        f.write(f'scale_factor = {scale_factor}')
+
 
     for epoch in range(args.start_epoch, args.max_train_epochs):
 

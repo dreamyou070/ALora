@@ -17,14 +17,6 @@ def load_models_from_stable_diffusion_checkpoint(ckpt_path, device="cpu",unet_us
 
     # [1] unet
     unet_config = create_unet_diffusers_config(unet_use_linear_projection_in_v2)
-    config_dir = os.path.join(r'/home/dreamyou070/AnomalLora_OriginCode/result/MVTec/transistor/unet_train/train_unet_20240303',
-                              'unet_config.json')
-    import json
-    with open(config_dir, 'w') as f :
-        json.dump(unet_config, f)
-
-
-
     converted_unet_checkpoint = convert_ldm_unet_checkpoint(state_dict, unet_config)
     unet = UNet2DConditionModel(**unet_config).to(device)
     info = unet.load_state_dict(converted_unet_checkpoint)
