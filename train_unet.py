@@ -13,8 +13,8 @@ from data.prepare_dataset import call_dataset
 from attention_store.normal_activator import passing_normalize_argument
 from data.mvtec import passing_mvtec_argument
 from model import call_model_package
-from diffusers import AutoencoderKL, Unet2DConditionModel
-#from safetensors import load_file
+from diffusers import AutoencoderKL, UNet2DConditionModel
+from safetensors.torch import load_file
 
 def main(args):
 
@@ -70,6 +70,24 @@ def main(args):
 
     print(f'\n step 7. losses function')
     #l1_loss = L1Loss()
+
+    print(f'\n step 8. model to device')
+    unet, optimizer, train_dataloader, lr_scheduler = accelerator.prepare(unet, optimizer, train_dataloader, lr_scheduler)
+    unet = transform_models_if_DDP([unet])[0]
+
+    print(f'\n step 9. Training !')
+    progress_bar = tqdm(range(args.max_train_steps), smoothing=0,
+                        disable=not accelerator.is_local_main_process, desc="steps")
+    global_step = 0
+
+    for epoch in range(args.start_epoch, args.max_train_epochs):
+
+        epoch_loss = 0
+        for step, batch in enumerate(train_dataloader):
+
+            # x = [1,4,512,512]
+            images = batch["image"].to(accelerator.device).to(dtype=weight_dtype)
+
 
 
 
