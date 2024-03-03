@@ -146,11 +146,9 @@ def main(args):
                 num_inference_steps = 50
                 scheduler.set_timesteps(num_inference_steps, device=accelerator.device)
                 timesteps = scheduler.timesteps
-                num_warmup_steps = len(timesteps) - num_inference_steps * scheduler.order
-                with progress_bar(total=num_inference_steps) as progress_bar:
-                    for i, t in enumerate(timesteps):
-                        noise_pred = unet(latent, t, encoder_hidden_states=img_condition)[0]
-                        latents = scheduler.step(noise_pred, t, latents, return_dict=False)[0]
+                for i, t in enumerate(timesteps):
+                    noise_pred = unet(latent, t, encoder_hidden_states=img_condition)[0]
+                    latents = scheduler.step(noise_pred, t, latents, return_dict=False)[0]
                 # latent to image
                 image = vae.decode(latents / scaling_factor, return_dict=False)[0]
                 np_image = image.cpu().permute(0, 2, 3, 1).float().numpy()
