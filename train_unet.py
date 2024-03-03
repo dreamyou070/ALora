@@ -13,7 +13,7 @@ from data.prepare_dataset import call_dataset
 from attention_store.normal_activator import passing_normalize_argument
 from data.mvtec import passing_mvtec_argument
 from model import call_model_package
-
+from diffusers import AutoencoderKL
 def main(args):
 
     print(f'\n step 1. setting')
@@ -40,12 +40,17 @@ def main(args):
     print(f'\n step 4. model ')
     weight_dtype, save_dtype = prepare_dtype(args)
     text_encoder, vae, unet, network, position_embedder = call_model_package(args, weight_dtype, accelerator, True)
-    unet_config_dict = unet.config
-    print(f'unet_config_dict = {type(unet_config_dict)}')
+    # [1] text_encoder
+    del vae, network, position_embedder
+    # [2] vae
+    #vae_base_dir = r'/home/dreamyou070/AnomalLora_OriginCode/result/MVTec/transistor/vae_train/train_vae_20240302_6_distill_recon'
+    #vae_config_dir = os.path.join(vae_base_dir, 'vae_config.json')
+    #vae_saved_dir = os.path.join(vae_base_dir, f'vae_models/vae_89.safetensors')
+    #vae = AutoencoderKL.from_config()
+
     config_dir = os.path.join(r'/home/dreamyou070/AnomalLora_OriginCode/result/MVTec/transistor/unet_train/train_unet_20240303',
                               'unet_config.json')
-    with open(config_dir, 'w') as f:
-        json.dump(unet_config_dict, f, indent='\t')
+    unet.save_config(config_dir)
 
 
 if __name__ == "__main__":
