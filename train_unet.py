@@ -125,6 +125,10 @@ def main(args):
             lr_scheduler.step()
             optimizer.zero_grad(set_to_none=True)
 
+            if is_main_process :
+                progress_bar.update(1)
+                global_step += 1
+
         # [4] saving model
         def model_save(model, save_dtype, save_dir):
             state_dict = model.state_dict()
