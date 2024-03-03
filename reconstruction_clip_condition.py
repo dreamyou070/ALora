@@ -157,6 +157,8 @@ def main(args):
                     noise = torch.randn(1,4,64,64).to(latents.device)
                     timesteps = torch.tensor([200]).to(latents.device)
                     timesteps = timesteps.long()
+                    print(f'latents : {latents.shape}')
+                    print(f'noise : {noise.shape}')
                     latents = scheduler.add_noise(latents, noise, timesteps)
 
                     num_inference_steps = 50
@@ -164,8 +166,8 @@ def main(args):
                     timesteps = scheduler.timesteps
                     for i, t in enumerate(timesteps):
                         if t < 200 :
-                            noise_pred = unet(latent, t, encoder_hidden_states=img_condition).sample
-                            latent = scheduler.step(noise_pred, t, latent, return_dict=False)[0]
+                            noise_pred = unet(latents, t, encoder_hidden_states=img_condition).sample
+                            latents = scheduler.step(noise_pred, t, latents, return_dict=False)[0]
                     # latent to image
                     image = vae.decode(latent / scaling_factor, return_dict=False)[0] # torch # 1,3,512,512
                     print(f'vae out. image : {image.shape}')
