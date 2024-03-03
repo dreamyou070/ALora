@@ -54,14 +54,11 @@ def main(args):
         vae_config_dict = json.load(f)
     vae = AutoencoderKL.from_config(pretrained_model_name_or_path=vae_config_dict)
     vae.load_state_dict(load_file(os.path.join(vae_base_dir, f'vae_models/vae_91.safetensors')))
-    vae.to(dtype=weight_dtype).to(accelerator.device)
     # [3] unet
     unet_config_dir = os.path.join(r'/home/dreamyou070/AnomalLora_OriginCode/result/MVTec/transistor/unet_train/train_unet_20240303',
                               'unet_config.json')
     with open(unet_config_dir, 'r') as f :
         unet_config_dict = json.load(f)
-    #unet_config_dict['in_channels'] = 9
-    #unet = UNet2DConditionModel.from_config(pretrained_model_name_or_path = unet_config_dict)
     unet = UNet2DConditionModel(**unet_config_dict)
     noise_scheduler = DDPMScheduler(beta_start=0.00085, beta_end=0.012, beta_schedule="scaled_linear",
                                     num_train_timesteps=1000, clip_sample=False)
@@ -82,24 +79,24 @@ def main(args):
     print(f'\n step 8. model to device')
     unet, optimizer, train_dataloader, lr_scheduler = accelerator.prepare(unet, optimizer, train_dataloader, lr_scheduler)
     unet = transform_models_if_DDP([unet])[0]
-
-    print(f'\n step 9. Training !')
-    progress_bar = tqdm(range(args.max_train_steps), smoothing=0,
-                        disable=not accelerator.is_local_main_process, desc="steps")
-    global_step = 0
-
+    vae.to(accelerator.device, dtype=weight_dtype)
+    vae.eval()
     for step, batch in enumerate(train_dataloader) :
         with torch.no_grad():
             with autocast(enabled=True):
                 z = vae.encode(batch["image"].to(dtype=weight_dtype)).latent_dist.sample()
+        break
     scale_factor = 1 / torch.std(z)
     unet_scale_factor_dir = os.path.join(output_dir, 'unet_scale_factor.txt')
     with open(unet_scale_factor_dir, 'w') as f :
         f.write(f'scale_factor = {scale_factor}')
 
 
+    print(f'\n step 9. Training !')
+    progress_bar = tqdm(range(args.max_train_steps), smoothing=0,
+                        disable=not accelerator.is_local_main_process, desc="steps")
+    global_step = 0
     for epoch in range(args.start_epoch, args.max_train_epochs):
-
         epoch_loss = 0
         for step, batch in enumerate(train_dataloader):
 
