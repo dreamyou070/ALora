@@ -123,6 +123,7 @@ def main(args):
         anomal_folders = os.listdir(test_img_folder)
 
         for anomal_folder in anomal_folders:
+
             answer_anomal_folder = os.path.join(answer_base_folder, anomal_folder)
             os.makedirs(answer_anomal_folder, exist_ok=True)
             save_base_folder = os.path.join(check_base_folder, anomal_folder)
@@ -152,12 +153,12 @@ def main(args):
                         noise_pred = unet(latent, t, encoder_hidden_states=img_condition).sample
                         latent = scheduler.step(noise_pred, t, latent, return_dict=False)[0]
                     # latent to image
-                    image = vae.decode(latent / scaling_factor, return_dict=False)[0]
-                    print(f'vae out. image : {type(image)}')
-                    np_image = image.cpu().permute(0, 2, 3, 1).float().numpy()
+                    image = vae.decode(latent / scaling_factor, return_dict=False)[0] # torch # 1,3,512,512
+                    print(f'vae out. image : {image.shape}')
+                    np_image = image.cpu().permute(0, 2, 3, 1).float().numpy()[0]
                     np_image = (np_image * 255).round().astype("uint8")
-                    pil_image = Image.fromarray(np_image[:, :, :3])
-                    #pil_image.save()
+                    pil_image = Image.fromarray(np_image)
+                    pil_image.save(os.path.join(check_base_folder, f'recon_{rgb_img}'))
 
 
 
