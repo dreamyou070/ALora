@@ -157,24 +157,25 @@ def main(args):
                     noise = torch.randn(1,4,64,64).to(latents.device)
                     timesteps = torch.tensor([200]).to(latents.device)
                     timesteps = timesteps.long()
-                    print(f'latents : {latents.shape}')
-                    print(f'noise : {noise.shape}')
                     latents = scheduler.add_noise(latents, noise, timesteps)
 
                     num_inference_steps = 50
                     scheduler.set_timesteps(num_inference_steps, device=accelerator.device)
                     timesteps = scheduler.timesteps
+
+                    def latent2pil(latents) :
+                        image = vae.decode(latents / scaling_factor, return_dict=False)[0] # torch # 1,3,512,512
+                        np_image = image.cpu().permute(0, 2, 3, 1).float().numpy()[0]
+                        np_image = (np_image * 255).round().astype("uint8")
+                        pil_image = Image.fromarray(np_image)
+                        return pil_image
+
                     for i, t in enumerate(timesteps):
                         if t < 200 :
                             noise_pred = unet(latents, t, encoder_hidden_states=img_condition).sample
                             latents = scheduler.step(noise_pred, t, latents, return_dict=False)[0]
-                    # latent to image
-                    image = vae.decode(latents / scaling_factor, return_dict=False)[0] # torch # 1,3,512,512
-                    print(f'vae out. image : {image.shape}')
-                    np_image = image.cpu().permute(0, 2, 3, 1).float().numpy()[0]
-                    np_image = (np_image * 255).round().astype("uint8")
-                    pil_image = Image.fromarray(np_image)
-                    pil_image.save(os.path.join(save_base_folder, f'recon_{rgb_img}'))
+                            pil = latent2pil(latents)
+                            pil.save(os.path.join(save_base_folder, f'recon_{t}_{rgb_img}'))
 
 
 
