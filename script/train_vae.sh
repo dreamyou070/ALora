@@ -6,7 +6,7 @@ obj_name='transistor'
 trigger_word='transistor'
 layer_name='vae_train'
 sub_folder="mid_up_16_32_64"
-file_name="train_vae_20240302_5_distill"
+file_name="train_vae_20240302_6_distill_recon"
 
 anomal_source_path="../../../MyData/anomal_source"
 # --anomal_source_path "${anomal_source_path}" \
@@ -28,5 +28,4 @@ accelerate launch --config_file ../../../gpu_config/gpu_0_1_2_3_4_5_config \
  --back_min_beta_scale 0.6 \
  --back_max_beta_scale 0.9 \
  --back_trg_beta 0 \
- --use_pretrained_vae \
- --do_attn_loss --attn_loss_weight 1.0 --do_cls_train --normal_weight 1 --blurring_test
+ --use_pretrained_vae

@@ -17,6 +17,8 @@ from model.patchgan_discriminator import PatchDiscriminator
 from torch.nn import L1Loss
 from diffusers import AutoencoderKL
 from monai.networks.layers import Act
+from PIL import Image
+import numpy as np
 
 def main(args):
 
@@ -48,6 +50,10 @@ def main(args):
     with open(config_dir, 'r') as f:
         config_dict = json.load(f)
     vae = AutoencoderKL.from_config(pretrained_model_name_or_path=config_dict)
+    # saving config
+    saving_config_dir = os.path.join(output_dir, 'vae_config.json')
+    with open(saving_config_dir, 'w') as f :
+        json.dump(config_dict, f,  indent='\t')
 
     # get pretrained vae
     #if args.use_pretrained_vae :
@@ -105,9 +111,6 @@ def main(args):
     for epoch in range(args.start_epoch, args.max_train_epochs):
 
         epoch_loss = 0
-        gen_epoch_loss = 0
-        disc_epoch_loss = 0
-        loss_dict = {}
         for step, batch in enumerate(train_dataloader):
 
             # x = [1,4,512,512]
@@ -125,11 +128,12 @@ def main(args):
                 z_t = pretrained_posterior.sample()
                 reconstruction_t = pretrained_vae.decode(z).sample
 
+            # [1] distillation
             latent_matching_loss = l1_loss(z, z_t)
             recon_matching_loss = l1_loss(reconstruction, reconstruction_t)
-            total_loss = latent_matching_loss + recon_matching_loss
+            matching_loss = latent_matching_loss + recon_matching_loss
 
-            """
+
             # [3] discriminator
             logits_fake = discriminator(reconstruction.contiguous().float())[-1]
 
@@ -154,8 +158,8 @@ def main(args):
             discriminator_loss = (loss_d_fake + loss_d_real) * 0.5
             loss_d = adv_weight * discriminator_loss
             # ------------------------------------------------------------------------------------------------------- #
-            total_loss = loss_g + loss_d
-            """
+            total_loss = loss_g + loss_d + matching_loss
+
 
 
             accelerator.backward(total_loss)
@@ -192,6 +196,15 @@ def main(args):
         os.makedirs(vae_base_dir, exist_ok = True)
         print(f'model save ... ')
         model_save(accelerator.unwrap_model(vae), save_dtype, os.path.join(vae_base_dir, f'vae_{epoch + 1}.safetensors'))
+
+        # ------------------------------------------------------------------------------------------------------------------
+        # recon test
+        inference_check_dir = os.path.join(output_dir, 'inference_check')
+        os.makedirs(inference_check_dir, exist_ok=True)
+        z = vae.encode(batch["image"].to(accelerator.device).to(dtype=weight_dtype)).latent_dist.sample()
+        reconstruction = vae.decode(z).sample.squeeze().detach().cpu()  # 3,512,512
+        rec_pil = Image.fromarray(np.array(((reconstruction + 1) / 2) * 255).astype(np.uint8).transpose(1, 2, 0))
+        rec_pil.save(os.path.join(inference_check_dir, f'recon_epoch_{epoch+1}.png'))
     print("Finish!!")
     accelerator.end_training()
 
