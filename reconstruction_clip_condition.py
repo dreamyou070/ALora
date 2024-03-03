@@ -142,16 +142,30 @@ def main(args):
                 pil_img = Image.open(rgb_img_dir).convert('RGB')
                 np_img = np.array(pil_img)
                 with torch.no_grad() :
+
+                    # [1] raw latent
+                    image = torch.from_numpy(np_img).float() / 127.5 - 1
+                    image = image.permute(2, 0, 1).unsqueeze(0).to(vae.device, weight_dtype)
+                    latents = vae.encode(image)['latent_dist'].mean
+                    latents = latents * scaling_factor
+
+                    # [2] condition
                     inputs = processor(images=np_img, return_tensors="pt").to(accelerator.device)
                     img_condition = clip_model(**inputs).last_hidden_state  # 1, 50, 768
-                    # [2] sampling
-                    latent = torch.randn(1,4,64,64).to(accelerator.device)
+
+                    # [3] noisy latent
+                    noise = torch.randn(1,4,64,64)
+                    timesteps = torch.tensor([200]).to(latents.device)
+                    timesteps = timesteps.long()
+                    latents = scheduler.add_noise(latents, noise, timesteps)
+
                     num_inference_steps = 50
                     scheduler.set_timesteps(num_inference_steps, device=accelerator.device)
                     timesteps = scheduler.timesteps
                     for i, t in enumerate(timesteps):
-                        noise_pred = unet(latent, t, encoder_hidden_states=img_condition).sample
-                        latent = scheduler.step(noise_pred, t, latent, return_dict=False)[0]
+                        if t < 200 :
+                            noise_pred = unet(latent, t, encoder_hidden_states=img_condition).sample
+                            latent = scheduler.step(noise_pred, t, latent, return_dict=False)[0]
                     # latent to image
                     image = vae.decode(latent / scaling_factor, return_dict=False)[0] # torch # 1,3,512,512
                     print(f'vae out. image : {image.shape}')
