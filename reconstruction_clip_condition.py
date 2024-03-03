@@ -158,7 +158,7 @@ def main(args):
                     np_image = image.cpu().permute(0, 2, 3, 1).float().numpy()[0]
                     np_image = (np_image * 255).round().astype("uint8")
                     pil_image = Image.fromarray(np_image)
-                    pil_image.save(os.path.join(check_base_folder, f'recon_{rgb_img}'))
+                    pil_image.save(os.path.join(save_base_folder, f'recon_{rgb_img}'))
 
 
 
