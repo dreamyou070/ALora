@@ -14,6 +14,9 @@ def call_dataset(args) :
         from data.mvtec import MVTecAnswerTrainDataset
         data_class = MVTecAnswerTrainDataset
         root_dir = os.path.join(args.data_path, f'{args.obj_name}/test')
+    if args.trigger_word == 'transistor' :
+        from data.mvtec_transistor import MVTecDRAEMTrainDataset as DatasetTransistor
+        data_class = DatasetTransistor
     print(f'data_class : {data_class}')
 
     tokenizer = None
