@@ -6,7 +6,7 @@ obj_name='transistor'
 trigger_word='transistor'
 layer_name='layer_3'
 sub_folder="down_16_32_64"
-file_name="test_20240303_with_gcn"
+file_name="test_20240303_with_gt_answer_check"
 
 anomal_source_path="../../../MyData/anomal_source"
 
