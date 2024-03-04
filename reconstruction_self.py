@@ -161,11 +161,6 @@ def main(args):
             position_embedder.load_state_dict(position_embedder_state_dict)
             position_embedder.to(accelerator.device, dtype=weight_dtype)
 
-        if args.use_global_conv:
-            global_net_pretrained_dir = os.path.join(os.path.join(parent, f'global_convolution_network'), f'global_convolution_net_{lora_epoch}.safetensors')
-            global_conv_net.load_state_dict(load_file(global_net_pretrained_dir))
-            global_conv_net.to(accelerator.device, dtype=weight_dtype)
-
         # [2] load network
         anomal_detecting_state_dict = load_file(network_model_dir)
         for k in anomal_detecting_state_dict.keys():
