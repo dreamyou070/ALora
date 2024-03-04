@@ -366,7 +366,7 @@ class MVTecDRAEMTrainDataset(Dataset):
         random_rot_np = (rot_object_np + background_np_img).astype(np.uint8)
 
         anomal_mask = rot_np_object_img[:, :, 0] + object_pil_img
-        random_rot_mask_pil = Image.fromarray(np.where(anomal_mask == 0, 0, 255)).resize((self.latent_res, self.latent_res))
+        random_rot_mask_pil = Image.fromarray(np.where(anomal_mask == 0, 0, 255).astype(np.uint8)).resize((self.latent_res, self.latent_res))
         random_rot_mask_np = np.where((np.array(random_rot_mask_pil, np.uint8) / 255) == 0, 0, 1)
         random_rot_mask = torch.tensor(random_rot_mask_np)
 
