@@ -265,6 +265,7 @@ class MVTecDRAEMTrainDataset(Dataset):
             object_mask = torch.tensor(object_mask_np)  # shape = [64,64], 0 = background, 1 = object
         else :
             object_mask = torch.zeros(self.latent_res, self.latent_res)
+        zero_position = torch.zeros(self.latent_res, self.latent_res)
 
         # [3] anomaly
         anomal_img = img
@@ -327,7 +328,7 @@ class MVTecDRAEMTrainDataset(Dataset):
             input_ids = torch.tensor([0])
 
         return {'image': self.transform(img),  # original image
-                "object_mask": object_mask.unsqueeze(0),  # [1, 64, 64]
+                "zero_mask": zero_position.unsqueeze(0),  # [1, 64, 64]
 
                 'anomal_image': self.transform(anomal_img),
                 "anomal_mask": anomal_mask_torch,

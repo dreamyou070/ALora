@@ -9,7 +9,6 @@ from PIL import Image
 from data.prepare_dataset import call_dataset
 from attention_store.normal_activator import passing_normalize_argument
 from data.mvtec import passing_mvtec_argument
-from data.mvtec_blur import passing_mvtec_argument as passing_mvtec_argument_blur
 
 def torch_to_pil(torch_img):
     # torch_img = [3, H, W], from -1 to 1
