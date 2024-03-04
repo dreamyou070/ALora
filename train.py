@@ -173,7 +173,7 @@ def main(args):
                 #origin_query_list.append(query)  # head, pix_num, dim
                 query_list.append(resize_query_features(query))  # head, pix_num, dim
                 k = key_dict[layer][0]
-                print(f'layer = {layer} | {k.shape}')
+                #print(f'layer = {layer} | {k.shape}')
                 key_list.append(key_dict[layer][0])  # head, pix_num, dim
             local_query = torch.cat(query_list, dim=-1)        # head, pix_num, long_dim
             local_key = torch.cat(key_list, dim=-1).squeeze()  # head, 77, long_dim
