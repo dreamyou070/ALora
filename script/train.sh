@@ -1,6 +1,6 @@
 # !/bin/bash
 
-port_number=51233
+port_number=50002
 bench_mark="MVTec"
 obj_name='transistor'
 trigger_word='transistor'
@@ -14,7 +14,7 @@ anomal_source_path="../../../MyData/anomal_source"
 accelerate launch --config_file ../../../gpu_config/gpu_0_1_2_3_config \
  --main_process_port $port_number ../train.py --log_with wandb \
  --output_dir "../../result/${bench_mark}/${obj_name}/${layer_name}/${sub_folder}/${file_name}" \
- --train_unet --train_text_encoder --start_epoch 0 --max_train_epochs 60 \
+ --train_unet --train_text_encoder --start_epoch 14 --max_train_epochs 60 \
  --pretrained_model_name_or_path ../../../pretrained_stable_diffusion/stable-diffusion-v1-5/v1-5-pruned.safetensors \
  --network_weights "../../result/${bench_mark}/${obj_name}/${layer_name}/${sub_folder}/${file_name}/models/epoch-000014.safetensors" \
  --position_embedder_weights "../../result/${bench_mark}/${obj_name}/${layer_name}/${sub_folder}/${file_name}/position_embedder/position_embedder_14.safetensors" \
