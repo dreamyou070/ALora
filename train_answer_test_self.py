@@ -121,7 +121,7 @@ def main(args):
 
         for step, batch in enumerate(train_dataloader):
             device = accelerator.device
-            loss = torch.tensor(0.0, dtype=weight_dtype, device=accelerator.device)
+            #loss = torch.tensor(0.0, dtype=weight_dtype, device=accelerator.device)
             loss_dict = {}
             with torch.set_grad_enabled(True):
                 encoder_hidden_states = text_encoder(batch["input_ids"].to(device))["last_hidden_state"]
@@ -138,9 +138,9 @@ def main(args):
             attn_list, origin_query_list, query_list, key_list = [], [], [], []
             for layer in args.trg_layer_list:
                 query = query_dict[layer][0].squeeze()  # head, pix_num, dim
-                origin_query_list.append(query)  # head, pix_num, dim
+                #origin_query_list.append(query)  # head, pix_num, dim
                 query_list.append(resize_query_features(query))  # head, pix_num, dim
-                key_list.append(key_dict[layer][0])  # head, pix_num, dim
+                key_list.append(resize_query_features(key_dict[layer][0]))  # head, 64*64, dim
             query = torch.cat(query_list, dim=-1)  # head, pix_num, long_dim
             key = torch.cat(key_list, dim=-1).squeeze()  # head, pix_num, long_dim
             attention_scores = torch.baddbmm(torch.empty(query.shape[0], query.shape[1], key.shape[1], dtype=query.dtype,
