@@ -116,9 +116,9 @@ def main(args):
     def get_sample_name (p) :
         if p < 0.2 :
             img_name, anomal_name = 'image', 'zero_mask'
-        elif 0.2 <= p < 0.4 :
+        elif 0.2 <= p < 0.35 :
             img_name, anomal_name = 'anomal_image', 'anomal_mask'
-        elif 0.4 <= p < 0.6 :
+        elif 0.35 <= p < 0.6 :
             img_name, anomal_name = 'bg_anomal_image', 'bg_anomal_mask'
         elif 0.6 <= p < 0.8 :
             img_name, anomal_name = 'rotate_image', 'rotate_mask'
