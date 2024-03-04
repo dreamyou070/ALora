@@ -1,16 +1,16 @@
 # !/bin/bash
 
-port_number=51111
+port_number=51122
 bench_mark="MVTec"
 obj_name='transistor'
 trigger_word='transistor'
-layer_name='layer_6'
-sub_folder="up_down_16_32_64"
+layer_name='layer_3'
+sub_folder="down_16_32_64"
 file_name="test_20240304_without_backsample"
 
 anomal_source_path="../../../MyData/anomal_source"
 
-accelerate launch --config_file ../../../gpu_config/gpu_0_1_2_config \
+accelerate launch --config_file ../../../gpu_config/gpu_0_1_2_3_4_5_config \
  --main_process_port $port_number ../train.py --log_with wandb \
  --output_dir "../../result/${bench_mark}/${obj_name}/${layer_name}/${sub_folder}/${file_name}" \
  --train_unet --train_text_encoder --start_epoch 0 --max_train_epochs 30 \
@@ -24,13 +24,10 @@ accelerate launch --config_file ../../../gpu_config/gpu_0_1_2_config \
  --anomal_min_beta_scale 0.3 \
  --anomal_max_beta_scale 0.7 \
  --back_trg_beta 0 \
- --do_background_masked_sample --do_object_detection --do_anomal_sample --answer_test \
+ --do_object_detection --do_anomal_sample \
  --use_position_embedder \
  --do_map_loss \
  --trg_layer_list "['down_blocks_0_attentions_1_transformer_blocks_0_attn1',
                     'down_blocks_1_attentions_1_transformer_blocks_0_attn1',
-                    'down_blocks_2_attentions_1_transformer_blocks_0_attn1',
-                    'up_blocks_1_attentions_2_transformer_blocks_0_attn2',
-                    'up_blocks_2_attentions_2_transformer_blocks_0_attn2',
-                    'up_blocks_3_attentions_2_transformer_blocks_0_attn2',]" \
+                    'down_blocks_2_attentions_1_transformer_blocks_0_attn1',]" \
  --do_attn_loss --attn_loss_weight 1.0 --do_cls_train --normal_weight 1

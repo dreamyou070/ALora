@@ -151,8 +151,6 @@ def main(args):
             with torch.set_grad_enabled(True):
                 encoder_hidden_states = text_encoder(batch["input_ids"].to(device))["last_hidden_state"]
             # --------------------------------------------------------------------------------------------------------- #
-            keys = batch.keys()
-            print(f'keys : {keys}')
             p = random.random()
             if args.do_background_masked_sample:
                 img_name, anomal_name = get_sample_name_with_back(p)
