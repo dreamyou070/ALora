@@ -296,7 +296,7 @@ class MVTecDRAEMTrainDataset(Dataset):
             # [4] background
             back_idx = idx % len(self.background_paths)
             back_path = self.background_paths[back_idx]
-            _, background_img = self.load_image(back_path, self.resize_shape[0], self.resize_shape[1])
+            background_img_pil, background_img = self.load_image(back_path, self.resize_shape[0], self.resize_shape[1])
             back_anomal_img, back_anomal_mask_torch = self.augment_image(img,
                                                                          aug(image=background_img),
                                                                          argument.back_min_perlin_scale, argument.back_max_perlin_scale,
@@ -347,6 +347,28 @@ class MVTecDRAEMTrainDataset(Dataset):
         partial_anomal_mask = torch.tensor(partial_anomal_mask_np)  # shape = [64,64], 0 = background, 1 = object
 
         # --------------------------------------------------------------------------------------------------------------------- #
+        # [7] random rot
+        angles = [45,90,135,-45,-90,-135]
+        angle = angles[idx % len(angles)]
+        # [7.1] src
+        rot_pil_img = pil_img.rotate(angle)
+        rot_np_img = np.array(rot_pil_img)
+        # [7.2] object
+        object_pil_img = Image.open(object_mask_dir).convert('L').resize((self.resize_shape[0],self.resize_shape[1]), Image.BICUBIC)
+        rot_object_pil_img = object_pil_img.rotate(angle).convert('RGB')
+        rot_np_object_img = np.array(rot_object_pil_img)
+        rot_np_object_img = np.where(rot_np_object_img == 0, 0, 1)
+        # [7.3]
+        rot_object_np = rot_np_img * rot_np_object_img
+        object_pil = Image.fromarray(rot_object_np.astype(np.uint8))
+        # [4] get background
+        background_np_img = np.array(background_img_pil) * (1 - rot_np_object_img)
+        random_rot_np = (rot_object_np + background_np_img).astype(np.uint8)
+
+        anomal_mask = rot_np_object_img[:, :, 0] + object_pil_img
+        random_rot_mask_pil = Image.fromarray(np.where(anomal_mask == 0, 0, 255)).resize((self.latent_res, self.latent_res))
+        random_rot_mask_np = np.where((np.array(random_rot_mask_pil, np.uint8) / 255) == 0, 0, 1)
+        random_rot_mask = torch.tensor(random_rot_mask_np)
 
         if self.tokenizer is not None:
             input_ids, attention_mask = self.get_input_ids(self.caption)  # input_ids = [77]
@@ -368,8 +390,8 @@ class MVTecDRAEMTrainDataset(Dataset):
                 'rotate_image': self.transform(rotate_np),
                 'rotate_mask': rotate_mask.unsqueeze(0),
 
-                #'partial_image' : self.transform(partial_anomal_img),
-                #'partial_mask' : partial_anomal_mask.unsqueeze(0) ,
+                'random_rot_image' : self.transform(random_rot_np),
+                'random_rot_mask' : random_rot_mask.unsqueeze(0) ,
 
                 'empty_image': self.transform(background_img),
                 'empty_mask': object_mask.unsqueeze(0),

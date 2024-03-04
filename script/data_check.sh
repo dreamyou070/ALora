@@ -10,7 +10,7 @@ anomal_source_path="../../../MyData/anomal_source"
 
 accelerate launch --config_file ../../../gpu_config/gpu_0_config \
  --main_process_port $port_number ../data_check.py --log_with wandb \
- --output_dir "../../result/${bench_mark}/${obj_name}/data_check_20240304_0.3_0.7_partial_anomal" \
+ --output_dir "../../result/${bench_mark}/${obj_name}/data_check_20240304_0.3_0.7_partial_anomal_random_rot" \
  --train_unet --train_text_encoder --start_epoch 0 --max_train_epochs 30 \
  --pretrained_model_name_or_path ../../../pretrained_stable_diffusion/stable-diffusion-v1-5/v1-5-pruned.safetensors \
  --data_path "../../../MyData/anomaly_detection/${bench_mark}" \
