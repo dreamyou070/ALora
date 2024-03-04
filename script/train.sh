@@ -1,12 +1,12 @@
 # !/bin/bash
 
-port_number=50056
+port_number=50065
 bench_mark="MVTec"
 obj_name='transistor'
 trigger_word='transistor'
 layer_name='layer_3'
 sub_folder="down_16_32_64"
-file_name="test_20240304_without_backsample"
+file_name="test_20240304_with_backsample"
 
 anomal_source_path="../../../MyData/anomal_source"
 

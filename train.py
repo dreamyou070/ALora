@@ -113,8 +113,8 @@ def main(args):
         resized_query = resized_query.view(head_num, 64 * 64, dim)  # 8, 64*64, dim
         return resized_query
 
-    """
-    def get_sample_name (p) :
+
+    def get_sample_name_with_back (p) :
         if p < 0.2 :
             img_name, anomal_name = 'image', 'zero_mask'
         elif 0.2 <= p < 0.35 :
@@ -126,7 +126,6 @@ def main(args):
         else :
             img_name, anomal_name = 'empty_image', 'empty_mask'
         return img_name, anomal_name
-    """
 
     def get_sample_name(p):
         if p < 0.25:
@@ -153,7 +152,11 @@ def main(args):
                 encoder_hidden_states = text_encoder(batch["input_ids"].to(device))["last_hidden_state"]
             # --------------------------------------------------------------------------------------------------------- #
             p = random.random()
-            img_name, anomal_name = get_sample_name(p)
+            if args.do_background_masked_sample:
+                img_name, anomal_name = get_sample_name_with_back(p)
+            else :
+                img_name, anomal_name = get_sample_name(p)
+
             image = batch[img_name].to(dtype=weight_dtype) # 1,3, 512,512
             gt = batch[anomal_name].to(dtype=weight_dtype) # 1, 64,64
             with torch.no_grad():
