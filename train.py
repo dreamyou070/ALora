@@ -288,6 +288,7 @@ if __name__ == "__main__":
                         help="max token length of text encoder (default for 75, 150 or 225) / text encoder", )
     parser.add_argument("--vae_scale_factor", type=float, default=0.18215)
     parser.add_argument("--network_weights", type=str, default=None, help="pretrained weights for network")
+    parser.add_argument("--position_embedder_weights", type=str, default=None, help="pretrained weights for network")
     parser.add_argument("--network_dim", type=int, default=64, help="network dimensions (depends on each network) ")
     parser.add_argument("--network_alpha", type=float, default=4, help="alpha for LoRA weight scaling, default 1 ", )
     parser.add_argument("--network_dropout", type=float, default=None, )
