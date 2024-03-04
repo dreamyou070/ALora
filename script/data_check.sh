@@ -21,8 +21,8 @@ accelerate launch --config_file ../../../gpu_config/gpu_0_config \
  --anomal_source_path "${anomal_source_path}" \
  --anomal_min_perlin_scale 0 \
  --anomal_max_perlin_scale 6 \
- --anomal_min_beta_scale 0.5 \
- --anomal_max_beta_scale 0.8 \
+ --anomal_min_beta_scale 0.2 \
+ --anomal_max_beta_scale 0.5 \
  --back_trg_beta 0 \
  --do_background_masked_sample \
  --do_anomal_sample
