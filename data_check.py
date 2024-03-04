@@ -59,10 +59,12 @@ def main(args):
         anomal_mask_pil.save(os.path.join(saving_base_dir, f'{i}_anomal_mask.png'))
 
         # [3] bg anomal img
+        """
         bg_anomal_img_pil = torch_to_pil(sample['bg_anomal_image'].squeeze(0))
         bg_anomal_img_pil.save(os.path.join(saving_base_dir, f'{i}_bg_anomal_img.png'))
         bg_anomal_mask_pil = make_mask_pil(sample['bg_anomal_mask'].squeeze())
         bg_anomal_mask_pil.save(os.path.join(saving_base_dir, f'{i}_bg_anomal_mask.png'))
+        """
 
         # [4]
         rotate_anomal_img_pil = torch_to_pil(sample['rotate_image'].squeeze(0))
