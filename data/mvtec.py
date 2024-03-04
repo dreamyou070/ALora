@@ -319,8 +319,9 @@ class MVTecDRAEMTrainDataset(Dataset):
         sub_mask_pil = Image.open(object_mask_dir).convert('L').resize((self.latent_res, self.latent_res)).rotate(
             rorate_angle)
         sub_mask_np = np.array(sub_mask_pil)
-        final_mask = np.where((object_mask_np + sub_mask_np) > 0, 255, 0) / 255
+        final_mask = (np.where((object_mask_np + sub_mask_np) > 0, 255, 0) / 255)
         rotate_mask = torch.tensor(final_mask)  # shape = [64,64], 0 = background, 1 = object
+        rotate_mask = torch.where(rotate_mask>0.5, 1, 0)
 
         if self.tokenizer is not None:
             input_ids, attention_mask = self.get_input_ids(self.caption)  # input_ids = [77]
