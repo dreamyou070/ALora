@@ -6,7 +6,7 @@ obj_name='transistor'
 caption='transistor'
 layer_name='layer_3'
 sub_folder="down_16_32_64"
-file_name="test_20240304_with_backsample"
+file_name="test_20240304_without_backsample"
 
 # position_embedding_layer="down_blocks_0_attentions_0_transformer_blocks_0_attn1"
 #--d_dim 320 --use_position_embedder --position_embedding_layer ${position_embedding_layer} \
