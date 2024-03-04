@@ -307,42 +307,46 @@ class MVTecDRAEMTrainDataset(Dataset):
             back_anomal_img = img
             back_anomal_mask_torch = object_mask.unsqueeze(0)
 
-
         # [5] rotate image
-        """
+        # import random
+        # p = random.random()
         rorate_angle = 180
-        rotate_img = Image.open(img_path).resize((self.resize_shape[0],self.resize_shape[1])).rotate(rorate_angle) # PIL image
-        rotate_np = np.array(rotate_img) # np.array
+        rotate_img = Image.open(img_path).resize((self.resize_shape[0], self.resize_shape[1])).rotate(
+            rorate_angle)  # PIL image
+        rotate_np = np.array(rotate_img)  # np.array
 
-        sub_mask_pil = Image.open(object_mask_dir).convert('L').resize((self.latent_res, self.latent_res)).rotate(rorate_angle)
+        sub_mask_pil = Image.open(object_mask_dir).convert('L').resize((self.latent_res, self.latent_res)).rotate(
+            rorate_angle)
         sub_mask_np = np.array(sub_mask_pil)
         final_mask = np.where((object_mask_np + sub_mask_np) > 0, 255, 0) / 255
         rotate_mask = torch.tensor(final_mask)  # shape = [64,64], 0 = background, 1 = object
-        """
 
-        if self.tokenizer is not None :
-            input_ids, attention_mask = self.get_input_ids(self.caption) # input_ids = [77]
-        else :
+        if self.tokenizer is not None:
+            input_ids, attention_mask = self.get_input_ids(self.caption)  # input_ids = [77]
+        else:
             input_ids = torch.tensor([0])
 
-        return {'image': self.transform(img),               # original image
-                "object_mask": object_mask.unsqueeze(0),    # [1, 64, 64]
+        return {'image': self.transform(img),  # original image
+                "object_mask": object_mask.unsqueeze(0),  # [1, 64, 64]
 
                 'anomal_image': self.transform(anomal_img),
                 "anomal_mask": anomal_mask_torch,
 
-                'bg_anomal_image': self.transform(back_anomal_img),          # masked image
+                'bg_anomal_image': self.transform(back_anomal_img),  # masked image
                 'bg_anomal_mask': back_anomal_mask_torch,
 
-            #     'rotate_image': self.transform(rotate_np),
-            #    'rotate_mask' : rotate_mask.unsqueeze(0),
+                'rotate_image': self.transform(rotate_np),
+                'rotate_mask': rotate_mask.unsqueeze(0),
+
+                'empty_image': self.transform(background_img),
+                'empty_mask': object_mask.unsqueeze(0),
 
                 'idx': idx,
                 'input_ids': input_ids.squeeze(0),
                 'caption': self.caption,
-                'image_name' : name,
-                'anomal_name' : anomal_name,}
-
+                'image_name': name,
+                'anomal_name': anomal_name,
+                }
 
 
 

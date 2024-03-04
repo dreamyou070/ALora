@@ -47,22 +47,34 @@ def main(args):
 
         # [1] org img
         img_pil = torch_to_pil(sample['image'].squeeze(0))
-        img_pil.save(os.path.join(saving_base_dir, f'org_img_{i}.png'))
+        img_pil.save(os.path.join(saving_base_dir, f'{i}_org_img.png'))
 
         object_mask_pil = make_mask_pil(sample['object_mask'].squeeze())
-        object_mask_pil.save(os.path.join(saving_base_dir, f'org_mask_{i}.png'))
+        object_mask_pil.save(os.path.join(saving_base_dir, f'{i}_org_mask.png'))
 
         # [2] anomal img
         anomal_img_pil = torch_to_pil(sample['anomal_image'].squeeze(0))
-        anomal_img_pil.save(os.path.join(saving_base_dir, f'anomal_img_{i}.png'))
+        anomal_img_pil.save(os.path.join(saving_base_dir, f'{i}_anomal_img.png'))
         anomal_mask_pil = make_mask_pil(sample['anomal_mask'].squeeze())
-        anomal_mask_pil.save(os.path.join(saving_base_dir, f'anomal_mask_{i}.png'))
+        anomal_mask_pil.save(os.path.join(saving_base_dir, f'{i}_anomal_mask.png'))
 
         # [3] bg anomal img
         bg_anomal_img_pil = torch_to_pil(sample['bg_anomal_image'].squeeze(0))
-        bg_anomal_img_pil.save(os.path.join(saving_base_dir, f'bg_anomal_img_{i}.png'))
+        bg_anomal_img_pil.save(os.path.join(saving_base_dir, f'{i}_bg_anomal_img.png'))
         bg_anomal_mask_pil = make_mask_pil(sample['bg_anomal_mask'].squeeze())
-        bg_anomal_mask_pil.save(os.path.join(saving_base_dir, f'bg_anomal_mask_{i}.png'))
+        bg_anomal_mask_pil.save(os.path.join(saving_base_dir, f'{i}_bg_anomal_mask.png'))
+
+        # [4]
+        rotate_anomal_img_pil = torch_to_pil(sample['rotate_image'].squeeze(0))
+        rotate_anomal_img_pil.save(os.path.join(saving_base_dir, f'{i}_rotate_anomal_img.png'))
+        rotate_anomal_mask_pil = torch_to_pil(sample['rotate_mask'].squeeze(0))
+        rotate_anomal_mask_pil.save(os.path.join(saving_base_dir, f'{i}_rotate_anomal_mask.png'))
+
+        # [5] empty
+        empty_anomal_img_pil = torch_to_pil(sample['empty_image'].squeeze(0))
+        empty_anomal_img_pil.save(os.path.join(saving_base_dir, f'{i}_empty_img.png'))
+        empty_anomal_mask_pil = torch_to_pil(sample['empty_mask'].squeeze(0))
+        empty_anomal_mask_pil.save(os.path.join(saving_base_dir, f'{i}_empty_mask.png'))
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
