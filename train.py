@@ -151,6 +151,8 @@ def main(args):
             with torch.set_grad_enabled(True):
                 encoder_hidden_states = text_encoder(batch["input_ids"].to(device))["last_hidden_state"]
             # --------------------------------------------------------------------------------------------------------- #
+            keys = batch.keys()
+            print(f'keys : {keys}')
             p = random.random()
             if args.do_background_masked_sample:
                 img_name, anomal_name = get_sample_name_with_back(p)
@@ -159,6 +161,7 @@ def main(args):
 
             image = batch[img_name].to(dtype=weight_dtype) # 1,3, 512,512
             gt = batch[anomal_name].to(dtype=weight_dtype) # 1, 64,64
+
             with torch.no_grad():
                 latents = vae.encode(image).latent_dist.sample() * args.vae_scale_factor
                 anomal_position_vector = gt.squeeze().flatten()

@@ -14,6 +14,7 @@ def call_dataset(args) :
         from data.mvtec import MVTecAnswerTrainDataset
         data_class = MVTecAnswerTrainDataset
         root_dir = os.path.join(args.data_path, f'{args.obj_name}/test')
+    print(f'data_class : {data_class}')
 
     tokenizer = None
     if not args.on_desktop :
