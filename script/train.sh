@@ -4,9 +4,9 @@ port_number=51111
 bench_mark="MVTec"
 obj_name='transistor'
 trigger_word='transistor'
-layer_name='layer_3'
-sub_folder="down_16_32_64"
-file_name="test_20240304_with_backsample"
+layer_name='layer_6'
+sub_folder="up_down_16_32_64"
+file_name="test_20240304_without_backsample"
 
 anomal_source_path="../../../MyData/anomal_source"
 
@@ -29,5 +29,8 @@ accelerate launch --config_file ../../../gpu_config/gpu_0_1_2_config \
  --do_map_loss \
  --trg_layer_list "['down_blocks_0_attentions_1_transformer_blocks_0_attn1',
                     'down_blocks_1_attentions_1_transformer_blocks_0_attn1',
-                    'down_blocks_2_attentions_1_transformer_blocks_0_attn1']" \
+                    'down_blocks_2_attentions_1_transformer_blocks_0_attn1',
+                    'up_blocks_1_attentions_2_transformer_blocks_0_attn2',
+                    'up_blocks_2_attentions_2_transformer_blocks_0_attn2',
+                    'up_blocks_3_attentions_2_transformer_blocks_0_attn2',]" \
  --do_attn_loss --attn_loss_weight 1.0 --do_cls_train --normal_weight 1
