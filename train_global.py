@@ -3,7 +3,6 @@ from tqdm import tqdm
 from accelerate.utils import set_seed
 import torch
 import os
-from model.query_transformer import QueryTransformer
 from attention_store import AttentionStore
 from attention_store.normal_activator import NormalActivator
 from model.diffusion_model import transform_models_if_DDP
@@ -18,32 +17,8 @@ from data.prepare_dataset import call_dataset
 from model import call_model_package
 from attention_store.normal_activator import passing_normalize_argument
 from data.mvtec import passing_mvtec_argument
-from model.global_local_segmentation import SegmentationSubNetwork
 from torch import nn
 
-
-def resize_query_features(query):
-    # 8, 64, 160
-    head_num, pix_num, dim = query.shape
-    res = int(pix_num ** 0.5)  # 8
-    # 8,160,8,8
-    query_map = query.view(head_num, res, res, dim).permute(0, 3, 1, 2).contiguous()  # 1, channel, res, res
-    resized_query_map = nn.functional.interpolate(query_map, size=(64, 64), mode='bilinear')  # head, 160, 64,  64
-    resized_query = resized_query_map.permute(0, 2, 3, 1).contiguous().squeeze()  # head, 64, 64, 160
-    resized_query = resized_query.view(head_num, 64 * 64,
-                                       dim)  # #view(head_num, -1, dim).squeeze()  # head, pix_num, 160
-    # resized_query = resized_query.view(64 * 64,dim)  # #view(head_num, -1, dim).squeeze()  # 1, pix_num, dim
-    return resized_query
-
-
-def reshape_batch_dim_to_heads(tensor):
-    batch_size, seq_len, dim = tensor.shape
-    head_size = 8
-    res = int(seq_len ** 0.5)
-    tensor = tensor.reshape(batch_size // head_size, head_size, seq_len, dim)
-    tensor = tensor.permute(0, 2, 1, 3).reshape(batch_size // head_size, seq_len, dim * head_size)
-    tensor = tensor.reshape(batch_size // head_size, res, res, dim * head_size).permute(0,3,1,2)
-    return tensor
 
 def main(args):
 
@@ -53,14 +28,14 @@ def main(args):
     os.makedirs(output_dir, exist_ok=True)
     args.logging_dir = os.path.join(output_dir, 'log')
     os.makedirs(args.logging_dir, exist_ok=True)
+
     record_save_dir = os.path.join(output_dir, 'record')
     os.makedirs(record_save_dir, exist_ok=True)
     with open(os.path.join(record_save_dir, 'config.json'), 'w') as f:
         json.dump(vars(args), f, indent=4)
 
     print(f'\n step 2. dataset and dataloader')
-    if args.seed is None:
-        args.seed = random.randint(0, 2 ** 32)
+    if args.seed is None: args.seed = random.randint(0, 2 ** 32)
     set_seed(args.seed)
     train_dataloader = call_dataset(args)
 
@@ -70,44 +45,14 @@ def main(args):
 
     print(f'\n step 4. model ')
     weight_dtype, save_dtype = prepare_dtype(args)
-    l_text_encoder, l_vae, l_unet, l_network, l_position_embedder = call_model_package(args, weight_dtype, accelerator, True)
-    g_text_encoder, g_vae, g_unet, g_network, g_position_embedder = call_model_package(args, weight_dtype, accelerator,False)
-    from diffusers import AutoencoderKL
-    scratch_vae = AutoencoderKL.from_config(g_vae.config)
-
-    class UNetUpBlock(nn.Module):
-        def __init__(self, in_size, out_size):
-            super(UNetUpBlock, self).__init__()
-
-            self.up = nn.Sequential(nn.Upsample(mode='bilinear', scale_factor=2),
-                                    nn.Conv2d(in_size, out_size, kernel_size=1),
-                                    nn.ReLU(inplace=True),
-                                    nn.Upsample(mode='bilinear', scale_factor=2),
-                                    nn.Conv2d(out_size, out_size, kernel_size=1),
-                                    nn.ReLU(inplace=True),
-                                    nn.Upsample(mode='bilinear', scale_factor=2),
-                                    nn.Conv2d(out_size, out_size, kernel_size=1), )
-            # self.conv_block = UNetConvBlock(out_size, out_size, padding, batch_norm)
-            self.dim = out_size
-
-        def forward(self, x):
-            #
-            h, pix_num, d = x.shape
-            res = int(pix_num ** 0.5)
-            x = x.reshape(h, res, res, d).permute(0,3,1,2)
-            out = self.up(x)  # head, dim, res, res
-            out = out.permute(0, 2, 3, 1)  # head, res, res, dim
-            import einops
-            out = einops.rearrange(out, 'h a b d -> h (a b) d')
-            return out  # head, pix_num, dim
-
-    gquery_transformer = UNetUpBlock(in_size=160, out_size=280)
+    text_encoder, vae, unet, network, position_embedder = call_model_package(args, weight_dtype, accelerator, True)
 
     print(f'\n step 5. optimizer')
     args.max_train_steps = len(train_dataloader) * args.max_train_epochs
-    trainable_params = g_network.prepare_optimizer_params(args.text_encoder_lr, args.unet_lr, args.learning_rate)
-    trainable_params.append({"params": g_position_embedder.parameters(), "lr": args.learning_rate})
-    trainable_params.append({"params": gquery_transformer.parameters(), "lr": args.learning_rate})
+    trainable_params = network.prepare_optimizer_params(args.text_encoder_lr,
+                                                        args.unet_lr, args.learning_rate)
+    if args.use_position_embedder:
+        trainable_params.append({"params": position_embedder.parameters(), "lr": args.learning_rate})
     optimizer_name, optimizer_args, optimizer = get_optimizer(args, trainable_params)
 
     print(f'\n step 6. lr')
@@ -119,45 +64,38 @@ def main(args):
     normal_activator = NormalActivator(loss_focal, loss_l2, args.use_focal_loss)
 
     print(f'\n step 8. model to device')
-    g_unet, g_text_encoder, g_network, optimizer, train_dataloader, lr_scheduler, g_position_embedder, gquery_transformer, scratch_vae = accelerator.prepare(
-        g_unet, g_text_encoder, g_network, optimizer, train_dataloader, lr_scheduler, g_position_embedder, gquery_transformer, scratch_vae)
-
-    g_text_encoders = transform_models_if_DDP([g_text_encoder])
-    g_unet, g_network = transform_models_if_DDP([g_unet, g_network])
-    scratch_vae = transform_models_if_DDP([scratch_vae])[0]
+    if args.use_position_embedder :
+        unet, text_encoder, network, optimizer, train_dataloader, lr_scheduler, position_embedder = accelerator.prepare(
+            unet, text_encoder, network, optimizer, train_dataloader, lr_scheduler, position_embedder)
+    else:
+        unet, text_encoder, network, optimizer, train_dataloader, lr_scheduler = accelerator.prepare(unet, text_encoder,
+                                                                                                     network, optimizer,
+                                                                                                     train_dataloader,
+                                                                                                     lr_scheduler)
+    text_encoders = transform_models_if_DDP([text_encoder])
+    unet, network = transform_models_if_DDP([unet, network])
+    if args.use_position_embedder:
+        position_embedder = transform_models_if_DDP([position_embedder])[0]
     if args.gradient_checkpointing:
-        g_unet.train()
-        g_position_embedder.train()
-        for t_enc in g_text_encoders:
+        unet.train()
+        position_embedder.train()
+        for t_enc in text_encoders:
             t_enc.train()
             if args.train_text_encoder:
                 t_enc.text_model.embeddings.requires_grad_(True)
         if not args.train_text_encoder:  # train U-Net only
-            g_unet.parameters().__next__().requires_grad_(True)
+            unet.parameters().__next__().requires_grad_(True)
     else:
-        g_unet.eval()
-        for t_enc in g_text_encoders:
+        unet.eval()
+        for t_enc in text_encoders:
             t_enc.eval()
     del t_enc
-    g_network.prepare_grad_etc(g_text_encoder, g_unet)
-    g_vae.to(accelerator.device, dtype=weight_dtype)
-
-    l_unet = l_unet.to(accelerator.device, dtype=weight_dtype)
-    l_unet.eval()
-    l_text_encoder = l_text_encoder.to(accelerator.device, dtype=weight_dtype)
-    l_text_encoder.eval()
-    l_vae = l_vae.to(accelerator.device, dtype=weight_dtype)
-    l_vae.eval()
-    l_position_embedder.to(accelerator.device, dtype=weight_dtype)
-    l_position_embedder.eval()
-    l_network.to(accelerator.device, dtype=weight_dtype)
-    l_network.eval()
+    network.prepare_grad_etc(text_encoder, unet)
+    vae.to(accelerator.device, dtype=weight_dtype)
 
     print(f'\n step 9. registering saving tensor')
-    g_controller = AttentionStore()
-    register_attention_control(g_unet, g_controller)
-    l_controller = AttentionStore()
-    register_attention_control(l_unet, l_controller)
+    controller = AttentionStore()
+    register_attention_control(unet, controller)
 
     print(f'\n step 9. Training !')
     progress_bar = tqdm(range(args.max_train_steps), smoothing=0,
@@ -165,6 +103,17 @@ def main(args):
     global_step = 0
     loss_list = []
 
+    def resize_query_features(query):
+
+        head_num, pix_num, dim = query.shape
+        res = int(pix_num ** 0.5)  # 8
+        query_map = query.view(head_num, res, res, dim).permute(0, 3, 1, 2).contiguous()  # 1, channel, res, res
+        resized_query_map = nn.functional.interpolate(query_map, size=(64, 64), mode='bilinear')  # 1, channel, 64,  64
+        resized_query = resized_query_map.permute(0, 2, 3, 1).contiguous().squeeze()  # head, 64, 64, channel
+        resized_query = resized_query.view(head_num, 64 * 64, dim)  # 8, 64*64, dim
+        return resized_query
+
+    loss_function = torch.nn.MSELoss(reduction='none')
     for epoch in range(args.start_epoch, args.max_train_epochs):
 
         epoch_loss_total = 0
@@ -172,150 +121,63 @@ def main(args):
 
         for step, batch in enumerate(train_dataloader):
             device = accelerator.device
+            loss = torch.tensor(0.0, dtype=weight_dtype, device=accelerator.device)
             loss_dict = {}
-            matching_loss, anomal_map_loss = 0.0, 0.0
             with torch.set_grad_enabled(True):
-                encoder_hidden_states = l_text_encoder(batch["input_ids"].to(device))["last_hidden_state"]
-            """ Train Only With Normal Data (normal feature matching, anomal feature unmatching..?) """
-            if args.do_normal_sample :
-                with torch.no_grad():
-                    latents = l_vae.encode(batch["image"].to(dtype=weight_dtype)).latent_dist.sample() * args.vae_scale_factor
-                    l_unet(latents, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list,noise_type=l_position_embedder,)
-                    l_query_dict, l_key_dict = l_controller.query_dict, l_controller.key_dict
-                    l_controller.reset()
-                    l_query_list = []
-                    for layer in args.trg_layer_list :
-                        if 'mid' not in layer :
-                            l_query_list.append(resize_query_features(l_query_dict[layer][0].squeeze())) # feature selecting
-                    local_query = torch.cat(l_query_list, dim=-1)  # 8, 64*64, 280
+                encoder_hidden_states = text_encoder(batch["input_ids"].to(device))["last_hidden_state"]
+            image = batch['image'].to(dtype=weight_dtype) # 1,3, 512,512
+            gt = batch['gt'].to(dtype=weight_dtype) # 1, 64,64
+            with torch.no_grad():
+                latents = vae.encode(image).latent_dist.sample() * args.vae_scale_factor
+                anomal_position_vector = gt.squeeze().flatten()
+            with torch.set_grad_enabled(True):
+                unet(latents, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list,
+                     noise_type=position_embedder)
+            query_dict, key_dict, attn_dict = controller.query_dict, controller.key_dict, controller.attn_dict
+            controller.reset()
+            attn_list, origin_query_list, query_list, key_list = [], [], [], []
+            for layer in args.trg_layer_list:
+                query = query_dict[layer][0].squeeze()  # head, pix_num, dim
+                origin_query_list.append(query)  # head, pix_num, dim
+                query_list.append(resize_query_features(query))  # head, pix_num, dim
+                key_list.append(key_dict[layer][0])  # head, pix_num, dim
+            query = torch.cat(query_list, dim=-1)  # head, pix_num, long_dim
+            key = torch.cat(key_list, dim=-1).squeeze()  # head, pix_num, long_dim
+            attention_scores = torch.baddbmm(torch.empty(query.shape[0], query.shape[1], key.shape[1], dtype=query.dtype,
+                                                         device=query.device), query, key.transpose(-1, -2), beta=0, )
+            global_attn = attention_scores.softmax(dim=-1) # head, pix_num, pix_num
+            output = torch.diagonal(global_attn, dim1=1, dim2=2)  # 8, 4096
+            output = output.mean(dim=0).unsqueeze(dim=0)
+            output = output / output.max() # 4096
+            normality = 1 - (gt.squeeze().flatten())
+            loss = loss_function(output.float(), normality.float()).mean()
 
-                latents = scratch_vae.encode(batch["image"].to(dtype=weight_dtype)).latent_dist.sample() * args.vae_scale_factor
-                with torch.set_grad_enabled(True):
-                    g_unet(latents,0,encoder_hidden_states,trg_layer_list=args.trg_layer_list, noise_type=g_position_embedder)
-                g_query_dict, g_key_dict = g_controller.query_dict, g_controller.key_dict
-                g_controller.reset()
-                g_query_list = []
-                for layer in args.trg_layer_list :
-                    if 'mid' not in layer :
-                        g_query_list.append(
-                            resize_query_features(l_query_dict[layer][0].squeeze()))  # feature selecting
-                        #g_query = g_query_dict[layer][0].squeeze() # 8, 64, 160 (most global features)
-                        #g_key = g_key_dict[layer][0].squeeze()     # 8, 77, 160
-                global_query = torch.cat(g_query_list, dim=-1)  # 8, 64*64, 280
-                # matching losses (why matching?)
-                matching_loss += loss_l2(local_query.float(), global_query.float()) # [8, 64*64, 280]
-                """
-                # matching throug segmentation
-                attention_scores = torch.baddbmm(torch.empty(g_query.shape[0], g_query.shape[1], g_key.shape[1], dtype=g_query.dtype, device=g_query.device),
-                                   g_query, g_key.transpose(-1, -2), beta=0,) # [head, 64, 77]
-                global_attn = attention_scores.softmax(dim=-1)[:, :, 1:65] # [head, 64, 64]
-                head = global_attn.shape[0]
-                attn = [torch.diagonal(global_attn[i]) for i in range(head)]
-                global_anomal_map = torch.stack(attn, dim=0).mean(dim=0).view(8, 8).unsqueeze(0).unsqueeze(0)
-                global_anomal_map = nn.functional.interpolate(global_anomal_map, size=(64, 64), mode='bilinear').squeeze().flatten()
-                trg_anomal_map = torch.zeros(64*64).to(global_anomal_map.device)
-                """
-                #local_map  = reshape_batch_dim_to_heads(local_query)  # [1,2240,64,64]
-                #global_map = reshape_batch_dim_to_heads(global_query) # [1,64,64,2240]
-                #anomal_map = segmentation_net(global_map)
-                #trg_anomal_map = torch.zeros(1,1,64,64)
-                #anomal_map_loss += loss_l2(anomal_map.float(),
-                #                           trg_anomal_map.float().to(anomal_map.device)) # [1,1,64,64]
-                anomal_map_loss += loss_l2(global_anomal_map.float(),
-                                           trg_anomal_map.float())
+            # [5] backprop
+            """
+            if args.do_attn_loss:
+                normal_cls_loss, normal_trigger_loss, anomal_cls_loss, anomal_trigger_loss = normal_activator.generate_attention_loss()
+                if type(anomal_cls_loss) == float:
+                    attn_loss = args.normal_weight * normal_trigger_loss.mean()
+                else:
+                    attn_loss = args.normal_weight * normal_cls_loss.mean() + args.anomal_weight * anomal_cls_loss.mean()
+                if args.do_cls_train:
+                    if type(anomal_trigger_loss) == float:
+                        attn_loss = args.normal_weight * normal_cls_loss.mean()
+                    else:
+                        attn_loss += args.normal_weight * normal_cls_loss.mean() + args.anomal_weight * anomal_cls_loss.mean()
+                loss += attn_loss
+                loss_dict['attn_loss'] = attn_loss.item()
 
-            # -------------------------------------------------------------------------------------------------------- #
-            if args.do_anomal_sample :
-                with torch.no_grad():
-                    latents = l_vae.encode(batch["anomal_image"].to(dtype=weight_dtype)).latent_dist.sample() * args.vae_scale_factor
-                    anomal_position_vector = batch["anomal_mask"].squeeze().flatten() # 64*64
-                    l_unet(latents, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list,noise_type=l_position_embedder,)
-                    l_query_dict, l_key_dict = l_controller.query_dict, l_controller.key_dict
-                    l_controller.reset()
-                    l_query_list = []
-                    for layer in args.trg_layer_list :
-                        if 'mid' not in layer :
-                            l_query_list.append(resize_query_features(l_query_dict[layer][0].squeeze()))
-                    local_query = torch.cat(l_query_list, dim=-1)  # 8, 64*64, 280
-                with torch.set_grad_enabled(True):
-                    g_unet(latents,0,encoder_hidden_states,trg_layer_list=args.trg_layer_list, noise_type=g_position_embedder)
-                g_query_dict, g_key_dict = g_controller.query_dict, g_controller.key_dict
-                g_controller.reset()
-                for layer in args.trg_layer_list:
-                    if 'mid' in layer:
-                        g_query = g_query_dict[layer][0].squeeze()  # 8, 64, 160
-                        g_key = g_key_dict[layer][0].squeeze()  # 8, 77, 160
-                global_query = gquery_transformer(g_query)  # g_query = 8, 64, 160 -> 8, 64*64, 280 (feature generating with only global context)
-                # matching losses
-                matching_loss += loss_l2(local_query.float(), global_query.float())  # [8, 64*64, 280]
-                # matching throug segmentation
-                attention_scores = torch.baddbmm(
-                    torch.empty(g_query.shape[0], g_query.shape[1], g_key.shape[1], dtype=g_query.dtype,
-                                device=g_query.device),
-                    g_query, g_key.transpose(-1, -2), beta=0, )  # [head, 64, 77]
-                global_attn = attention_scores.softmax(dim=-1)[:, :, 1:65]  # [head, 64, 64]
-                head = global_attn.shape[0]
-                attn = [torch.diagonal(global_attn[i]) for i in range(head)]
-                global_anomal_map = torch.stack(attn, dim=0).mean(dim=0).view(8, 8).unsqueeze(0).unsqueeze(0)
-                global_anomal_map = nn.functional.interpolate(global_anomal_map, size=(64, 64),
-                                                              mode='bilinear').squeeze().flatten()
-                trg_anomal_map = anomal_position_vector
-                # local_map  = reshape_batch_dim_to_heads(local_query)  # [1,2240,64,64]
-                # global_map = reshape_batch_dim_to_heads(global_query) # [1,64,64,2240]
-                # anomal_map = segmentation_net(global_map)
-                # trg_anomal_map = torch.zeros(1,1,64,64)
-                # anomal_map_loss += loss_l2(anomal_map.float(),
-                #                           trg_anomal_map.float().to(anomal_map.device)) # [1,1,64,64]
-                anomal_map_loss += loss_l2(global_anomal_map.float(),
-                                           trg_anomal_map.float())
-            # -------------------------------------------------------------------------------------------------------- #
-            if args.do_background_masked_sample :
-                with torch.no_grad():
-                    latents = l_vae.encode(
-                        batch["bg_anomal_image"].to(dtype=weight_dtype)).latent_dist.sample() * args.vae_scale_factor
-                    anomal_position_vector = batch["bg_anomal_mask"].squeeze().flatten()  # 64*64
-                    l_unet(latents, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list,
-                           noise_type=l_position_embedder, )
-                    l_query_dict, l_key_dict = l_controller.query_dict, l_controller.key_dict
-                    l_controller.reset()
-                    l_query_list = []
-                    for layer in args.trg_layer_list:
-                        if 'mid' not in layer:
-                            l_query_list.append(resize_query_features(l_query_dict[layer][0].squeeze()))
-                    local_query = torch.cat(l_query_list, dim=-1)  # 8, 64*64, 280
-                with torch.set_grad_enabled(True):
-                    g_unet(latents, 0, encoder_hidden_states, trg_layer_list=args.trg_layer_list,
-                           noise_type=g_position_embedder)
-                g_query_dict, g_key_dict = g_controller.query_dict, g_controller.key_dict
-                g_controller.reset()
-                for layer in args.trg_layer_list:
-                    if 'mid' in layer:
-                        g_query = g_query_dict[layer][0].squeeze()  # 8, 64, 160
-                        g_key = g_key_dict[layer][0].squeeze()  # 8, 77, 160
-                global_query = gquery_transformer(
-                    g_query)  # g_query = 8, 64, 160 -> 8, 64*64, 280 (feature generating with only global context)
-                # matching losses
-                matching_loss += loss_l2(local_query.float(), global_query.float())  # [8, 64*64, 280]
-                # matching throug segmentation
-                attention_scores = torch.baddbmm(
-                    torch.empty(g_query.shape[0], g_query.shape[1], g_key.shape[1], dtype=g_query.dtype,
-                                device=g_query.device),
-                    g_query, g_key.transpose(-1, -2), beta=0, )  # [head, 64, 77]
-                global_attn = attention_scores.softmax(dim=-1)[:, :, 1:65]  # [head, 64, 64]
-                head = global_attn.shape[0]
-                attn = [torch.diagonal(global_attn[i]) for i in range(head)]
-                global_anomal_map = torch.stack(attn, dim=0).mean(dim=0).view(8, 8).unsqueeze(0).unsqueeze(0)
-                global_anomal_map = nn.functional.interpolate(global_anomal_map, size=(64, 64),
-                                                              mode='bilinear').squeeze().flatten()
-                trg_anomal_map = anomal_position_vector
-                # local_map  = reshape_batch_dim_to_heads(local_query)  # [1,2240,64,64]
-                # global_map = reshape_batch_dim_to_heads(global_query) # [1,64,64,2240]
-                # anomal_map = segmentation_net(global_map)
-                # trg_anomal_map = torch.zeros(1,1,64,64)
-                # anomal_map_loss += loss_l2(anomal_map.float(),
-                #                           trg_anomal_map.float().to(anomal_map.device)) # [1,1,64,64]
-                anomal_map_loss += loss_l2(global_anomal_map.float(), trg_anomal_map.float())
-            loss = matching_loss.mean()  #+ anomal_map_loss.mean()
+            if args.do_map_loss:
+                map_loss = normal_activator.generate_anomal_map_loss()
+                loss += map_loss
+                loss_dict['map_loss'] = map_loss.item()
+
+            if args.test_noise_predicting_task_loss:
+                noise_pred_loss = normal_activator.generate_noise_prediction_loss()
+                loss += noise_pred_loss
+                loss_dict['noise_pred_loss'] = noise_pred_loss.item()
+            """
             loss = loss.to(weight_dtype)
             current_loss = loss.detach().item()
             if epoch == args.start_epoch:
@@ -343,41 +205,33 @@ def main(args):
         accelerator.wait_for_everyone()
         if is_main_process:
             ckpt_name = get_epoch_ckpt_name(args, "." + args.save_model_as, epoch + 1)
-            save_model(args, ckpt_name, accelerator.unwrap_model(g_network), save_dtype)
-            if g_position_embedder is not None:
+            save_model(args, ckpt_name, accelerator.unwrap_model(network), save_dtype)
+            if position_embedder is not None:
                 position_embedder_base_save_dir = os.path.join(args.output_dir, 'position_embedder')
                 os.makedirs(position_embedder_base_save_dir, exist_ok=True)
                 p_save_dir = os.path.join(position_embedder_base_save_dir,
                                           f'position_embedder_{epoch + 1}.safetensors')
-                pe_model_save(accelerator.unwrap_model(g_position_embedder), save_dtype, p_save_dir)
-            # saving query transformer
-            query_transformer_save_dir = os.path.join(args.output_dir, 'query_transformer')
-            os.makedirs(query_transformer_save_dir, exist_ok = True)
-            qt_save_dir = os.path.join(query_transformer_save_dir,f'query_transformer_{epoch + 1}.safetensors')
-            def qt_model_save(model, save_dtype, save_dir):
-                state_dict = model.state_dict()
-                for key in list(state_dict.keys()):
-                    v = state_dict[key]
-                    v = v.detach().clone().to("cpu").to(save_dtype)
-                    state_dict[key] = v
-                _, file = os.path.split(save_dir)
-                if os.path.splitext(file)[1] == ".safetensors":
-                    from safetensors.torch import save_file
-                    save_file(state_dict, save_dir)
-                else:
-                    torch.save(state_dict, save_dir)
+                pe_model_save(accelerator.unwrap_model(position_embedder), save_dtype, p_save_dir)
+            """
+            if args.use_global_conv:
+                global_conv_net_base_save_dir = os.path.join(args.output_dir, 'global_convolution_network')
+                os.makedirs(global_conv_net_base_save_dir, exist_ok=True)
 
-            qt_model_save(accelerator.unwrap_model(gquery_transformer), save_dtype, qt_save_dir)
-            # saving segmentaton model
-            segmentation_save_dir = os.path.join(args.output_dir, 'segmentation_model')
-            os.makedirs(segmentation_save_dir, exist_ok = True)
-            seg_save_dir = os.path.join(segmentation_save_dir, f'segmentation_{epoch + 1}.safetensors')
-            qt_model_save(accelerator.unwrap_model(segmentation_net),
-                          save_dtype,
-                          seg_save_dir)
-
-
+                def model_save(model, save_dtype, save_dir):
+                    state_dict = model.state_dict()
+                    for key in list(state_dict.keys()):
+                        v = state_dict[key]
+                        v = v.detach().clone().to("cpu").to(save_dtype)
+                        state_dict[key] = v
+                    _, file = os.path.split(save_dir)
+                    if os.path.splitext(file)[1] == ".safetensors":
+                        from safetensors.torch import save_file
+                        save_file(state_dict, save_dir)
+                    else:
+                        torch.save(state_dict, save_dir)
+            """
     accelerator.end_training()
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -421,10 +275,12 @@ if __name__ == "__main__":
     parser.add_argument("--network_dropout", type=float, default=None, )
     parser.add_argument("--network_args", type=str, default=None, nargs="*", )
     parser.add_argument("--dim_from_weights", action="store_true", )
+    parser.add_argument("--use_multi_position_embedder", action="store_true", )
+
     # step 5. optimizer
     parser.add_argument("--optimizer_type", type=str, default="AdamW",
-                 help="AdamW , AdamW8bit, PagedAdamW8bit, PagedAdamW32bit, Lion8bit, PagedLion8bit, Lion, SGDNesterov,"
-                "SGDNesterov8bit, DAdaptation(DAdaptAdamPreprint), DAdaptAdaGrad, DAdaptAdam, DAdaptAdan, DAdaptAdanIP,"
+                        help="AdamW , AdamW8bit, PagedAdamW8bit, PagedAdamW32bit, Lion8bit, PagedLion8bit, Lion, SGDNesterov,"
+                             "SGDNesterov8bit, DAdaptation(DAdaptAdamPreprint), DAdaptAdaGrad, DAdaptAdam, DAdaptAdan, DAdaptAdanIP,"
                              "DAdaptLion, DAdaptSGD, AdaFactor", )
     parser.add_argument("--use_8bit_adam", action="store_true",
                         help="use 8bit AdamW optimizer(requires bitsandbytes)", )
@@ -454,7 +310,8 @@ if __name__ == "__main__":
     parser.add_argument('--min_timestep', type=int, default=0)
     parser.add_argument('--max_timestep', type=int, default=500)
     parser.add_argument("--save_model_as", type=str, default="safetensors",
-               choices=[None, "ckpt", "pt", "safetensors"], help="format to save the model (default is .safetensors)",)
+                        choices=[None, "ckpt", "pt", "safetensors"],
+                        help="format to save the model (default is .safetensors)", )
     parser.add_argument("--start_epoch", type=int, default=0)
     parser.add_argument("--max_train_epochs", type=int, default=None, )
     parser.add_argument("--gradient_checkpointing", action="store_true", help="enable gradient checkpointing")
@@ -501,8 +358,9 @@ if __name__ == "__main__":
     parser.add_argument("--all_positional_embedder", action='store_true')
     parser.add_argument("--all_self_cross_positional_embedder", action='store_true')
     parser.add_argument("--patch_positional_self_embedder", action='store_true')
-    parser.add_argument("--use_multi_position_embedder", action='store_true')
-    parser.add_argument("--local_use_position_embedder", action='store_true')
+    parser.add_argument("--use_position_embedder", action='store_true')
+    parser.add_argument("--use_global_conv", action='store_true')
+    parser.add_argument("--answer_test", action='store_true')
     # -----------------------------------------------------------------------------------------------------------------
     args = parser.parse_args()
     unet_passing_argument(args)
