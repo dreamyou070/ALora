@@ -139,9 +139,8 @@ def main(args):
 
             with torch.set_grad_enabled(True):
                 encoder_hidden_states = text_encoder(batch["input_ids"].to(device))["last_hidden_state"]
-
+            object_mask = batch['object_mask'].squeeze().flatten()
             if args.do_anomal_sample:
-
                 if args.patch_positional_self_embedder:
                     latents = position_embedder.patch_embed(batch["anomal_image"].to(dtype=weight_dtype))
                 else :
@@ -149,8 +148,7 @@ def main(args):
                         latents = vae.encode(batch["anomal_image"].to(dtype=weight_dtype)).latent_dist.sample() * args.vae_scale_factor
 
                 anomal_position_vector = batch["anomal_mask"].squeeze().flatten()
-                #object_mask = batch['object_mask'].squeeze().flatten()
-                #normal_position_vector = torch.where(object_mask == 1 and anomal_position_vector == 0, 1, 0)
+                normal_position_vector = torch.where(object_mask == 1 and anomal_position_vector == 0, 1, 0)
 
                 with torch.set_grad_enabled(True):
                     if args.use_position_embedder and args.use_global_conv :
