@@ -19,6 +19,7 @@ def torch_to_pil(torch_img):
 def make_mask_pil(torch_tensor):
     mask_np = np.array(torch_tensor)
     mask_np = np.where(mask_np > 0.5, 255, 0).astype(np.uint8)
+
     mask_pil = Image.fromarray(mask_np)
     return mask_pil
 
@@ -66,13 +67,13 @@ def main(args):
         # [4]
         rotate_anomal_img_pil = torch_to_pil(sample['rotate_image'].squeeze(0))
         rotate_anomal_img_pil.save(os.path.join(saving_base_dir, f'{i}_rotate_anomal_img.png'))
-        rotate_anomal_mask_pil = make_mask_pil(sample['rotate_mask'].squeeze(0))
+        rotate_anomal_mask_pil = make_mask_pil(sample['rotate_mask'].squeeze())
         rotate_anomal_mask_pil.save(os.path.join(saving_base_dir, f'{i}_rotate_anomal_mask.png'))
 
         # [5] empty
         empty_anomal_img_pil = torch_to_pil(sample['empty_image'].squeeze(0))
         empty_anomal_img_pil.save(os.path.join(saving_base_dir, f'{i}_empty_img.png'))
-        empty_anomal_mask_pil = make_mask_pil(sample['empty_mask'].squeeze(0))
+        empty_anomal_mask_pil = make_mask_pil(sample['empty_mask'].squeeze())
         empty_anomal_mask_pil.save(os.path.join(saving_base_dir, f'{i}_empty_mask.png'))
 
 if __name__ == "__main__":

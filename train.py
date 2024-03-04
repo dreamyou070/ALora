@@ -113,6 +113,7 @@ def main(args):
         resized_query = resized_query.view(head_num, 64 * 64, dim)  # 8, 64*64, dim
         return resized_query
 
+    """
     def get_sample_name (p) :
         if p < 0.2 :
             img_name, anomal_name = 'image', 'zero_mask'
@@ -125,6 +126,19 @@ def main(args):
         else :
             img_name, anomal_name = 'empty_image', 'empty_mask'
         return img_name, anomal_name
+    """
+
+    def get_sample_name(p):
+        if p < 0.25:
+            img_name, anomal_name = 'image', 'zero_mask'
+        elif 0.25 <= p < 0.5:
+            img_name, anomal_name = 'anomal_image', 'anomal_mask'
+        elif 0.5 <= p < 0.75:
+            img_name, anomal_name = 'rotate_image', 'rotate_mask'
+        else:
+            img_name, anomal_name = 'empty_image', 'empty_mask'
+        return img_name, anomal_name
+
 
     for epoch in range(args.start_epoch, args.max_train_epochs):
 
