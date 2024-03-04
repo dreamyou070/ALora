@@ -138,6 +138,22 @@ def main(args):
             img_name, anomal_name = 'empty_image', 'empty_mask'
         return img_name, anomal_name
 
+    def get_sample_name_with_back_random_rot(p):
+        if p < 0.2 :
+            img_name, anomal_name = 'image', 'zero_mask'
+        elif 0.2 <= p < 0.55 :
+            img_name, anomal_name = 'anomal_image', 'anomal_mask'
+        elif 0.55 <= p < 0.7 :
+            img_name, anomal_name = 'bg_anomal_image', 'bg_anomal_mask'
+        elif 0.7 <= p < 0.8 :
+            img_name, anomal_name = 'rotate_image', 'rotate_mask'
+        elif 0.8 <= p < 0.9 :
+            img_name, anomal_name = 'empty_image', 'empty_mask'
+        else :
+            img_name, anomal_name = 'random_rot_image', 'random_rot_mask'
+        return img_name, anomal_name
+
+
 
     for epoch in range(args.start_epoch, args.max_train_epochs):
 
@@ -152,10 +168,14 @@ def main(args):
                 encoder_hidden_states = text_encoder(batch["input_ids"].to(device))["last_hidden_state"]
             # --------------------------------------------------------------------------------------------------------- #
             p = random.random()
-            if args.do_background_masked_sample:
+            if args.do_background_masked_sample and not args.do_random_rot_sample :
                 img_name, anomal_name = get_sample_name_with_back(p)
+            elif args.do_background_masked_sample and args.do_random_rot_sample :
+                img_name, anomal_name = get_sample_name_with_back_random_rot(p)
             else :
                 img_name, anomal_name = get_sample_name(p)
+
+
 
             image = batch[img_name].to(dtype=weight_dtype) # 1,3, 512,512
             gt = batch[anomal_name].to(dtype=weight_dtype) # 1, 64,64
@@ -380,6 +400,7 @@ if __name__ == "__main__":
     parser.add_argument("--use_position_embedder", action='store_true')
     parser.add_argument("--use_global_conv", action='store_true')
     parser.add_argument("--answer_test", action='store_true')
+    parser.add_argument("--do_random_rot_sample", action='store_true')
     # -----------------------------------------------------------------------------------------------------------------
     args = parser.parse_args()
     unet_passing_argument(args)

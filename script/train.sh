@@ -1,12 +1,12 @@
 # !/bin/bash
 
-port_number=50033
+port_number=50044
 bench_mark="MVTec"
 obj_name='transistor'
 trigger_word='transistor'
 layer_name='layer_3'
 sub_folder="down_16_32_64"
-file_name="test_20240304_with_backsample_partial"
+file_name="test_20240304_with_backsample_partial_random_rot_sample"
 
 anomal_source_path="../../../MyData/anomal_source"
 
@@ -24,7 +24,7 @@ accelerate launch --config_file ../../../gpu_config/gpu_0_1_2_3_4_5_config \
  --anomal_min_beta_scale 0.3 \
  --anomal_max_beta_scale 0.7 \
  --back_trg_beta 0 \
- --do_anomal_sample --do_background_masked_sample \
+ --do_anomal_sample --do_background_masked_sample --do_random_rot_sample \
  --use_position_embedder \
  --do_map_loss \
  --trg_layer_list "['down_blocks_0_attentions_1_transformer_blocks_0_attn2',
