@@ -79,9 +79,9 @@ def main(args):
         empty_anomal_mask_pil.save(os.path.join(saving_base_dir, f'{i}_empty_mask.png'))
 
         # [6] rot
-        random_rot_anomal_img_pil = torch_to_pil(sample['rotate_image'].squeeze(0))
+        random_rot_anomal_img_pil = torch_to_pil(sample['random_rot_image'].squeeze(0))
         random_rot_anomal_img_pil.save(os.path.join(saving_base_dir, f'{i}_random_rot_img.png'))
-        random_rot_anomal_mask_pil = make_mask_pil(sample['rotate_mask'].squeeze())
+        random_rot_anomal_mask_pil = make_mask_pil(sample['random_rot_mask'].squeeze())
         random_rot_anomal_mask_pil.save(os.path.join(saving_base_dir, f'{i}_random_rot_mask.png'))
 
 
