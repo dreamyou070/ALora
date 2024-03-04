@@ -148,7 +148,7 @@ def main(args):
             global_attn = attention_scores.softmax(dim=-1) # head, pix_num, pix_num
             output = torch.diagonal(global_attn, dim1=1, dim2=2)  # 8, 4096
             output = output.mean(dim=0).unsqueeze(dim=0)
-            output = output / output.max() # 4096
+            output = (output / output.max()).squeeze() # 4096
             normality = 1 - (gt.squeeze().flatten())
             loss = loss_function(output.float(), normality.float()).mean()
 
