@@ -48,7 +48,7 @@ def main(args):
         img_pil = torch_to_pil(sample['image'].squeeze(0))
         img_pil.save(os.path.join(saving_base_dir, f'{i}_org_img.png'))
 
-        object_mask_pil = make_mask_pil(sample['object_mask'].squeeze())
+        object_mask_pil = make_mask_pil(sample['zero_mask'].squeeze())
         object_mask_pil.save(os.path.join(saving_base_dir, f'{i}_org_mask.png'))
 
         # [2] anomal img
