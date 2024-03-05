@@ -15,7 +15,7 @@ def call_dataset(args) :
         data_class = MVTecAnswerTrainDataset
         root_dir = os.path.join(args.data_path, f'{args.obj_name}/test')
         if args.trigger_word == 'teeth' :
-            root_dir = os.path.join(args.data_path, f'{args.obj_name}/train')
+            root_dir = os.path.join(args.data_path, f'{args.obj_name}/train') # training data
     if args.trigger_word == 'transistor' :
         from data.mvtec_transistor import MVTecDRAEMTrainDataset as DatasetTransistor
         data_class = DatasetTransistor
