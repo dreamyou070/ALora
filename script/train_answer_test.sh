@@ -10,7 +10,7 @@ file_name="test_20240305_with_gt_answer_check"
 
 anomal_source_path="../../../MyData/anomal_source"
 #--output_dir "../../result/${bench_mark}/${obj_name}/${layer_name}/${sub_folder}/${file_name}" --do_anomal_sample
-accelerate launch --config_file ../../../gpu_config/gpu_0_config \
+accelerate launch --config_file ../../../gpu_config/gpu_0_1_2_3_config \
  --main_process_port $port_number ../train_answer_test.py --log_with wandb \
  --output_dir "../../result/${bench_mark}/${layer_name}/${sub_folder}/${file_name}" \
  --train_unet --train_text_encoder --start_epoch 0 --max_train_epochs 30 \
