@@ -183,7 +183,7 @@ def main(args):
         # [3] files
         parent, _ = os.path.split(args.network_folder)
         if args.do_train_check :
-            recon_base_folder = os.path.join(parent, 'reconstruction_with_training_data')
+            recon_base_folder = os.path.join(parent, 'reconstruction_with_test_data')
         else :
             recon_base_folder = os.path.join(parent, 'reconstruction')
         os.makedirs(recon_base_folder, exist_ok=True)
