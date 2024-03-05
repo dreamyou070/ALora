@@ -463,7 +463,7 @@ class MVTecAnswerTrainDataset(Dataset):
         gt_path = self.gt_paths[img_idx]
         gt_img = np.array(Image.open(gt_path).convert('L').resize((self.latent_res, self.latent_res),Image.BICUBIC)) # 64,64
         gt_torch = torch.tensor(gt_img) / 255
-        gt_torch = torch.where(gt_torch>0.5, 1, 0).unsqueeze(0)
+        gt_torch = torch.where(gt_torch>0, 1, 0).unsqueeze(0)
 
         if self.tokenizer is not None :
             input_ids, attention_mask = self.get_input_ids(self.caption) # input_ids = [77]
