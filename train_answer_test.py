@@ -367,7 +367,7 @@ if __name__ == "__main__":
     parser.add_argument("--use_position_embedder", action='store_true')
     parser.add_argument("--use_global_conv", action='store_true')
     parser.add_argument("--answer_test", action='store_true')
-    parser.add_argument("--position_embedder_weights", action='store_true')
+    parser.add_argument("--position_embedder_weights", type=str, default=None)
     # -----------------------------------------------------------------------------------------------------------------
     args = parser.parse_args()
     unet_passing_argument(args)
