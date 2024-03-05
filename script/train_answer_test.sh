@@ -6,7 +6,7 @@ obj_name='teeth'
 trigger_word='teeth'
 layer_name='layer_3'
 sub_folder="down_16_32_64"
-file_name="test_20240305_with_gt_answer_check_without_pe"
+file_name="test_20240305_with_gt_answer_check_with_pe"
 
 anomal_source_path="../../../MyData/anomal_source"
 #--output_dir "../../result/${bench_mark}/${obj_name}/${layer_name}/${sub_folder}/${file_name}" --do_anomal_sample
