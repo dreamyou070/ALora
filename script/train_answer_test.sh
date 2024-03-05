@@ -1,12 +1,12 @@
 # !/bin/bash
 
-port_number=50123
+port_number=53323
 bench_mark="Tuft"
-obj_name='teeth_crop'
+obj_name='teeth_crop_anormal'
 trigger_word='teeth'
 layer_name='layer_3'
 sub_folder="up_16_32_64"
-file_name="test_20240305_with_gt_answer_check_with_pe_cropped_image"
+file_name="test_20240305_with_gt_anomal_answer_check_with_pe_cropped_image"
 
 anomal_source_path="../../../MyData/anomal_source"
 #--output_dir "../../result/${bench_mark}/${obj_name}/${layer_name}/${sub_folder}/${file_name}" --do_anomal_sample
