@@ -36,7 +36,8 @@ def main(args):
         json.dump(vars(args), f, indent=4)
 
     print(f'\n step 2. dataset and dataloader')
-    if args.seed is None: args.seed = random.randint(0, 2 ** 32)
+    if args.seed is None:
+        args.seed = random.randint(0, 2 ** 32)
     set_seed(args.seed)
     train_dataloader = call_dataset(args)
 
@@ -68,6 +69,7 @@ def main(args):
 
 
     print(f'\n (4.2) discriminator')
+    """
     discriminator = PatchDiscriminator(spatial_dims=2,
                                        num_layers_d=3,
                                        num_channels=64,
@@ -79,13 +81,13 @@ def main(args):
                                        bias=False,
                                        padding=1,)
 
-
+    """
     print(f'\n step 5. optimizer')
     args.max_train_steps = len(train_dataloader) * args.max_train_epochs
     trainable_params = []
     trainable_params.append({"params": vae.parameters(), "lr": args.learning_rate})
     optimizer_name, optimizer_args, optimizer = get_optimizer(args, trainable_params)
-    optimizer_d = torch.optim.Adam(params=discriminator.parameters(), lr=5e-4)
+    #optimizer_d = torch.optim.Adam(params=discriminator.parameters(), lr=5e-4)
 
     print(f'\n step 6. lr')
     lr_scheduler = get_scheduler_fix(args, optimizer, accelerator.num_processes)
@@ -101,10 +103,9 @@ def main(args):
 
 
     print(f'\n step 8. model to device')
-    discriminator, vae, optimizer, train_dataloader, lr_scheduler = accelerator.prepare(discriminator, vae, optimizer,
-                                                                                        train_dataloader, lr_scheduler)
+    vae, optimizer, train_dataloader, lr_scheduler = accelerator.prepare(vae, optimizer, train_dataloader, lr_scheduler)
     vae = transform_models_if_DDP([vae])[0]
-    discriminator = transform_models_if_DDP([discriminator])[0]
+    #discriminator = transform_models_if_DDP([discriminator])[0]
 
     print(f'\n step 9. Training !')
     progress_bar = tqdm(range(args.max_train_steps), smoothing=0,
@@ -120,26 +121,26 @@ def main(args):
 
             # x = [1,4,512,512]
             image = batch["image"].to(accelerator.device).to(dtype=weight_dtype)
-            masked_image = batch['bg_anomal_image'].to(accelerator.device).to(dtype=weight_dtype)
-            mask = batch['bg_anomal_mask'].to(accelerator.device).to(dtype=weight_dtype)
 
             # [1.1] latent space
             image_latents = vae.encode(image).latent_dist.sample() * args.vae_scale_factor
-            masked_image_latents = vae.encode(masked_image).latent_dist.sample() * args.vae_scale_factor
-            input = torch.cat([image_latents, masked_image_latents, mask], dim = 1)
+            #masked_image_latents = vae.encode(masked_image).latent_dist.sample() * args.vae_scale_factor
+            #input = torch.cat([image_latents, masked_image_latents, mask], dim = 1)
 
 
             # --------------------------------------------------------------------------------------------------------- #
             with torch.no_grad() :
-                pretrained_posterior = pretrained_vae.encode(images).latent_dist
+                pretrained_posterior = pretrained_vae.encode(image).latent_dist
                 z_mu_t, z_sigma_t = pretrained_posterior.mean, pretrained_posterior.logvar
-                z_t = pretrained_posterior.sample()
+                z_t = pretrained_posterior.sample()  * 0.18215
                 reconstruction_t = pretrained_vae.decode(z).sample
 
             # [1] distillation
-            latent_matching_loss = l1_loss(z, z_t)
+            latent_matching_loss = l1_loss(image_latents, z_t)
             recon_matching_loss = l1_loss(reconstruction, reconstruction_t)
             matching_loss = latent_matching_loss + recon_matching_loss
+
+            """
 
 
             # [3] discriminator
@@ -148,7 +149,7 @@ def main(args):
             # ------------------------------------------------------------------------------------------------------- #
             # [2.1] reconstruction losses
             optimizer.zero_grad(set_to_none=True)
-            recons_loss = l1_loss(reconstruction.float(), images.float())
+            recons_loss = l1_loss(reconstruction.float(), image.float())
             # [2.2] kl loss
             kl_loss = 0.5 * torch.sum(z_mu.pow(2) + z_sigma.pow(2) - torch.log(z_sigma.pow(2)) - 1, dim=[1, 2, 3])
             kl_loss = torch.sum(kl_loss) / kl_loss.shape[0]
@@ -166,13 +167,11 @@ def main(args):
             discriminator_loss = (loss_d_fake + loss_d_real) * 0.5
             loss_d = adv_weight * discriminator_loss
             # ------------------------------------------------------------------------------------------------------- #
-            total_loss = loss_g + loss_d + matching_loss
-
-
-
+            """
+            total_loss = matching_loss
             accelerator.backward(total_loss)
             optimizer.step()
-            optimizer_d.step()
+            #optimizer_d.step()
             # ------------------------------------------------------------------------------------------------------- #
             lr_scheduler.step()
             #epoch_loss += recons_loss.item()

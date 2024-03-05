@@ -1,17 +1,17 @@
 # !/bin/bash
 
 port_number=50005
-bench_mark="MVTec"
-obj_name='transistor'
-trigger_word='transistor'
+bench_mark="Tuft"
+obj_name='teeth_crop_normal'
+trigger_word='teeth'
 layer_name='vae_train'
-sub_folder="mid_up_16_32_64"
-file_name="train_vae_20240302_6_distill_recon"
+#sub_folder="mid_up_16_32_64"
+file_name="train_vae_distill_reconstruction"
 
 anomal_source_path="../../../MyData/anomal_source"
 # --anomal_source_path "${anomal_source_path}" \
 
-accelerate launch --config_file ../../../gpu_config/gpu_0_1_2_3_4_5_config \
+accelerate launch --config_file ../../../gpu_config/gpu_0_1_2_3_config \
  --main_process_port $port_number ../train_vae.py --log_with wandb \
  --output_dir "../../result/${bench_mark}/${obj_name}/${layer_name}/${file_name}" \
  --start_epoch 30 --max_train_epochs 100 \
@@ -28,4 +28,4 @@ accelerate launch --config_file ../../../gpu_config/gpu_0_1_2_3_4_5_config \
  --back_min_beta_scale 0.6 \
  --back_max_beta_scale 0.9 \
  --back_trg_beta 0 \
- --use_pretrained_vae --retrain
+ --use_pretrained_vae --answer_test
