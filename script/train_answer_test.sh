@@ -1,12 +1,12 @@
 # !/bin/bash
 
-port_number=53323
+port_number=59812
 bench_mark="Tuft"
-obj_name='teeth_crop_anormal'
+obj_name='teeth_crop_onlyanormal'
 trigger_word='teeth'
 layer_name='layer_3'
 sub_folder="up_16_32_64"
-file_name="test_20240305_with_gt_anomal_answer_check_with_pe_cropped_image"
+file_name="only_anomal_pe_cropped_image"
 
 anomal_source_path="../../../MyData/anomal_source"
 #--output_dir "../../result/${bench_mark}/${obj_name}/${layer_name}/${sub_folder}/${file_name}" --do_anomal_sample
@@ -25,7 +25,7 @@ accelerate launch --config_file ../../../gpu_config/gpu_0_1_2_3_config \
  --anomal_min_beta_scale 0.5 \
  --anomal_max_beta_scale 0.8 \
  --back_trg_beta 0 \
- --do_object_detection --answer_test \
+ --answer_test \
  --do_map_loss --use_position_embedder \
  --trg_layer_list "['up_blocks_1_attentions_2_transformer_blocks_0_attn2',
                     'up_blocks_2_attentions_2_transformer_blocks_0_attn2',

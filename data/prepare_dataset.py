@@ -24,7 +24,8 @@ def call_dataset(args) :
         from data.mvtec_transistor import MVTecDRAEMTrainDataset as DatasetTransistor
         data_class = DatasetTransistor
 
-    print(f'data_class : {data_class}')
+    print(f'data_class = {data_class}')
+    print(f'root_dir = {root_dir}')
 
     tokenizer = None
     if not args.on_desktop :
