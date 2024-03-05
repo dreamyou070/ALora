@@ -5,8 +5,8 @@ bench_mark="Tuft"
 obj_name='teeth'
 caption='teeth'
 layer_name='layer_3'
-sub_folder="up_16_32_64"
-file_name="test_20240305_with_gt_answer_check_without_pe"
+sub_folder="down_16_32_64"
+file_name="test_20240305_with_gt_answer_check_with_pe"
 
 # position_embedding_layer="down_blocks_0_attentions_0_transformer_blocks_0_attn1"
 #--d_dim 320 --use_position_embedder --position_embedding_layer ${position_embedding_layer} \
@@ -20,8 +20,8 @@ accelerate launch --config_file ../../../gpu_config/gpu_0_config \
  --do_train_check \
  --obj_name "${obj_name}" --prompt "${caption}" \
  --latent_res 64 \
- --trg_layer_list "['up_blocks_1_attentions_2_transformer_blocks_0_attn2',
-                    'up_blocks_2_attentions_2_transformer_blocks_0_attn2',
-                    'up_blocks_3_attentions_2_transformer_blocks_0_attn2',]" \
+ --trg_layer_list "['down_blocks_0_attentions_1_transformer_blocks_0_attn2',
+                    'down_blocks_1_attentions_1_transformer_blocks_0_attn2',
+                    'down_blocks_2_attentions_1_transformer_blocks_0_attn2',]" \
  --threds [0.5] \
- --do_train_check
+ --do_train_check --use_position_embedder --all_positional_embedder
