@@ -1,10 +1,10 @@
 # !/bin/bash
 
 port_number=50003
-bench_mark="MVTec"
-obj_name='transistor'
-caption='transistor'
-file_name="train_vae_20240302"
+bench_mark="Tuft"
+obj_name='teeth_crop'
+caption='teeth'
+file_name="train_vae_reconstruction_nomal_data"
 
 accelerate launch --config_file ../../../gpu_config/gpu_0_config \
  --main_process_port $port_number ../reconstruction_vae.py \
