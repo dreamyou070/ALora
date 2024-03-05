@@ -58,7 +58,7 @@ def main(args):
         json.dump(config_dict, f,  indent='\t')
 
     if args.retrain :
-        vae.load_state_dict(load_file(os.path.join(output_dir, f'vae_models/vae_30.safetensors')))
+        vae.load_state_dict(load_file(os.path.join(output_dir, f'vae_models/vae_40.safetensors')))
 
 
     # get pretrained vae

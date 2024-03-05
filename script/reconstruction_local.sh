@@ -6,7 +6,7 @@ obj_name='teeth_crop'
 caption='teeth'
 layer_name='layer_3'
 sub_folder="up_16_32_64"
-file_name="test_20240305_with_gt_anomal_answer_check_with_pe_cropped_image"
+file_name="only_anomal_pe_cropped_image"
 
 # position_embedding_layer="down_blocks_0_attentions_0_transformer_blocks_0_attn1"
 # --d_dim 320 --use_position_embedder --position_embedding_layer ${position_embedding_layer} \
