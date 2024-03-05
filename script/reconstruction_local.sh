@@ -20,8 +20,8 @@ accelerate launch --config_file ../../../gpu_config/gpu_0_config \
  --do_train_check \
  --obj_name "${obj_name}" --prompt "${caption}" \
  --latent_res 64 \
- --trg_layer_list "['down_blocks_0_attentions_1_transformer_blocks_0_attn2',
-                    'down_blocks_1_attentions_1_transformer_blocks_0_attn2',
-                    'down_blocks_2_attentions_1_transformer_blocks_0_attn2',]" \
+ --trg_layer_list "['up_blocks_1_attentions_1_transformer_blocks_0_attn2',
+                    'up_blocks_2_attentions_1_transformer_blocks_0_attn2',
+                    'up_blocks_3_attentions_1_transformer_blocks_0_attn2',]" \
  --threds [0.5] \
  --do_train_check --use_position_embedder --all_positional_embedder
