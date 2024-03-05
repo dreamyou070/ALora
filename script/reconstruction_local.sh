@@ -2,8 +2,8 @@
 
 port_number=50333
 bench_mark="Tuft"
-obj_name='transistor'
-caption='transistor'
+obj_name='teeth'
+caption='teeth'
 layer_name='layer_3'
 sub_folder="up_16_32_64"
 file_name="test_20240305_with_gt_answer_check"
