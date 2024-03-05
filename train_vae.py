@@ -47,8 +47,8 @@ def main(args):
 
     print(f'\n step 4. model ')
     weight_dtype, save_dtype = prepare_dtype(args)
-    config_dir = os.path.join(r'/home/dreamyou070/AnomalLora_OriginCode/result/MVTec/transistor/vae_train/train_vae_20240302',
-                              'vae_config.json')
+
+    config_dir = os.path.join(args.output_dir, 'vae_config.json')
     with open(config_dir, 'r') as f:
         config_dict = json.load(f)
     vae = AutoencoderKL.from_config(pretrained_model_name_or_path=config_dict)
