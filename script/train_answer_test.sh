@@ -27,7 +27,7 @@ accelerate launch --config_file ../../../gpu_config/gpu_0_1_2_3_config \
  --back_trg_beta 0 \
  --do_object_detection --answer_test \
  --do_map_loss --use_position_embedder \
- --trg_layer_list "['up_blocks_1_attentions_1_transformer_blocks_0_attn2',
-                    'up_blocks_2_attentions_1_transformer_blocks_0_attn2',
-                    'up_blocks_3_attentions_1_transformer_blocks_0_attn2',]" \
+ --trg_layer_list "['up_blocks_1_attentions_2_transformer_blocks_0_attn2',
+                    'up_blocks_2_attentions_2_transformer_blocks_0_attn2',
+                    'up_blocks_3_attentions_2_transformer_blocks_0_attn2',]" \
  --do_attn_loss --attn_loss_weight 1.0 --do_cls_train --normal_weight 1
