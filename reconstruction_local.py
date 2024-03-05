@@ -183,9 +183,9 @@ def main(args):
         # [3] files
         parent, _ = os.path.split(args.network_folder)
         if args.do_train_check :
-            recon_base_folder = os.path.join(parent, 'reconstruction_with_test_data')
+            recon_base_folder = os.path.join(parent, 'reconstruction_with_train_data')
         else :
-            recon_base_folder = os.path.join(parent, 'reconstruction')
+            recon_base_folder = os.path.join(parent, 'reconstruction_with_test_data')
         os.makedirs(recon_base_folder, exist_ok=True)
         lora_base_folder = os.path.join(recon_base_folder, f'lora_epoch_{lora_epoch}')
         os.makedirs(lora_base_folder, exist_ok=True)
