@@ -123,17 +123,16 @@ def main(args):
             image = batch["image"].to(accelerator.device).to(dtype=weight_dtype)
 
             # [1.1] latent space
-            image_latents = vae.encode(image).latent_dist.sample() * args.vae_scale_factor
-            #masked_image_latents = vae.encode(masked_image).latent_dist.sample() * args.vae_scale_factor
-            #input = torch.cat([image_latents, masked_image_latents, mask], dim = 1)
+            image_latents = vae.encode(image).latent_dist.sample() * args.vae_scale_factor # latent to unet
+            reconstruction = vae.decode((image_latents / args.vae_scale_factor)).sample # unet latent to pixel space
 
 
             # --------------------------------------------------------------------------------------------------------- #
             with torch.no_grad() :
                 pretrained_posterior = pretrained_vae.encode(image).latent_dist
                 z_mu_t, z_sigma_t = pretrained_posterior.mean, pretrained_posterior.logvar
-                z_t = pretrained_posterior.sample()  * 0.18215
-                reconstruction_t = pretrained_vae.decode(z).sample
+                z_t = pretrained_posterior.sample() * 0.18215
+                reconstruction_t = pretrained_vae.decode(pretrained_posterior.sample()).sample
 
             # [1] distillation
             latent_matching_loss = l1_loss(image_latents, z_t)
