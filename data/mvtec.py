@@ -373,6 +373,7 @@ class MVTecAnswerTrainDataset(Dataset):
         image_paths, gt_paths = [], []
         folders = os.listdir(self.root_dir)
         for folder in folders :
+            # folder = normal, anormal
             folder_dir = os.path.join(self.root_dir, folder)
             rgb_folder = os.path.join(folder_dir, 'rgb')
             gt_folder = os.path.join(folder_dir, 'gt')
