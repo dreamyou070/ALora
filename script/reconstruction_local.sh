@@ -6,11 +6,11 @@ obj_name='teeth'
 caption='teeth'
 layer_name='layer_3'
 sub_folder="up_16_32_64"
-file_name="test_20240305_with_gt_answer_check"
+file_name="test_20240305_with_gt_answer_check_without_pe"
 
 # position_embedding_layer="down_blocks_0_attentions_0_transformer_blocks_0_attn1"
 #--d_dim 320 --use_position_embedder --position_embedding_layer ${position_embedding_layer} \
-#--use_position_embedder --all_self_cross_positional_embedder \
+# --use_position_embedder --all_positional_embedder \
 
 accelerate launch --config_file ../../../gpu_config/gpu_0_config \
  --main_process_port $port_number ../reconstruction_local.py \
@@ -24,5 +24,4 @@ accelerate launch --config_file ../../../gpu_config/gpu_0_config \
                     'up_blocks_2_attentions_2_transformer_blocks_0_attn2',
                     'up_blocks_3_attentions_2_transformer_blocks_0_attn2',]" \
  --threds [0.5] \
- --use_position_embedder \
- --all_positional_embedder --do_train_check
+ --do_train_check
