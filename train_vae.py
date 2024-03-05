@@ -69,7 +69,7 @@ def main(args):
 
 
     print(f'\n (4.2) discriminator')
-    """
+
     discriminator = PatchDiscriminator(spatial_dims=2,
                                        num_layers_d=3,
                                        num_channels=64,
@@ -81,13 +81,13 @@ def main(args):
                                        bias=False,
                                        padding=1,)
 
-    """
+
     print(f'\n step 5. optimizer')
     args.max_train_steps = len(train_dataloader) * args.max_train_epochs
     trainable_params = []
     trainable_params.append({"params": vae.parameters(), "lr": args.learning_rate})
     optimizer_name, optimizer_args, optimizer = get_optimizer(args, trainable_params)
-    #optimizer_d = torch.optim.Adam(params=discriminator.parameters(), lr=5e-4)
+    optimizer_d = torch.optim.Adam(params=discriminator.parameters(), lr=5e-4)
 
     print(f'\n step 6. lr')
     lr_scheduler = get_scheduler_fix(args, optimizer, accelerator.num_processes)
@@ -103,9 +103,10 @@ def main(args):
 
 
     print(f'\n step 8. model to device')
-    vae, optimizer, train_dataloader, lr_scheduler = accelerator.prepare(vae, optimizer, train_dataloader, lr_scheduler)
+    discriminator, vae, optimizer, optimizer_d, train_dataloader, lr_scheduler = accelerator.prepare(discriminator, vae, optimizer,
+                                                                                                     optimizer_d, train_dataloader, lr_scheduler)
     vae = transform_models_if_DDP([vae])[0]
-    #discriminator = transform_models_if_DDP([discriminator])[0]
+    discriminator = transform_models_if_DDP([discriminator])[0]
 
     print(f'\n step 9. Training !')
     progress_bar = tqdm(range(args.max_train_steps), smoothing=0,
@@ -121,25 +122,27 @@ def main(args):
 
             # x = [1,4,512,512]
             image = batch["image"].to(accelerator.device).to(dtype=weight_dtype)
+            posterior = vae.encode(image).latent_dist
+            z_mu, z_sigma = posterior.mean, posterior.logvar
+            z = posterior.sample()
+            reconstruction = vae.decode(z).sample
 
             # [1.1] latent space
-            image_latents = vae.encode(image).latent_dist.sample() * args.vae_scale_factor # latent to unet
-            reconstruction = vae.decode((image_latents / args.vae_scale_factor)).sample # unet latent to pixel space
+            #image_latents = vae.encode(image).latent_dist.sample() * args.vae_scale_factor # latent to unet
+            #reconstruction = vae.decode((image_latents / args.vae_scale_factor)).sample # unet latent to pixel space
 
 
             # --------------------------------------------------------------------------------------------------------- #
-            with torch.no_grad() :
-                pretrained_posterior = pretrained_vae.encode(image).latent_dist
-                z_mu_t, z_sigma_t = pretrained_posterior.mean, pretrained_posterior.logvar
-                z_t = pretrained_posterior.sample() * 0.18215
-                reconstruction_t = pretrained_vae.decode(pretrained_posterior.sample()).sample
+            #with torch.no_grad() :
+            #    pretrained_posterior = pretrained_vae.encode(image).latent_dist
+            #    z_mu_t, z_sigma_t = pretrained_posterior.mean, pretrained_posterior.logvar
+            #    z_t = pretrained_posterior.sample() * 0.18215
+            #    reconstruction_t = pretrained_vae.decode((z_t/0.18215)).sample
 
             # [1] distillation
-            latent_matching_loss = l1_loss(image_latents, z_t)
-            recon_matching_loss = l1_loss(reconstruction, reconstruction_t)
-            matching_loss = latent_matching_loss + recon_matching_loss
-
-            """
+            #latent_matching_loss = l1_loss(image_latents, z_t)
+            #recon_matching_loss = l1_loss(reconstruction, reconstruction_t)
+            #matching_loss = latent_matching_loss + recon_matching_loss
 
 
             # [3] discriminator
@@ -153,30 +156,31 @@ def main(args):
             kl_loss = 0.5 * torch.sum(z_mu.pow(2) + z_sigma.pow(2) - torch.log(z_sigma.pow(2)) - 1, dim=[1, 2, 3])
             kl_loss = torch.sum(kl_loss) / kl_loss.shape[0]
             # [2.3] perceptual loss
-            p_loss = perceptual_loss(reconstruction.float(), images.float())
+            p_loss = perceptual_loss(reconstruction.float(), image.float())
             # [2.4] generator loss
             generator_loss = adv_loss(logits_fake, target_is_real=True, for_discriminator=False)
             loss_g = recons_loss + kl_weight * kl_loss + perceptual_weight * p_loss + adv_weight * generator_loss
+
             # ------------------------------------------------------------------------------------------------------- #
             optimizer_d.zero_grad(set_to_none=True)
             logits_fake = discriminator(reconstruction.contiguous().detach())[-1]
             loss_d_fake = adv_loss(logits_fake, target_is_real=False, for_discriminator=True)
-            logits_real = discriminator(images.contiguous().detach())[-1]
+            logits_real = discriminator(image.contiguous().detach())[-1]
             loss_d_real = adv_loss(logits_real, target_is_real=True, for_discriminator=True)
             discriminator_loss = (loss_d_fake + loss_d_real) * 0.5
             loss_d = adv_weight * discriminator_loss
+
             # ------------------------------------------------------------------------------------------------------- #
-            """
-            total_loss = matching_loss
+            total_loss = loss_g + loss_d
             accelerator.backward(total_loss)
             optimizer.step()
-            #optimizer_d.step()
+            optimizer_d.step()
             # ------------------------------------------------------------------------------------------------------- #
             lr_scheduler.step()
             #epoch_loss += recons_loss.item()
             #gen_epoch_loss += generator_loss.item()
             #disc_epoch_loss += discriminator_loss.item()
-            #overall_loss = loss_g + loss_d
+            overall_loss = loss_g + loss_d
             epoch_loss += total_loss.item()
             if is_main_process:
                 #progress_bar.set_postfix({"recons_loss": epoch_loss / (step + 1),
