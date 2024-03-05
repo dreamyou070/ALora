@@ -1,17 +1,17 @@
 # !/bin/bash
 
-port_number=52215
+port_number=50123
 bench_mark="Tuft"
-obj_name='teeth'
+obj_name='teeth_crop'
 trigger_word='teeth'
 layer_name='layer_3'
-sub_folder="down_16_32_64"
-file_name="test_20240305_with_gt_answer_check_with_pe"
+sub_folder="up_16_32_64"
+file_name="test_20240305_with_gt_answer_check_with_pe_cropped_image"
 
 anomal_source_path="../../../MyData/anomal_source"
 #--output_dir "../../result/${bench_mark}/${obj_name}/${layer_name}/${sub_folder}/${file_name}" --do_anomal_sample
 # --use_position_embedder \
-accelerate launch --config_file ../../../gpu_config/gpu_0_1_2_3_4_5_config \
+accelerate launch --config_file ../../../gpu_config/gpu_0_1_2_3_config \
  --main_process_port $port_number ../train_answer_test.py --log_with wandb \
  --output_dir "../../result/${bench_mark}/${layer_name}/${sub_folder}/${file_name}" \
  --train_unet --train_text_encoder --start_epoch 0 --max_train_epochs 60 \

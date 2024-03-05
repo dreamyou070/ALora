@@ -1,10 +1,11 @@
 import os
 
-test_folder = 'turft/test'
+test_folder = 'turft/raw/cropped_test'
+os.makedirs(test_folder, exist_ok = True)
 
-
-train_folder = 'turft/train'
+train_folder = 'turft/raw/cropped_train'
 folders = os.listdir(train_folder)
+
 for folder in folders :
     folder_dir = os.path.join(train_folder, folder)
     test_folder_dir = os.path.join(test_folder, folder)
