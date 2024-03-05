@@ -182,8 +182,8 @@ def main(args):
 
         # [3] files
         parent, _ = os.path.split(args.network_folder)
-        if args.object_crop :
-            recon_base_folder = os.path.join(parent, 'reconstruction_with_crop')
+        if args.do_train_check :
+            recon_base_folder = os.path.join(parent, 'reconstruction_with_training_data')
         else :
             recon_base_folder = os.path.join(parent, 'reconstruction')
         os.makedirs(recon_base_folder, exist_ok=True)
@@ -205,6 +205,9 @@ def main(args):
 
             # [1] test path
             test_img_folder = args.data_path
+            if args.do_train_check :
+                parent, test = os.path.split(args.data_path)
+                test_img_folder = os.path.join(parent, 'train')
             parent, test_folder = os.path.split(test_img_folder)
 
             anomal_folders = os.listdir(test_img_folder)
@@ -365,6 +368,7 @@ if __name__ == '__main__':
     parser.add_argument("--patch_positional_self_embedder", action='store_true')
     parser.add_argument("--all_self_cross_positional_embedder", action='store_true')
     parser.add_argument("--use_global_conv", action='store_true')
+    parser.add_argument("--do_train_check", action='store_true')
     args = parser.parse_args()
     passing_argument(args)
     unet_passing_argument(args)
