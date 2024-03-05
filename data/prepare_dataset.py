@@ -18,11 +18,13 @@ def call_dataset(args) :
         root_dir = os.path.join(args.data_path, f'{args.obj_name}/test')
 
         if args.trigger_word == 'teeth' :
-            root_dir = os.path.join(args.data_path, f'{args.obj_name}/train') # training data
+            root_dir = os.path.join(args.data_path, f'{args.obj_name}/train') # training data #################################
 
     if args.trigger_word == 'transistor' :
         from data.mvtec_transistor import MVTecDRAEMTrainDataset as DatasetTransistor
         data_class = DatasetTransistor
+
+    # ../../../MyData/anomaly_detection/Tuft/teeth_crop_onlyanomal/train
 
     print(f'data_class = {data_class}')
     print(f'root_dir = {root_dir}')

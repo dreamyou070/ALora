@@ -2,15 +2,15 @@
 
 port_number=50055
 bench_mark="MVTec"
-obj_name='transistor'
-trigger_word='transistor'
+obj_name='teeth_crop'
+trigger_word='teeth'
 layer_name='layer_3'
-sub_folder="down_16_32_64"
-file_name="test_20240303_with_anomal_without_background"
+sub_folder="up_16_32_64"
+file_name="normal_anomal_pe_cropped_image"
 
 anomal_source_path="../../../MyData/anomal_source"
 
-accelerate launch --config_file ../../../gpu_config/gpu_0_1_2_config \
+accelerate launch --config_file ../../../gpu_config/gpu_0_1_2_3_4_5_config \
  --main_process_port $port_number ../train_local.py --log_with wandb \
  --output_dir "../../result/${bench_mark}/${obj_name}/${layer_name}/${sub_folder}/${file_name}" \
  --train_unet --train_text_encoder --start_epoch 0 --max_train_epochs 50 \
