@@ -2,15 +2,15 @@
 
 port_number=59889
 bench_mark="Tuft"
-obj_name='teeth_crop'
+obj_name='teeth_crop_onlyanormal'
 trigger_word='teeth'
 layer_name='layer_3'
 sub_folder="up_16_32_64"
-file_name="normal_anomal_pe_cropped_image"
+file_name="pretrained_vae_anomal_data_with_pe_second_try_origin_code"
 
 anomal_source_path="../../../MyData/anomal_source"
 #--output_dir "../../result/${bench_mark}/${obj_name}/${layer_name}/${sub_folder}/${file_name}" --do_anomal_sample
-# --use_position_embedder \
+
 accelerate launch --config_file ../../../gpu_config/gpu_0_1_2_3_4_5_config \
  --main_process_port $port_number ../train_answer_test.py --log_with wandb \
  --output_dir "../../result/${bench_mark}/${layer_name}/${sub_folder}/${file_name}" \
