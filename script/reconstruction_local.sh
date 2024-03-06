@@ -2,7 +2,7 @@
 
 port_number=50333
 bench_mark="Tuft"
-obj_name='teeth_crop'
+obj_name='teeth_crop_onlyanormal'
 caption='teeth'
 layer_name='layer_3'
 sub_folder="up_16_32_64"
