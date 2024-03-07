@@ -17,7 +17,6 @@ accelerate launch --config_file ../../../gpu_config/gpu_0_config \
  --pretrained_model_name_or_path ../../../pretrained_stable_diffusion/stable-diffusion-v1-5/v1-5-pruned.safetensors \
  --network_dim 64 --network_alpha 4 --network_folder "../../result/${bench_mark}/${layer_name}/${sub_folder}/${file_name}/models" \
  --data_path "../../../MyData/anomaly_detection/${bench_mark}/${obj_name}/test" \
- --do_train_check \
  --obj_name "${obj_name}" --prompt "${caption}" \
  --latent_res 64 \
  --trg_layer_list "['up_blocks_1_attentions_2_transformer_blocks_0_attn2',
