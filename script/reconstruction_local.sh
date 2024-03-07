@@ -6,7 +6,7 @@ obj_name='teeth_crop_onlyanormal'
 caption='teeth'
 layer_name='layer_3'
 sub_folder="up_16_32_64"
-file_name="pretrained_vae_anomal_data_with_pe_second_try_origin_code"
+file_name="pretrained_vae_anomal_data_with_validating_answer"
 
 # position_embedding_layer="down_blocks_0_attentions_0_transformer_blocks_0_attn1"
 # --d_dim 320 --use_position_embedder --position_embedding_layer ${position_embedding_layer} \
