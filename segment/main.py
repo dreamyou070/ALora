@@ -21,27 +21,22 @@ def main(args):
     cats = os.listdir(base_folder)
 
     for cat in cats:
-        if cat == args.trg_cat:
+        cat_dir = os.path.join(base_folder, f'{cat}')
+        normalities = os.listdir(cat_dir)
+        for normality in normalities :
+            normality_dir = os.path.join(cat_dir, normality)
+            xray_folder = os.path.join(normality_dir, 'xray')
 
-            cat_dir = os.path.join(base_folder, f'{cat}')
-            train_good_dir = os.path.join(cat_dir, 'train/good')
-
-            train_rgb_dir = os.path.join(train_good_dir, 'jpg_object')
-            train_object_mask_dir = os.path.join(train_good_dir, 'object_mask_test')
-            os.makedirs(train_object_mask_dir, exist_ok=True)
-
-            dir1 = os.path.join(train_object_mask_dir, 'mask_1')
-            dir2 = os.path.join(train_object_mask_dir, 'mask_2')
-            dir3 = os.path.join(train_object_mask_dir, 'mask_3')
+            dir1 = os.path.join(normality_dir, 'mask_1')
+            dir2 = os.path.join(normality_dir, 'mask_2')
+            dir3 = os.path.join(normality_dir, 'mask_3')
             os.makedirs(dir1, exist_ok=True)
             os.makedirs(dir2, exist_ok=True)
             os.makedirs(dir3, exist_ok=True)
 
-
-            images = os.listdir(train_rgb_dir)
-            for image in images:
-
-                img_dir = os.path.join(train_rgb_dir, image)
+            images = os.listdir(xray_folder)
+            for img in images :
+                img_dir = os.path.join(xray_folder,img)
                 pil_img = Image.open(img_dir)
                 org_h, org_w = pil_img.size
 
@@ -52,18 +47,10 @@ def main(args):
 
                 # [2]
                 h, w, c = np_img.shape
-                start_h, end_h = int(h / 5), int(h * 4 / 5)
-                start_w, end_w = int(w / 5), int(w * 4 / 5)
-
-                #input_point = np.array([[0, 0],])
-                #input_label = np.array([1,1]) # 1 indicates a foreground point
+                input_point = np.array([[0, 0], ])
+                # [int(h/2),int(w/2)]])
                 input_label = np.array([1])  # 1 indicates a foreground point
-
-                #masks, scores, logits = predictor.predict(point_coords=input_point,
-                #                                          point_labels=input_label,
-                #                                          multimask_output=True, )
-
-                masks, scores, logits = predictor.predict(box = np.array([start_h, start_w, end_h, end_w]),
+                masks, scores, logits = predictor.predict(point_coords=input_point,
                                                           point_labels=input_label,
                                                           multimask_output=True, )
                 for i, (mask, score) in enumerate(zip(masks, scores)):
@@ -71,13 +58,13 @@ def main(args):
                     np_mask = np.where(np_mask == 1, 0, 1) * 255
                     sam_result_pil = Image.fromarray(np_mask.astype(np.uint8))
                     sam_result_pil = sam_result_pil.resize((org_h, org_w))
-                    save_dir = os.path.join(train_object_mask_dir, f'mask_{i+1}/{image}')
+                    save_dir = os.path.join(normality_dir, f'mask_{i+1}/{img}')
                     sam_result_pil.save(save_dir)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--base_folder', type=str,
-                        default=r'/home/dreamyou070/MyData/anomaly_detection/MVTec')
+                        default=r'/home/dreamyou070/MyData/anomaly_detection/NFBS_Dataset_SY')
     parser.add_argument('--trg_cat', type=str, default='transistor')
     args = parser.parse_args()
     main(args)
